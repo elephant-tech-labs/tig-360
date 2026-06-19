@@ -10,7 +10,6 @@ import {
   FileCheck2,
   FileText,
   Grid2X2,
-  Home,
   Image as ImageIcon,
   Mail,
   MapPin,
