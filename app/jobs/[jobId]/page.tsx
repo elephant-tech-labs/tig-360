@@ -1,0 +1,93 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import {
+  ArrowLeft,
+  CalendarDays,
+  ClipboardCheck,
+  FileText,
+  MapPin,
+  Plus,
+  Users,
+} from "lucide-react";
+import { AppShell } from "@/components/app-shell";
+import { getCurrentContext } from "@/lib/current-organization";
+
+type JobPageProps = {
+  params: Promise<{ jobId: string }>;
+};
+
+export default async function JobPage({ params }: JobPageProps) {
+  const { jobId } = await params;
+  const { supabase, organization, userName } = await getCurrentContext();
+  const { data: job, error } = await supabase
+    .from("inspection_jobs")
+    .select(`
+      id,
+      job_number,
+      status,
+      report_type,
+      inspection_at,
+      created_at,
+      properties(street_line_1, street_line_2, city, region, postal_code, property_type),
+      job_parties(id, role),
+      findings(id),
+      assets(id, kind)
+    `)
+    .eq("id", jobId)
+    .single();
+
+  if (error || !job) notFound();
+  const property = Array.isArray(job.properties) ? job.properties[0] : job.properties;
+
+  return (
+    <AppShell organizationName={organization.name} userName={userName}>
+      <div className="job-detail-header">
+        <div>
+          <Link className="back-link" href="/jobs"><ArrowLeft size={16} /> All jobs</Link>
+          <p className="eyebrow">Inspection job / #{job.job_number}</p>
+          <h1>{property?.street_line_1}</h1>
+          <p><MapPin size={15} /> {property?.city}, {property?.region} {property?.postal_code}</p>
+        </div>
+        <div className="job-actions">
+          <button className="secondary-button"><FileText size={17} /> Preview report</button>
+          <button className="primary-button"><Plus size={17} /> Add finding</button>
+        </div>
+      </div>
+
+      <section className="job-overview-grid">
+        <div className="overview-tile">
+          <ClipboardCheck size={20} />
+          <span>Status</span>
+          <strong>{job.status.replaceAll("_", " ")}</strong>
+        </div>
+        <div className="overview-tile">
+          <CalendarDays size={20} />
+          <span>Inspection</span>
+          <strong>{job.inspection_at ? new Date(job.inspection_at).toLocaleString() : "Not scheduled"}</strong>
+        </div>
+        <div className="overview-tile">
+          <Users size={20} />
+          <span>Contacts</span>
+          <strong>{job.job_parties.length}</strong>
+        </div>
+        <div className="overview-tile">
+          <FileText size={20} />
+          <span>Findings</span>
+          <strong>{job.findings.length}</strong>
+        </div>
+      </section>
+
+      <section className="workspace-placeholder">
+        <div>
+          <p className="eyebrow">Next workflow step</p>
+          <h2>Complete front-page details and assign contacts</h2>
+          <p>
+            This job is now stored in Supabase. The next slice will add reusable contact
+            selection, party roles, and inspection authoring.
+          </p>
+        </div>
+        <button className="secondary-button"><Users size={17} /> Manage contacts</button>
+      </section>
+    </AppShell>
+  );
+}
