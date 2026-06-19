@@ -4,33 +4,33 @@
 
 Start as a modular monolith with three deployable concerns:
 
-1. Web application: Next.js App Router, React, TypeScript.
-2. Background worker: document generation, delivery, CRM synchronization, imports, and provider retries.
-3. PostgreSQL database and private object storage.
+1. Web application: Next.js App Router, React, TypeScript, and Supabase Auth.
+2. Background worker: document generation, delivery, CRM synchronization, WorkDrive transfers, imports, and provider retries.
+3. Supabase PostgreSQL plus Zoho WorkDrive file storage.
 
 The web app and worker share domain packages and database types. Long-running work is persisted as jobs and never depends on an open browser request.
 
 ```mermaid
 flowchart LR
   U[Inspector or Office User] --> W[Next.js Web App]
-  W --> DB[(PostgreSQL)]
-  W --> S[Private Object Storage]
+  W --> AUTH[Supabase Auth]
+  W --> DB[(Supabase PostgreSQL)]
   W --> Q[Durable Job Queue]
+  W --> WD[WorkDrive Storage Adapter]
   Q --> WK[Background Worker]
   WK --> PDF[PDF Renderer]
   WK --> CRM[Zoho CRM Adapter]
   WK --> SIGN[Zoho Sign Adapter]
   WK --> MAIL[Email Adapter]
-  WK --> WD[Optional WorkDrive Archive]
+  WK --> WD
   WK --> DB
-  WK --> S
 ```
 
 ## Domain Modules
 
 ### Identity
 
-Organizations, users, memberships, roles, permissions, and sessions.
+Organizations, users, memberships, roles, permissions, Supabase sessions, and Row Level Security.
 
 ### CRM Directory
 
@@ -50,11 +50,11 @@ Template version, inspection sections, observations, findings, recommendations, 
 
 ### Evidence
 
-Assets, image metadata, upload state, evidence links, annotations, diagram source JSON, diagram render, and version history.
+Assets, WorkDrive identifiers, image metadata, upload state, evidence links, annotations, diagram source JSON, diagram render, and version history.
 
 ### Documents
 
-Document definitions, generation requests, immutable versions, templates, render status, checksums, and stored artifacts.
+Document definitions, generation requests, immutable versions, templates, render status, checksums, and WorkDrive artifacts.
 
 ### Communications
 
@@ -98,15 +98,29 @@ erDiagram
 
 ## File Lifecycle
 
-1. Browser requests a short-lived signed upload URL.
-2. Browser uploads directly to private object storage.
-3. App records an asset in `uploaded` state.
-4. Worker validates content type, dimensions, checksum, and malware policy.
-5. Worker creates thumbnails/optimized variants and marks the asset ready.
-6. Documents reference stable asset IDs, not public URLs.
-7. PDF rendering receives short-lived internal URLs or streamed bytes.
+1. The browser sends a file to a server-side upload route.
+2. The route validates organization access, filename, size, and content type.
+3. The WorkDrive adapter uploads the bytes into the appropriate job folder.
+4. The application stores a stable asset record containing the WorkDrive file ID and metadata.
+5. A worker performs any additional validation and creates image variants where required.
+6. Documents reference stable application asset IDs, never permanent public URLs.
+7. Preview, download, and PDF rendering resolve private file access through the provider adapter.
 
-WorkDrive may receive an asynchronous archive copy after an asset or final document is ready. An archive failure does not invalidate the original save.
+A provider outage can delay uploads or document rendering, but it cannot erase already-saved findings, contacts, or inspection text in PostgreSQL.
+
+## Supabase Security Model
+
+Every operational table carries an `organization_id`. Row Level Security is enabled on all public tables. Authenticated users receive access only through an active organization membership.
+
+Initial roles:
+
+- administrator;
+- manager;
+- office coordinator;
+- inspector;
+- treatment coordinator.
+
+The first organization is created through a security-definer onboarding function that also assigns the creating user as administrator. Secret/service-role credentials are never exposed to browser code.
 
 ## Zoho CRM Synchronization
 
@@ -116,17 +130,16 @@ Each synchronized record stores:
 
 - local entity ID;
 - Zoho module and record ID;
-- last local revision;
-- last remote modified time;
 - synchronization status;
 - last successful sync time;
-- last error and retry count.
+- last error;
+- provider metadata.
 
 Outbound changes use idempotency keys. Inbound updates arrive through notifications/webhooks where available, with scheduled reconciliation as a safety net. Conflict rules are explicit per field; neither system silently overwrites the other.
 
 ## Email And Communication Boundary
 
-The application should not assume that sending and CRM logging are the same operation.
+The application does not assume that sending and CRM logging are the same operation.
 
 A communication provider sends the message and returns a provider message ID. A separate CRM activity adapter records or links the communication in Zoho CRM. This permits one of these paths after a short integration spike:
 
@@ -149,16 +162,16 @@ The final choice depends on deliverability, attachment limits, CRM visibility, a
 
 ## Security Baseline
 
-- organization-scoped authorization on every query;
+- organization-scoped Row Level Security on every operational table;
 - least-privilege roles and explicit sensitive actions;
-- private storage with short-lived signed URLs;
+- private WorkDrive files resolved through server-side access;
 - OAuth tokens encrypted at rest;
 - secrets only in deployment secret management;
 - file validation before downstream rendering;
 - immutable audit records for sends, approvals, signatures, and exports;
 - backups and restore tests for database and final documents.
 
-## Suggested Repository Shape
+## Repository Shape
 
 ```text
 app/                    Next.js routes and layouts
@@ -167,7 +180,7 @@ modules/                domain modules and application services
 integrations/           Zoho, storage, email, signing, and AI adapters
 workers/                durable job handlers
 lib/                    shared infrastructure
-prisma/                 database schema and migrations
+supabase/migrations/    versioned PostgreSQL migrations
 docs/architecture/      product and system blueprints
 docs/decisions/         architecture decision records
 docs/zoho/              audited Creator behavior and migration notes
@@ -175,7 +188,7 @@ docs/zoho/              audited Creator behavior and migration notes
 
 ## Delivery Sequence
 
-1. Foundation: repository, design system, auth boundary, database schema, object storage adapter, and job shell.
+1. Foundation: repository, design system, Supabase auth, database schema, WorkDrive adapter, and job shell.
 2. Inspection authoring: job parties, evidence, diagram, findings, and readiness.
 3. Documents: report snapshots, PDF generation, versions, and preview.
 4. Send Center: recipient selection, email delivery, delivery history, and CRM activity sync.
