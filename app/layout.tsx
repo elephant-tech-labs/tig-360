@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import "./globals.css";
+import "./workflows.css";
 
 const inter = Inter({
   variable: "--font-sans",
