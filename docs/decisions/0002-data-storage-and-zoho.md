@@ -1,70 +1,80 @@
-# ADR 0002: PostgreSQL, Object Storage, and Zoho Boundaries
+# ADR 0002: Supabase, WorkDrive, and Zoho Boundaries
 
-Status: Proposed
+Status: Accepted
+
+Decision date: June 19, 2026
 
 ## Decision Summary
 
-- PostgreSQL is the source of truth for inspection operations.
-- Private S3-compatible object storage is the source of truth for photos, diagrams, generated PDFs, contracts, and signed documents.
+- Supabase PostgreSQL is the source of truth for inspection operations.
+- Supabase Auth provides application identity; PostgreSQL Row Level Security enforces organization isolation.
+- Zoho WorkDrive is the initial primary file provider for photos, diagrams, generated PDFs, contracts, and signed documents.
+- PostgreSQL stores durable WorkDrive file IDs and metadata, not only public URLs.
 - Zoho CRM remains the customer/relationship and communication synchronization platform.
 - Zoho Sign may remain the initial signature provider.
-- Zoho WorkDrive is a migration source and optional archive/mirror, not the primary runtime file store.
+- All providers remain behind adapters so storage, email, signing, and CRM behavior can change independently.
 
-## Why Not WorkDrive As Primary Storage
+## Why Supabase
 
-WorkDrive is technically usable through its OAuth API, but making it primary would preserve several constraints already experienced in Creator:
+The application needs strongly relational data for reusable contacts, companies, properties, job roles, findings, evidence links, document versions, recipients, and audit history. Supabase provides managed PostgreSQL, authentication, APIs, and a development dashboard within one low-cost platform.
 
-- provider API quotas and latency affect core saves;
-- public/PDF-safe links require additional link lifecycle logic;
-- file metadata and application records can drift;
-- local development and automated testing become provider-dependent;
-- changing storage later becomes difficult.
+The database stores structured records and file metadata. Large photos and documents are not stored in PostgreSQL, keeping database usage small.
 
-A `StorageProvider` interface can still support an optional WorkDrive archive adapter.
+Project selected for development:
 
-## Low-Cost Starting Options
+- project name: `tig360`;
+- project reference: `jqqzemvyvjujvpgvongw`;
+- region: US West;
+- initial core schema applied: June 19, 2026.
 
-### Database
+## Why WorkDrive Initially
 
-Neon is a reasonable development option. Its current free plan advertises 0.5 GB storage per project and scale-to-zero compute: https://neon.com/pricing
+Trident already uses and pays for Zoho services. WorkDrive can therefore provide substantially more included file capacity than creating another paid storage account.
 
-Another valid option is Supabase if integrated auth/storage is preferred. Its current free Storage quota is 1 GB: https://supabase.com/docs/guides/platform/manage-your-usage/storage-size
+The application must not store only a WorkDrive URL. Each asset stores:
 
-### File Storage
+- `storage_provider`;
+- durable `provider_file_id`;
+- optional `provider_folder_id`;
+- original filename and content type;
+- byte size and checksum where available;
+- processing status and metadata.
 
-Cloudflare R2 is the preferred low-cost evidence store for the prototype. Its current free tier includes 10 GB-month of Standard storage, one million Class A operations, ten million Class B operations, and free direct egress: https://developers.cloudflare.com/r2/pricing/
+View or download URLs are generated when needed. Public links are not durable file identity and files remain private by default.
 
-These free tiers are suitable for development and controlled pilots, not a promise of permanently free production infrastructure.
+## WorkDrive Tradeoffs
+
+- uploads and downloads depend on Zoho API availability and quotas;
+- temporary link creation adds provider calls;
+- PDF generation must retrieve files through the provider adapter;
+- automated tests require a fake storage adapter;
+- a future migration must copy file bytes while preserving application asset IDs.
+
+These tradeoffs are accepted for the initial cost-sensitive release. A `StorageProvider` interface preserves a future move to Cloudflare R2, Supabase Storage, or another S3-compatible provider.
 
 ## Zoho CRM Boundary
 
 The custom application owns:
 
-- inspection jobs;
-- job contacts and roles;
-- inspection evidence;
-- findings;
-- document versions;
+- inspection jobs and appointments;
+- job contacts and role assignments;
+- inspection evidence and findings;
+- immutable document versions;
 - delivery records;
-- contract/treatment workflow state.
+- contract and treatment workflow state.
 
 Zoho CRM owns or mirrors:
 
 - canonical CRM Contacts and Accounts where applicable;
-- relationship/lifecycle fields;
+- relationship and lifecycle fields;
 - customer-facing communication activity desired by the business.
 
-Synchronization must use stable external IDs, idempotent jobs, conflict rules, and an audit log. Zoho CRM V8 provides CRUD, bulk, notification, query, and composite APIs: https://www.zoho.com/crm/developer/docs/api/v8/
+Synchronization uses stable external IDs, idempotent jobs, conflict rules, provider references, and an audit log.
 
-## Accounts Needed Later
+## Credentials
 
-No provider account is required to review the architecture or build the UI shell.
-
-Before end-to-end data work, create:
-
-1. one PostgreSQL project, likely Neon or Supabase;
-2. one Cloudflare account and private R2 bucket;
-3. a Zoho OAuth client/connection suitable for CRM API access;
-4. later, credentials for Zoho Sign and the selected email path.
-
-Credentials must be stored only in deployment secrets and local `.env.local`, never committed.
+- the Supabase publishable key may be used in browser code with Row Level Security enabled;
+- database passwords, connection strings, secret/service-role keys, and Zoho OAuth credentials remain server-only;
+- secrets belong in `.env.local` and deployment secret management, never GitHub;
+- the transaction pooler is used for serverless runtime connections;
+- the session pooler is used for migrations when direct IPv6 connectivity is unavailable.
