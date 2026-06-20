@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   FileText,
   MapPin,
+  Pencil,
   Plus,
   Users,
 } from "lucide-react";
@@ -14,10 +15,12 @@ import { getCurrentContext } from "@/lib/current-organization";
 
 type JobPageProps = {
   params: Promise<{ jobId: string }>;
+  searchParams: Promise<{ updated?: string }>;
 };
 
-export default async function JobPage({ params }: JobPageProps) {
+export default async function JobPage({ params, searchParams }: JobPageProps) {
   const { jobId } = await params;
+  const messages = await searchParams;
   const { supabase, organization, userName } = await getCurrentContext();
   const { data: job, error } = await supabase
     .from("inspection_jobs")
@@ -27,8 +30,17 @@ export default async function JobPage({ params }: JobPageProps) {
       status,
       report_type,
       inspection_at,
+      prior_job_id,
+      internal_notes,
       created_at,
       properties(street_line_1, street_line_2, city, region, postal_code, property_type),
+      prior_job:inspection_jobs!prior_job_id(
+        id,
+        job_number,
+        report_type,
+        inspection_at,
+        properties(street_line_1, city, region, postal_code)
+      ),
       job_parties(
         id,
         role,
@@ -54,10 +66,17 @@ export default async function JobPage({ params }: JobPageProps) {
           <p><MapPin size={15} /> {property?.city}, {property?.region} {property?.postal_code}</p>
         </div>
         <div className="job-actions">
+          <Link className="secondary-button" href={`/jobs/${jobId}/edit`}>
+            <Pencil size={16} /> Edit job
+          </Link>
           <button className="secondary-button"><FileText size={17} /> Preview report</button>
           <button className="primary-button"><Plus size={17} /> Add finding</button>
         </div>
       </div>
+
+      {messages.updated ? (
+        <div className="job-page-notice form-alert success">Job details updated.</div>
+      ) : null}
 
       <section className="job-overview-grid">
         <div className="overview-tile">
@@ -81,6 +100,32 @@ export default async function JobPage({ params }: JobPageProps) {
           <strong>{job.findings.length}</strong>
         </div>
       </section>
+
+      {job.prior_job_id ? (() => {
+        const prior = Array.isArray(job.prior_job) ? job.prior_job[0] : job.prior_job;
+        const priorProperty = prior
+          ? Array.isArray(prior.properties) ? prior.properties[0] : prior.properties
+          : null;
+        return prior ? (
+          <section className="related-job-band">
+            <div>
+              <p className="eyebrow">Related prior inspection</p>
+              <h2>Job #{prior.job_number}</h2>
+              <span>
+                {prior.report_type.replaceAll("_", " ")} ·{" "}
+                {prior.inspection_at
+                  ? new Date(prior.inspection_at).toLocaleDateString()
+                  : "Date not scheduled"}
+              </span>
+              <small>
+                {priorProperty?.street_line_1}, {priorProperty?.city}, {priorProperty?.region}{" "}
+                {priorProperty?.postal_code}
+              </small>
+            </div>
+            <Link className="secondary-button" href={`/jobs/${prior.id}`}>Open prior job</Link>
+          </section>
+        ) : null;
+      })() : null}
 
       <section className="job-party-summary">
         <div className="section-heading">

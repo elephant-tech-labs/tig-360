@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, ClipboardPlus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { PendingSubmitButton } from "@/components/pending-submit-button";
+import {
+  InspectionJobForm,
+  type PriorInspectionOption,
+} from "@/components/inspection-job-form";
 import { getCurrentContext } from "@/lib/current-organization";
 import { createInspectionJob } from "../actions";
 
@@ -10,8 +13,39 @@ type NewJobPageProps = {
 };
 
 export default async function NewJobPage({ searchParams }: NewJobPageProps) {
-  const { organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName } = await getCurrentContext();
   const params = await searchParams;
+  const { data: previousJobs, error } = await supabase
+    .from("inspection_jobs")
+    .select(`
+      id,
+      job_number,
+      report_type,
+      status,
+      inspection_at,
+      properties(street_line_1, street_line_2, city, region, postal_code, property_type)
+    `)
+    .eq("organization_id", organization.id)
+    .order("job_number", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const priorInspections: PriorInspectionOption[] = (previousJobs ?? []).flatMap((job) => {
+    const property = Array.isArray(job.properties) ? job.properties[0] : job.properties;
+    if (!property) return [];
+    return [{
+      id: job.id,
+      jobNumber: job.job_number,
+      reportType: job.report_type,
+      status: job.status,
+      inspectionAt: job.inspection_at,
+      streetLine1: property.street_line_1,
+      streetLine2: property.street_line_2,
+      city: property.city,
+      region: property.region,
+      postalCode: property.postal_code,
+      propertyType: property.property_type,
+    }];
+  });
 
   return (
     <AppShell organizationName={organization.name} userName={userName}>
@@ -28,73 +62,14 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
 
         {params.error ? <div className="form-alert error">{params.error}</div> : null}
 
-        <form className="job-form" action={createInspectionJob}>
-          <input name="organizationId" type="hidden" value={organization.id} />
-
-          <fieldset>
-            <legend>Property</legend>
-            <div className="field-grid">
-              <label className="field-span-2">
-                Street address
-                <input name="streetLine1" autoComplete="address-line1" required />
-              </label>
-              <label className="field-span-2">
-                Unit or secondary address
-                <input name="streetLine2" autoComplete="address-line2" />
-              </label>
-              <label>
-                City
-                <input name="city" autoComplete="address-level2" required />
-              </label>
-              <label>
-                State
-                <input name="region" autoComplete="address-level1" maxLength={2} defaultValue="WA" required />
-              </label>
-              <label>
-                ZIP code
-                <input name="postalCode" autoComplete="postal-code" required />
-              </label>
-              <label>
-                Property type
-                <select name="propertyType" defaultValue="single_family">
-                  <option value="single_family">Single-family residence</option>
-                  <option value="multi_family">Multi-family residence</option>
-                  <option value="commercial">Commercial</option>
-                  <option value="other">Other</option>
-                </select>
-              </label>
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Inspection</legend>
-            <div className="field-grid">
-              <label>
-                Report type
-                <select name="reportType" defaultValue="complete">
-                  <option value="complete">Complete</option>
-                  <option value="limited">Limited</option>
-                  <option value="supplemental">Supplemental</option>
-                  <option value="reinspection">Reinspection</option>
-                </select>
-              </label>
-              <label>
-                Inspection date and time
-                <input name="inspectionAt" type="datetime-local" />
-              </label>
-            </div>
-          </fieldset>
-
-          <div className="form-actions">
-            <Link className="secondary-button" href="/jobs">Cancel</Link>
-            <PendingSubmitButton
-              className="primary-button"
-              pendingLabel="Creating job"
-            >
-              Create job
-            </PendingSubmitButton>
-          </div>
-        </form>
+        <InspectionJobForm
+          action={createInspectionJob}
+          organizationId={organization.id}
+          cancelHref="/jobs"
+          submitLabel="Create job"
+          pendingLabel="Creating job"
+          priorInspections={priorInspections}
+        />
       </div>
     </AppShell>
   );
