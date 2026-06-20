@@ -1,5 +1,6 @@
 import { Building2, CheckCircle2, ClipboardCheck, ShieldCheck } from "lucide-react";
 import { signIn, signUp } from "@/app/auth/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 type LoginPageProps = {
   searchParams: Promise<{ error?: string; message?: string }>;
@@ -50,7 +51,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               Password
               <input name="password" type="password" autoComplete="current-password" required />
             </label>
-            <button className="primary-button form-submit" type="submit">Sign in</button>
+            <PendingSubmitButton
+              className="primary-button form-submit"
+              pendingLabel="Signing in"
+            >
+              Sign in
+            </PendingSubmitButton>
           </form>
 
           <details className="signup-panel">
@@ -74,7 +80,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   required
                 />
               </label>
-              <button className="secondary-button form-submit" type="submit">Create account</button>
+              <PendingSubmitButton
+                className="secondary-button form-submit"
+                pendingLabel="Creating account"
+              >
+                Create account
+              </PendingSubmitButton>
             </form>
           </details>
         </div>

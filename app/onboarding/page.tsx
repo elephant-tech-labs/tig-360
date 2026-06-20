@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Building2, Check } from "lucide-react";
 import { createOrganization } from "./actions";
 import { createClient } from "@/lib/supabase/server";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 type OnboardingPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -45,9 +46,12 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
             Workspace slug
             <input name="slug" defaultValue="trident-inspection-group" required />
           </label>
-          <button className="primary-button form-submit" type="submit">
+          <PendingSubmitButton
+            className="primary-button form-submit"
+            pendingLabel="Creating workspace"
+          >
             <Check size={17} /> Create workspace
-          </button>
+          </PendingSubmitButton>
         </form>
       </section>
     </main>

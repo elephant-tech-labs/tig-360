@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ClipboardPlus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
 import { createInspectionJob } from "../actions";
 
@@ -86,7 +87,12 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
 
           <div className="form-actions">
             <Link className="secondary-button" href="/jobs">Cancel</Link>
-            <button className="primary-button" type="submit">Create job</button>
+            <PendingSubmitButton
+              className="primary-button"
+              pendingLabel="Creating job"
+            >
+              Create job
+            </PendingSubmitButton>
           </div>
         </form>
       </div>
