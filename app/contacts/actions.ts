@@ -12,6 +12,25 @@ const validRoles = new Set([
   "signer",
 ]);
 
+export type JobPartyMutationResult =
+  | { ok: true; partyId?: string }
+  | { ok: false; message: string };
+
+export type AssignContactInput = {
+  organizationId: string;
+  jobId: string;
+  contactId: string;
+  role: string;
+  isPrimary: boolean;
+  receiveReport: boolean;
+};
+
+export type RemoveJobPartyInput = {
+  organizationId: string;
+  jobId: string;
+  partyId: string;
+};
+
 function clean(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
 }
@@ -74,53 +93,53 @@ export async function createContact(formData: FormData) {
   redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}saved=1`);
 }
 
-export async function assignContactToJob(formData: FormData) {
-  const organizationId = clean(formData, "organizationId");
-  const jobId = clean(formData, "jobId");
-  const contactId = clean(formData, "contactId");
-  const role = clean(formData, "role");
-  const returnTo = `/jobs/${jobId}/contacts`;
-
-  if (!organizationId || !jobId || !contactId || !validRoles.has(role)) {
-    redirect(errorUrl(returnTo, "Choose a contact and valid role."));
+export async function assignContactToJob(
+  input: AssignContactInput,
+): Promise<JobPartyMutationResult> {
+  if (
+    !input.organizationId ||
+    !input.jobId ||
+    !input.contactId ||
+    !validRoles.has(input.role)
+  ) {
+    return { ok: false, message: "Choose a contact and valid role." };
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("assign_contact_to_job", {
-    target_organization_id: organizationId,
-    target_job_id: jobId,
-    target_contact_id: contactId,
-    party_role: role,
-    make_primary: formData.get("isPrimary") === "on",
-    receive_report: formData.get("receiveReport") === "on",
+  const { data: partyId, error } = await supabase.rpc("assign_contact_to_job", {
+    target_organization_id: input.organizationId,
+    target_job_id: input.jobId,
+    target_contact_id: input.contactId,
+    party_role: input.role,
+    make_primary: input.isPrimary,
+    receive_report: input.receiveReport,
   });
 
   if (error) {
-    redirect(errorUrl(returnTo, error.message));
+    return { ok: false, message: error.message };
   }
 
-  revalidatePath(`/jobs/${jobId}`);
-  revalidatePath(returnTo);
-  redirect(`${returnTo}?saved=1`);
+  revalidatePath(`/jobs/${input.jobId}`);
+  return { ok: true, partyId: partyId ?? undefined };
 }
 
-export async function removeJobParty(formData: FormData) {
-  const organizationId = clean(formData, "organizationId");
-  const jobId = clean(formData, "jobId");
-  const partyId = clean(formData, "partyId");
-  const returnTo = `/jobs/${jobId}/contacts`;
+export async function removeJobParty(
+  input: RemoveJobPartyInput,
+): Promise<JobPartyMutationResult> {
+  if (!input.organizationId || !input.jobId || !input.partyId) {
+    return { ok: false, message: "Unable to identify this contact assignment." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("remove_job_party", {
-    target_organization_id: organizationId,
-    target_party_id: partyId,
+    target_organization_id: input.organizationId,
+    target_party_id: input.partyId,
   });
 
   if (error) {
-    redirect(errorUrl(returnTo, error.message));
+    return { ok: false, message: error.message };
   }
 
-  revalidatePath(`/jobs/${jobId}`);
-  revalidatePath(returnTo);
-  redirect(`${returnTo}?removed=1`);
+  revalidatePath(`/jobs/${input.jobId}`);
+  return { ok: true };
 }
