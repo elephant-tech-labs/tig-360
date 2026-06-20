@@ -29,7 +29,12 @@ export default async function JobPage({ params }: JobPageProps) {
       inspection_at,
       created_at,
       properties(street_line_1, street_line_2, city, region, postal_code, property_type),
-      job_parties(id, role),
+      job_parties(
+        id,
+        role,
+        is_primary,
+        contacts(first_name, last_name, email, companies(name))
+      ),
       findings(id),
       assets(id, kind)
     `)
@@ -77,16 +82,42 @@ export default async function JobPage({ params }: JobPageProps) {
         </div>
       </section>
 
-      <section className="workspace-placeholder">
-        <div>
-          <p className="eyebrow">Next workflow step</p>
-          <h2>Complete front-page details and assign contacts</h2>
-          <p>
-            This job is now stored in Supabase. The next slice will add reusable contact
-            selection, party roles, and inspection authoring.
-          </p>
+      <section className="job-party-summary">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Contacts on report</p>
+            <h2>Job parties</h2>
+          </div>
+          <Link className="secondary-button" href={`/jobs/${jobId}/contacts`}>
+            <Users size={17} /> Manage contacts
+          </Link>
         </div>
-        <button className="secondary-button"><Users size={17} /> Manage contacts</button>
+
+        {job.job_parties.length ? (
+          <div className="job-party-summary-grid">
+            {job.job_parties.map((party) => {
+              const contact = Array.isArray(party.contacts) ? party.contacts[0] : party.contacts;
+              const company = contact
+                ? Array.isArray(contact.companies) ? contact.companies[0] : contact.companies
+                : null;
+              return (
+                <div className="job-party-summary-item" key={party.id}>
+                  <span>{party.role.replaceAll("_", " ")}</span>
+                  <strong>{contact?.first_name} {contact?.last_name}</strong>
+                  <small>{company?.name || contact?.email || "Contact"}</small>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="compact-empty">
+            <Users size={22} />
+            <div>
+              <strong>No job contacts assigned</strong>
+              <span>Add the ordered by, owner, report recipient, party of interest, or signer.</span>
+            </div>
+          </div>
+        )}
       </section>
     </AppShell>
   );
