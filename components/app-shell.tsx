@@ -25,7 +25,7 @@ const navItems = [
   { key: "dashboard", label: "Dashboard", href: "/jobs", icon: Grid2X2 },
   { key: "jobs", label: "Inspection jobs", href: "/jobs", icon: ClipboardCheck },
   { key: "schedule", label: "Schedule", href: "#", icon: CalendarDays },
-  { key: "contacts", label: "Contacts", href: "#", icon: Users },
+  { key: "contacts", label: "Contacts", href: "/contacts", icon: Users },
   { key: "properties", label: "Properties", href: "#", icon: Building2 },
   { key: "documents", label: "Documents", href: "#", icon: FileCheck2 },
 ] as const;
