@@ -32,6 +32,11 @@
 .primary-marker { align-items: center; color: #8e4c0c; display: flex; font-size: 10px; gap: 3px; margin-top: 5px; }
 .assigned-party-channel { align-items: center; color: var(--muted); display: flex; font-size: 11px; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .danger-button { color: var(--red); }
+.danger-button:disabled, .contact-assignment-row button:disabled { cursor: wait; opacity: .58; }
+.assigned-party-row.is-optimistic { background: #f5faf7; }
+.mutation-notice-slot:empty { display: none; }
+.button-spinner { animation: button-spin .75s linear infinite; }
+@keyframes button-spin { to { transform: rotate(360deg); } }
 .compact-empty { align-items: center; background: #f5f7f6; color: var(--muted); display: flex; gap: 11px; padding: 20px; }
 .compact-empty svg { color: var(--green); flex: 0 0 auto; }
 .compact-empty strong, .compact-empty span { display: block; }
