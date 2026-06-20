@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ContactFormFields } from "@/components/contact-form-fields";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
 import { createContact } from "../actions";
 
@@ -34,7 +35,12 @@ export default async function NewContactPage({ searchParams }: NewContactPagePro
           <ContactFormFields />
           <div className="form-actions">
             <Link className="secondary-button" href="/contacts">Cancel</Link>
-            <button className="primary-button" type="submit">Create contact</button>
+            <PendingSubmitButton
+              className="primary-button"
+              pendingLabel="Creating contact"
+            >
+              Create contact
+            </PendingSubmitButton>
           </div>
         </form>
       </div>
