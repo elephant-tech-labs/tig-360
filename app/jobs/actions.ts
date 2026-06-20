@@ -14,6 +14,8 @@ export async function createInspectionJob(formData: FormData) {
   const reportType = String(formData.get("reportType") ?? "complete");
   const inspectionAt = String(formData.get("inspectionAt") ?? "").trim();
   const priorJobId = String(formData.get("priorJobId") ?? "").trim();
+  const generalDescription = String(formData.get("generalDescription") ?? "").trim();
+  const escrowNumber = String(formData.get("escrowNumber") ?? "").trim();
 
   if (!organizationId || !streetLine1 || !city || !region || !postalCode) {
     redirect("/jobs/new?error=Complete%20the%20required%20property%20fields.");
@@ -31,12 +33,11 @@ export async function createInspectionJob(formData: FormData) {
     inspection_report_type: reportType,
     inspection_date: inspectionAt ? new Date(inspectionAt).toISOString() : null,
     prior_inspection_job_id: priorJobId || null,
+    job_general_description: generalDescription || null,
+    job_escrow_number: escrowNumber || null,
   });
 
-  if (error) {
-    redirect(`/jobs/new?error=${encodeURIComponent(error.message)}`);
-  }
-
+  if (error) redirect(`/jobs/new?error=${encodeURIComponent(error.message)}`);
   redirect(`/jobs/${data}`);
 }
 
@@ -53,6 +54,8 @@ export async function updateInspectionJob(formData: FormData) {
   const inspectionAt = String(formData.get("inspectionAt") ?? "").trim();
   const priorJobId = String(formData.get("priorJobId") ?? "").trim();
   const internalNotes = String(formData.get("internalNotes") ?? "").trim();
+  const generalDescription = String(formData.get("generalDescription") ?? "").trim();
+  const escrowNumber = String(formData.get("escrowNumber") ?? "").trim();
 
   if (!organizationId || !jobId || !streetLine1 || !city || !region || !postalCode) {
     redirect(`/jobs/${jobId}/edit?error=Complete%20the%20required%20property%20fields.`);
@@ -72,11 +75,10 @@ export async function updateInspectionJob(formData: FormData) {
     inspection_date: inspectionAt ? new Date(inspectionAt).toISOString() : null,
     prior_inspection_job_id: priorJobId || null,
     job_internal_notes: internalNotes || null,
+    job_general_description: generalDescription || null,
+    job_escrow_number: escrowNumber || null,
   });
 
-  if (error) {
-    redirect(`/jobs/${jobId}/edit?error=${encodeURIComponent(error.message)}`);
-  }
-
+  if (error) redirect(`/jobs/${jobId}/edit?error=${encodeURIComponent(error.message)}`);
   redirect(`/jobs/${jobId}?updated=1`);
 }
