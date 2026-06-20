@@ -2,96 +2,99 @@
 
 > **Read this first when starting a new Codex chat.**
 >
-> This document is the operational handoff for TIG 360. It records the product intent, verified deployed state, architecture boundaries, open work, and recommended next steps as of **June 20, 2026**. Before changing code or running database migrations, compare this document with the current `main` branch, open pull requests, Vercel deployment, and Supabase migration history.
+> This is the durable operational handoff for TIG 360. It records product intent, verified deployed state, architecture boundaries, and recommended next work as of **June 20, 2026**. Before changing code or running SQL, compare it with current `main`, open pull requests, Vercel, and Supabase migration history.
 
-## 1. Product Objective
+## Product Objective
 
-TIG 360 is a modern inspection operations platform being built to replace and improve the existing Zoho Creator application, not merely reproduce it screen-for-screen.
+TIG 360 is a modern inspection operations platform replacing and improving the existing Zoho Creator application. It should preserve the proven termite/WDO workflow without copying Creator screen-for-screen or carrying forward its architectural limits.
 
-The first domain is termite/WDO inspections. The product should eventually support the full workflow:
+Target workflow:
 
 1. Create and schedule an inspection job.
-2. Associate the property and reusable contacts/companies.
+2. Associate a property and reusable contacts/companies.
 3. Capture inspection details, findings, recommendations, photos, and diagrams.
 4. Determine report readiness.
-5. Generate an immutable, versioned PDF report.
-6. Send the report to one or more recipients and retain delivery history.
+5. generate an immutable, versioned PDF report.
+6. Send a specific report version to one or more recipients and retain delivery history.
 7. Prepare and send a contract through Zoho Sign.
 8. Synchronize appropriate customer and communication data with Zoho CRM.
 9. Retain a complete audit trail.
 
-Supported report types currently modeled are `complete`, `limited`, `supplemental`, and `reinspection`.
+Report types currently modeled: `complete`, `limited`, `supplemental`, and `reinspection`.
 
-## 2. Source Repositories and Services
+## Repositories and Services
 
-- GitHub: `elephant-tech-labs/tig-360`
-- Production application: <https://tig-360.vercel.app>
+- GitHub: <https://github.com/elephant-tech-labs/tig-360>
+- Production app: <https://tig-360.vercel.app>
 - Vercel project: <https://vercel.com/gurinders-projects-f4a0f026/tig-360/deployments>
-- Supabase project name: `tig360`
-- Supabase project reference: `jqqzemvyvjujvpgvongw`
+- Supabase project: `tig360`
+- Supabase reference: `jqqzemvyvjujvpgvongw`
 - Supabase URL: <https://jqqzemvyvjujvpgvongw.supabase.co>
 
-Do not place passwords, database connection strings, Supabase service-role keys, or Zoho OAuth secrets in GitHub. The publishable Supabase key is intended for browser use, but environment values should still be managed through Vercel rather than duplicated in documentation.
+Never commit database passwords, connection strings, Supabase service-role/secret keys, Zoho OAuth secrets, or mail-provider secrets. Runtime environment values belong in Vercel and the corresponding provider dashboards.
 
-## 3. Architecture Direction
+## Architecture Direction
 
-The selected architecture is a **modular monolith** with background processing where long-running or retryable work is needed.
+The selected architecture is a **modular monolith** with background workers for slow, retryable, or externally dependent work.
 
-- Web application: Next.js 16, React 19, TypeScript
-- Primary database and authentication: Supabase Postgres + Supabase Auth
-- Tenant isolation: organization-scoped rows protected with Postgres RLS
-- Primary file storage: Zoho WorkDrive, initially chosen to control storage cost
+- Web: Next.js 16, React 19, TypeScript
+- Database/auth: Supabase Postgres + Supabase Auth
+- Tenant isolation: organization-scoped rows protected by Postgres RLS
+- Binary storage: Zoho WorkDrive initially, chosen to control storage cost
 - Customer/communication system: Zoho CRM
-- Initial signature provider: Zoho Sign
-- Deployment: Vercel
+- Initial signing provider: Zoho Sign
+- Hosting: Vercel
 
 ### Source-of-truth boundaries
 
-- **Supabase** owns organizations, memberships, application users, inspection jobs, properties, contacts, job parties, findings, recommendations, asset metadata, document versions, delivery history, provider references, and audit events.
-- **Zoho WorkDrive** stores large binary files such as photos, diagrams, and generated PDFs.
-- **Zoho CRM** receives selected customer/contact and communication information; it is not the transactional inspection database.
-- **Zoho Sign** owns signature-envelope execution and signing status, with references/status mirrored into Supabase.
+- **Supabase** owns users, organizations, memberships, jobs, properties, contacts, job parties, inspection content, asset metadata, document versions, delivery history, provider references, and audit events.
+- **Zoho WorkDrive** stores large binaries such as photos, diagrams, and generated PDFs.
+- **Zoho CRM** receives selected customer/contact and communication information. It is not the transactional inspection database.
+- **Zoho Sign** owns signing-envelope execution; envelope IDs and statuses are mirrored into Supabase.
 
-For WorkDrive files, store stable provider identifiers and metadata, not only public URLs. Public/download URLs can expire or be replaced. All external providers should be behind adapters so WorkDrive can later be replaced by Cloudflare R2, Supabase Storage, or another provider without rewriting domain logic.
+For WorkDrive files, store stable provider file IDs and metadata, not only public URLs. URLs can expire or be replaced. Keep WorkDrive, CRM, Sign, email, and PDF-provider APIs behind adapters so providers can change without rewriting domain logic.
 
-## 4. Verified Production State
-
-The following was verified in the live Supabase project and production application.
+## Verified Production State
 
 ### Authentication and organization setup
 
-- A user can create an account, confirm the email, and sign in.
-- A signed-in user without an organization is sent through onboarding.
-- Organization creation makes the creator an organization admin.
-- Protected application routes require authentication and organization membership.
+- Users can create an account, confirm email, sign in, and sign out.
+- Signed-in users without an organization go through onboarding.
+- Creating an organization makes its creator an admin.
+- Protected routes require authentication and organization membership.
 
-### Inspection jobs
+### Jobs and contacts
 
 - `/jobs` lists organization-scoped jobs from Supabase.
-- `/jobs/new` creates a property and inspection job transactionally.
-- `/jobs/[jobId]` displays job details.
-- A production job was successfully created after fixing explicit enum casts in the job RPC.
+- `/jobs/new` transactionally creates a property and inspection job.
+- `/jobs/[jobId]` displays the job workspace/detail.
+- A production inspection job was successfully created after the enum-cast fix.
+- `/contacts` provides the reusable contact directory.
+- `/contacts/new` creates contacts with optional company matching/creation.
+- `/jobs/[jobId]/contacts` assigns existing or newly created contacts to job roles and safely removes assignments without deleting contacts.
 
-### Deployed database migrations
+PR #5 and PR #6 were both merged into `main` on June 20, 2026. The contact/job-party application slice and matching database migration are therefore part of the main codebase, not pending work.
+
+## Deployed Supabase Migrations
 
 1. `20260619170000_initial_core.sql`
    - Created 19 public tables.
-   - Enabled RLS on all 19 tables.
+   - Enabled RLS on all 19.
    - Added 26 policies.
-   - Added core functions for timestamps, profile creation, membership/role checks, and organization creation.
+   - Added timestamp, profile, membership/role, and organization-creation functions.
 2. `20260619190000_create_inspection_job_rpc.sql`
    - Added transactional property + inspection-job creation.
 3. `20260620010000_fix_job_status_enum.sql`
-   - Fixed `job_status` assignment with explicit enum casts.
+   - Fixed `job_status` assignment using explicit enum casts.
 4. `20260620030000_contacts_and_job_parties.sql`
-   - Added contact creation and job-party assignment/removal functions.
-   - Added uniqueness rules for contact/role assignments and a single primary party per role.
+   - Added `create_contact`, `assign_contact_to_job`, and `remove_job_party`.
+   - Added contact/role uniqueness and one-primary-per-role indexes.
 
-The fourth migration is deployed in Supabase. Its matching application UI is currently carried by PR #6 until that PR is merged.
+Live verification previously confirmed 19 RLS-enabled public tables, 26 policies, the core functions, all three contact/job-party functions, both uniqueness indexes, and authenticated execution privileges.
 
-### Core schema
+**Migration rule:** Supabase migration history is authoritative. Never edit or blindly rerun an already-applied migration. Add a new versioned migration for every subsequent schema correction.
 
-The initial schema includes:
+## Core Schema
 
 - `organizations`
 - `profiles`
@@ -113,11 +116,9 @@ The initial schema includes:
 - `provider_references`
 - `audit_events`
 
-## 5. Contact and Job-Party Model
+## Contact and Job-Party Rules
 
-Contacts are reusable organization records, independent of a single job. A contact can belong to a company and can serve several roles on the same or different jobs.
-
-Supported job-party roles:
+Supported roles:
 
 - `ordered_by`
 - `property_owner`
@@ -125,97 +126,62 @@ Supported job-party roles:
 - `party_of_interest`
 - `signer`
 
-Rules:
+Business rules:
 
-- The same person may fill multiple roles.
-- A role may have multiple people.
-- Only one person may be marked primary for a given role on a job.
-- Removing a person from a job removes the assignment, not the reusable contact.
-- The report recipient is the default report destination, but users may send to additional contacts.
-- A contract signer may be different from every report contact.
+- Contacts are reusable organization records, independent of one job.
+- The same person can fill multiple roles.
+- Multiple people can share a role.
+- Only one assignment can be primary for a given role on a job.
+- Removing an assignment does not delete the reusable contact.
+- `report_recipient` is the default report destination, while users may select additional recipients.
+- The contract signer can be different from all report recipients.
 
-PR #6 adds:
-
-- `/contacts`
-- `/contacts/new`
-- `/jobs/[jobId]/contacts`
-- Create contact, including optional company matching/creation.
-- Assign existing contacts to job roles.
-- Create-and-assign contacts in one workflow.
-- Remove job-party assignments.
-
-## 6. Current GitHub State
-
-As of June 20, 2026:
-
-- PR #6: `codex/contacts-job-parties` into `main`
-  - Contains the contacts/job-party feature.
-  - Also contains the job-status enum hotfix.
-  - Supersedes PR #5 if merged.
-- PR #5 contains only the enum hotfix and should not also be merged after PR #6 without checking the branch history.
-- Earlier foundational work was merged through PR #2.
-
-At the start of a new session:
-
-1. Inspect `main` and all open PRs.
-2. Determine whether PR #6 has been merged.
-3. Treat the live Supabase migration list as authoritative for applied migrations.
-4. Never rerun or edit an already-applied migration in place; add a new versioned migration for changes.
-
-## 7. Current Application Routes
-
-Implemented or carried in the current feature branch:
+## Current Routes
 
 | Route | Purpose |
 | --- | --- |
 | `/login` | Sign in and initial account creation |
 | `/auth/confirm` | Supabase email confirmation callback |
-| `/onboarding` | Create first organization |
+| `/onboarding` | Create the first organization |
 | `/jobs` | Inspection job list |
-| `/jobs/new` | Create property and job |
+| `/jobs/new` | Create a property and job |
 | `/jobs/[jobId]` | Job workspace/detail |
 | `/contacts` | Reusable contact directory |
 | `/contacts/new` | Create a contact |
-| `/jobs/[jobId]/contacts` | Assign and manage job parties |
+| `/jobs/[jobId]/contacts` | Manage job parties |
 
-## 8. Zoho Creator Migration Context
+## Zoho Creator Migration Context
 
-The audited Creator backup was named:
+Audited backup: `trident-inspect360_v1_19-Jun-2026_15_05_54`
 
-`trident-inspect360_v1_19-Jun-2026_15_05_54`
+It contained approximately 6 forms, 11 pages, 7 reports, and 10 functions, with WorkDrive, CRM, Sign, Writer, and OpenAI integrations.
 
-It contained approximately 6 forms, 11 pages, 7 reports, and 10 functions, with integrations to WorkDrive, CRM, Sign, Writer, and OpenAI.
-
-Important lessons from the Creator application:
+Important lessons:
 
 - The inspection job/report is the central aggregate.
-- Report details, photos, diagrams, findings/recommendations, contracts, and delivery history must stay linked by stable IDs.
-- Creator workflows were difficult to evolve and could be sensitive to workflow triggers and external API quotas.
-- Image fields had per-field limits, leading to split photo fields and custom WorkDrive synchronization.
-- Public/PDF-safe URLs were generated after uploads so images rendered in exported reports.
-- Sending history must show what was sent, to whom, when, by whom, using which document version, and whether delivery succeeded.
+- Details, photos, diagrams, findings/recommendations, contracts, and deliveries need stable relationships.
+- Creator workflows were slow to evolve and sensitive to trigger behavior and external API quotas.
+- Image-field limits caused split photo fields and custom WorkDrive synchronization.
+- PDF-safe/public URLs were generated after uploads so images rendered in exported reports.
+- Send history must identify what version was sent, to whom, when, by whom, and whether it succeeded.
 
-The custom app should preserve the proven business workflow while improving data modeling, reliability, testability, editing speed, and user experience.
+## Product and Engineering Principles
 
-## 9. Product and Engineering Principles
-
-- The inspection job is the primary workspace, not a loose collection of forms.
-- Optimize operational screens for scanning and repeated work; avoid marketing-page composition inside the application.
+- Make the inspection job the primary workspace, not a collection of disconnected forms.
+- Design operational screens for scanning and repeated use.
 - Save drafts continuously where practical.
-- Report generation must create immutable versions rather than silently replacing previously sent documents.
-- Sending a report must reference a specific document version.
+- Generate immutable document versions; never silently replace a previously sent report.
+- Every delivery must reference a specific document version.
 - External side effects must be idempotent, retryable, observable, and recorded.
 - Maintain an append-only audit trail for meaningful business actions.
-- Enforce tenant isolation in the database with RLS, not only in UI code.
-- Reuse contacts, companies, and properties rather than copying unstructured text into every job.
-- Keep provider-specific APIs out of core domain modules.
-- Prefer focused migrations and tests; do not recreate the entire Creator app before validating each workflow slice.
+- Enforce tenant isolation with database RLS, not only UI filtering.
+- Reuse contacts, companies, and properties rather than duplicating unstructured text.
+- Keep provider-specific code outside core domain modules.
+- Build and validate focused workflow slices instead of recreating the entire Creator app at once.
 
-## 10. Environment Configuration
+## Environment Configuration
 
-The production Vercel project has been configured with the application URL and public Supabase variables. Runtime secrets should be managed in Vercel and corresponding provider dashboards.
-
-Expected public variables:
+Expected public Vercel variables:
 
 ```text
 NEXT_PUBLIC_APP_URL
@@ -223,75 +189,71 @@ NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ```
 
-Future server-only variables will be required for WorkDrive, CRM, Sign, email delivery, and worker authentication. They must never be exposed through `NEXT_PUBLIC_*` names.
+Future WorkDrive, CRM, Sign, mail, worker, and privileged Supabase values are server-only and must not use `NEXT_PUBLIC_*` names.
 
-Supabase Auth should allow the production confirmation URL and appropriate Vercel preview/localhost callback URLs.
+Supabase Auth must allow the production confirmation URL plus the intended Vercel preview and localhost callbacks.
 
-## 11. Verification and Known Issues
+## Verification and Known Issues
 
 Completed checks:
 
-- `npm run lint` passed for the current feature branch.
-- `npm run build` passed for the current feature branch.
-- Auth screen was visually checked at desktop and mobile widths.
-- Unauthenticated access to `/jobs` redirects to `/login`.
-- Supabase functions and indexes for contacts/job parties were verified after migration.
+- `npm run lint` passed for the contacts feature branch before merge.
+- `npm run build` passed from a fresh GitHub branch download.
+- Auth UI was checked at desktop and mobile widths.
+- Unauthenticated `/jobs` access redirects to `/login`.
+- Contact/job-party functions and indexes were verified in Supabase.
 
 Known limitations:
 
-- The authenticated contact UI was compiled but was not fully browser-tested with production credentials in the development browser session.
+- The authenticated contact UI compiled successfully but was not fully browser-tested with production credentials in the development browser session.
 - `npm audit --omit=dev` reported two moderate issues in a Next.js/PostCSS dependency chain. The suggested force fix would incorrectly downgrade Next.js and was not applied.
-- The database development note may lag behind the live migration list; this handoff and Supabase migration history take precedence until that note is refreshed.
+- `docs/database/supabase-development.md` may lag behind the live migration list. This file and Supabase migration history take precedence until it is refreshed.
 - WorkDrive, CRM, Sign, PDF generation, delivery workers, and complete inspection authoring are not implemented in the custom app yet.
 
-## 12. Recommended Next Build Sequence
-
-After PR #6 is reviewed and merged:
+## Recommended Next Build Sequence
 
 1. **Inspection authoring foundation**
    - Add job workspace navigation and draft/readiness state.
    - Implement findings and recommendations with report-section classification.
-   - Add validation that explains exactly what blocks report readiness.
+   - Explain exactly what blocks report readiness.
 2. **Evidence and diagrams**
-   - Implement the asset provider interface.
+   - Implement an asset-provider interface.
    - Add direct-to-provider uploads or signed upload sessions.
-   - Store WorkDrive file IDs, hashes, MIME type, size, ordering, captions, and links to findings.
-   - Build a new diagram editor or port the proven drawing behavior behind the asset model.
+   - Store WorkDrive file IDs, hashes, MIME type, size, ordering, captions, and finding links.
+   - Port proven drawing behavior behind the asset model or build a better editor.
 3. **Document generation**
-   - Build a canonical report view independent of Zoho Creator HTML.
-   - Generate immutable PDF document versions.
+   - Build a canonical report view independent of Creator HTML.
+   - Generate immutable PDF versions.
    - Record generation status, checksum, storage reference, and readiness snapshot.
 4. **Send Center**
-   - Select recipients from job parties, with `report_recipient` preselected.
-   - Allow additional/manual recipients with validation.
+   - Select recipients from job parties with `report_recipient` preselected.
+   - Permit validated additional/manual recipients.
    - Send a specific document version through a background job.
    - Record delivery, recipients, provider message ID, timestamps, failures, and retries.
 5. **Contracts and signatures**
    - Choose signer independently from report recipients.
    - Create Zoho Sign envelopes through an adapter.
-   - Mirror envelope and signer status into provider references/audit history.
+   - Mirror envelope/signer status into provider references and audit events.
 6. **Zoho CRM synchronization**
    - Define field mappings and ownership rules first.
-   - Add idempotent contact/company/job communication sync.
+   - Add idempotent contact/company/communication sync.
    - Avoid two-way conflict behavior until explicitly designed.
 
-## 13. New-Chat Startup Checklist
+## New-Chat Startup Checklist
 
-A new coding session should begin with this sequence:
+1. Read this file and the supporting architecture documents.
+2. Inspect current `main` and all open pull requests.
+3. Confirm the latest Vercel deployment and production URL.
+4. Inspect Supabase migration history before proposing or applying SQL.
+5. Run `npm install`, `npm run lint`, and `npm run build` in a fresh checkout before publishing code changes.
+6. Work in a focused `codex/*` branch and open a draft PR.
+7. Update this file when a major feature merges, a migration deploys, or an architecture boundary changes.
 
-1. Read this file and the linked architecture documents.
-2. Inspect the current `main` branch and open PRs on GitHub.
-3. Confirm the production URL responds and check the latest Vercel deployment status.
-4. Inspect the Supabase migration history before proposing SQL.
-5. Run `npm install`, `npm run lint`, and `npm run build` in a fresh checkout when code changes are planned.
-6. Keep changes in a focused `codex/*` branch and open a draft PR.
-7. Update this document whenever a major feature is merged, a migration is deployed, or an architecture boundary changes.
+Suggested fresh-chat prompt:
 
-Suggested prompt for a fresh chat:
+> Continue TIG 360 from `elephant-tech-labs/tig-360`. Read `PROJECT_CONTEXT.md` first, inspect current `main` and open PRs, and verify live Supabase migration state before changing code. Continue with the next incomplete documented slice while preserving tenant RLS and the Supabase/WorkDrive/Zoho provider boundaries.
 
-> Continue building TIG 360 from `elephant-tech-labs/tig-360`. Read `PROJECT_CONTEXT.md` first, inspect current `main` and open PRs, and verify the live Supabase migration state before changing code. Continue with the next incomplete slice in the documented build sequence, preserving the Supabase/WorkDrive/Zoho provider boundaries and tenant RLS rules.
-
-## 14. Supporting Documents
+## Supporting Documents
 
 - [`docs/architecture/product-direction.md`](docs/architecture/product-direction.md)
 - [`docs/architecture/system-blueprint.md`](docs/architecture/system-blueprint.md)
