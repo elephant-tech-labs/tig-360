@@ -9,7 +9,15 @@
 
 ## Applied Schema
 
-Migration `supabase/migrations/20260619170000_initial_core.sql` was applied through the Supabase SQL Editor on June 19, 2026.
+The following migrations have been applied to the production project:
+
+1. `20260619170000_initial_core.sql`
+2. `20260619190000_create_inspection_job_rpc.sql`
+3. `20260620010000_fix_job_status_enum.sql`
+4. `20260620030000_contacts_and_job_parties.sql`
+5. `20260620080000_job_editing_and_prior_inspections.sql`
+
+The latest migration was applied through the Supabase SQL Editor on June 20, 2026.
 
 Post-deployment verification returned:
 
@@ -22,6 +30,17 @@ Post-deployment verification returned:
 | Tables without RLS | none |
 
 The repeatable verification query is stored at `supabase/tests/verify_initial_core.sql`.
+
+Job-editing verification returned:
+
+| Check | Result |
+|---|---:|
+| Prior-aware create RPC | 1 |
+| Job update RPC | 1 |
+| Prior-job index | 1 |
+| Authenticated execution privileges | true |
+
+The repeatable query is stored at `supabase/tests/verify_job_editing.sql`.
 
 ## Connection Usage
 
@@ -44,11 +63,18 @@ Do not commit database passwords, full connection strings, secret/service-role k
 - provider references for CRM, Sign, WorkDrive, and email;
 - append-only audit events.
 
+## Current Database Behavior
+
+- Job creation transactionally creates a property for complete/limited reports.
+- Supplemental and reinspection jobs require a prior inspection and reuse its property.
+- Job/property editing is transactional through `update_inspection_job`.
+- Prior-inspection relationships cannot reference another organization, reference the same job, or form a circular chain.
+- Existing nine-argument job creation calls remain supported during rollout but cannot create supplemental/reinspection jobs without a prior inspection.
+
 ## Next Database Steps
 
-1. Add Supabase server/browser clients to the Next.js application.
-2. Build sign-in and first-organization onboarding.
-3. Generate TypeScript database types from the deployed schema.
-4. Add application services for job list and job creation.
-5. Add integration tests that verify organization isolation with two test users.
-6. Move future schema changes through versioned migrations and a deployment workflow rather than ad hoc dashboard edits.
+1. Generate TypeScript database types from the deployed schema.
+2. Add integration tests that verify organization isolation with two test users.
+3. Add contact editing and optional contact categories/tags.
+4. Add the WorkDrive-backed property cover-image asset workflow.
+5. Move future schema deployment from manual SQL Editor runs into an automated migration workflow.
