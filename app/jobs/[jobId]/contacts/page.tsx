@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, Check, UserPlus, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ContactFormFields } from "@/components/contact-form-fields";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import {
   JobContactManager,
   type AssignedParty,
@@ -149,9 +150,12 @@ export default async function JobContactsPage({
               <label className="inline-check"><input name="isPrimary" type="checkbox" defaultChecked /> Primary for role</label>
               <label className="inline-check"><input name="receiveReport" type="checkbox" /> Send report by default</label>
             </div>
-            <button className="primary-button form-submit" type="submit">
+            <PendingSubmitButton
+              className="primary-button form-submit"
+              pendingLabel="Creating and assigning"
+            >
               <UserPlus size={16} /> Create and assign
-            </button>
+            </PendingSubmitButton>
           </form>
         </aside>
       </div>
