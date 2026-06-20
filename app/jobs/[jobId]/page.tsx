@@ -34,7 +34,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
       internal_notes,
       created_at,
       properties(street_line_1, street_line_2, city, region, postal_code, property_type),
-      prior_job:prior_job_id(
+      prior_job:inspection_jobs!prior_job_id(
         id,
         job_number,
         report_type,
