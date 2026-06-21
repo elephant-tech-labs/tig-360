@@ -28,7 +28,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
     properties(street_line_1, street_line_2, city, region, postal_code, county, property_type),
     prior_job:inspection_jobs!prior_job_id(id, job_number, report_type, inspection_at, properties(street_line_1, city, region, postal_code)),
     job_parties(id, role, is_primary, contacts(first_name, last_name, email, companies(name))),
-    findings(id), assets(id, kind)
+    findings(id, archived_at), assets(id, kind)
   `).eq("id", jobId).single();
 
   if (error || !job) notFound();
@@ -80,7 +80,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
         <div className="job-actions">
           <Link className="secondary-button" href={`/jobs/${jobId}/edit`}><Pencil size={16} /> Edit job</Link>
           <button className="secondary-button"><FileText size={17} /> Preview report</button>
-          <button className="primary-button"><Plus size={17} /> Add finding</button>
+          <Link className="primary-button" href={`/jobs/${jobId}/findings`}><Plus size={17} /> Findings workspace</Link>
         </div>
       </div>
 
@@ -90,7 +90,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
         <div className="overview-tile"><ClipboardCheck size={20} /><span>Status</span><strong>{job.status.replaceAll("_", " ")}</strong></div>
         <div className="overview-tile"><CalendarDays size={20} /><span>Inspection</span><strong>{job.inspection_at ? new Date(job.inspection_at).toLocaleString() : "Not scheduled"}</strong></div>
         <div className="overview-tile"><Users size={20} /><span>Contacts</span><strong>{job.job_parties.length}</strong></div>
-        <div className="overview-tile"><FileText size={20} /><span>Findings</span><strong>{job.findings.length}</strong></div>
+        <div className="overview-tile"><FileText size={20} /><span>Findings</span><strong>{job.findings.filter((finding) => !finding.archived_at).length}</strong></div>
       </section>
 
       <section className="job-readiness-band">
