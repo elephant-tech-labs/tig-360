@@ -6,6 +6,7 @@ import {
   type FindingTemplateOption,
 } from "@/components/findings-workspace";
 import { getCurrentContext } from "@/lib/current-organization";
+import { JobAuthoringNav } from "@/components/job-authoring-nav";
 
 type FindingsPageProps = {
   params: Promise<{ jobId: string }>;
@@ -90,6 +91,7 @@ export default async function FindingsPage({ params }: FindingsPageProps) {
 
   return (
     <AppShell organizationName={organization.name} userName={userName}>
+      <JobAuthoringNav jobId={jobId} current="findings" />
       <FindingsWorkspace
         organizationId={organization.id}
         jobId={jobId}

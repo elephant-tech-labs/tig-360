@@ -10,11 +10,13 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Map,
   ShieldCheck,
   Users,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentContext } from "@/lib/current-organization";
+import { JobAuthoringNav } from "@/components/job-authoring-nav";
 
 type JobPageProps = { params: Promise<{ jobId: string }>; searchParams: Promise<{ updated?: string }> };
 
@@ -80,11 +82,13 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
         <div className="job-actions">
           <Link className="secondary-button" href={`/jobs/${jobId}/edit`}><Pencil size={16} /> Edit job</Link>
           <button className="secondary-button"><FileText size={17} /> Preview report</button>
-          <Link className="primary-button" href={`/jobs/${jobId}/findings`}><Plus size={17} /> Findings workspace</Link>
+          <Link className="secondary-button" href={`/jobs/${jobId}/drawing`}><Map size={17} /> Drawing</Link>
+          <Link className="primary-button" href={`/jobs/${jobId}/findings`}><Plus size={17} /> Findings</Link>
         </div>
       </div>
 
       {messages.updated ? <div className="job-page-notice form-alert success">Job details updated.</div> : null}
+      <JobAuthoringNav jobId={jobId} current="setup" />
 
       <section className="job-overview-grid">
         <div className="overview-tile"><ClipboardCheck size={20} /><span>Status</span><strong>{job.status.replaceAll("_", " ")}</strong></div>
