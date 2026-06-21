@@ -59,6 +59,7 @@ The repeatable query is stored at `supabase/tests/verify_job_report_fields.sql`.
 ## Connection Usage
 
 - Browser: project URL plus publishable key.
+- Administrator invitation actions: server-only Supabase secret key.
 - Deployed Next.js server: transaction pooler on port 6543.
 - Migrations: session pooler on port 5432 when direct IPv6 is unavailable.
 - Direct connection: optional for environments with IPv6 support.
