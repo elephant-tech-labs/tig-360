@@ -16,8 +16,9 @@ The following migrations have been applied to the production project:
 3. `20260620010000_fix_job_status_enum.sql`
 4. `20260620030000_contacts_and_job_parties.sql`
 5. `20260620080000_job_editing_and_prior_inspections.sql`
+6. `20260620200000_job_report_fields.sql`
 
-The latest migration was applied through the Supabase SQL Editor on June 20, 2026.
+The latest migration was applied through the Supabase SQL Editor on June 21, 2026.
 
 Post-deployment verification returned:
 
@@ -41,6 +42,17 @@ Job-editing verification returned:
 | Authenticated execution privileges | true |
 
 The repeatable query is stored at `supabase/tests/verify_job_editing.sql`.
+
+Job report-fields verification returned:
+
+| Check | Result |
+|---|---:|
+| Escrow column | 1 |
+| Twelve-argument create RPC | 1 |
+| Fourteen-argument update RPC | 1 |
+| Authenticated execution privileges | true |
+
+The repeatable query is stored at `supabase/tests/verify_job_report_fields.sql`.
 
 ## Connection Usage
 
@@ -69,11 +81,9 @@ Do not commit database passwords, full connection strings, secret/service-role k
 - Supplemental and reinspection jobs require a prior inspection and reuse its property.
 - Job/property editing is transactional through `update_inspection_job`.
 - Prior-inspection relationships cannot reference another organization, reference the same job, or form a circular chain.
-- Existing nine-argument job creation calls remain supported during rollout but cannot create supplemental/reinspection jobs without a prior inspection.
+- Existing job creation and update signatures remain supported during rollout.
 - The existing `summary` column stores the report-facing general property description.
 - `escrow_number` stores the job-specific escrow reference.
-
-Migration `20260620200000_job_report_fields.sql` is the next pending production migration. It adds `escrow_number` and extends the create/update RPCs while preserving compatibility with the currently deployed signatures.
 
 ## Next Database Steps
 
