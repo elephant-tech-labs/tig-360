@@ -266,7 +266,10 @@ export function DrawingWorkspace({
     return () => window.clearTimeout(timer);
   }, [jobId, objects, organizationId, status]);
 
-  function stagePoint(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
+  function stagePoint(
+    event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
+    shouldSnap = true,
+  ) {
     const stage = stageRef.current;
     const clientPoint = eventClientPoint(event.evt);
     if (!stage || !clientPoint) return null;
@@ -274,12 +277,18 @@ export function DrawingWorkspace({
     if (!bounds.width || !bounds.height) return null;
     return {
       x: clamp(
-        snap((clientPoint.x - bounds.left) * (CANVAS_WIDTH / bounds.width), snapEnabled),
+        snap(
+          (clientPoint.x - bounds.left) * (CANVAS_WIDTH / bounds.width),
+          snapEnabled && shouldSnap,
+        ),
         0,
         CANVAS_WIDTH,
       ),
       y: clamp(
-        snap((clientPoint.y - bounds.top) * (CANVAS_HEIGHT / bounds.height), snapEnabled),
+        snap(
+          (clientPoint.y - bounds.top) * (CANVAS_HEIGHT / bounds.height),
+          snapEnabled && shouldSnap,
+        ),
         0,
         CANVAS_HEIGHT,
       ),
@@ -291,7 +300,7 @@ export function DrawingWorkspace({
       if (event.target === event.target.getStage()) setSelectedId(null);
       return;
     }
-    const point = stagePoint(event);
+    const point = stagePoint(event, tool !== "pen");
     if (!point) return;
     const id = crypto.randomUUID();
     const common = {
@@ -342,12 +351,18 @@ export function DrawingWorkspace({
 
   function handlePointerMove(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
     const id = drawingObjectId.current;
-    const point = stagePoint(event);
+    const point = stagePoint(event, tool !== "pen");
     if (!id || !point) return;
     setObjects((current) => {
       const next = current.map((object) => {
         if (object.id !== id) return object;
-        if (object.type === "pen") return { ...object, points: [...(object.points ?? []), point.x, point.y] };
+        if (object.type === "pen") {
+          const points = object.points ?? [];
+          const lastX = points.at(-2) ?? point.x;
+          const lastY = points.at(-1) ?? point.y;
+          if (Math.hypot(point.x - lastX, point.y - lastY) < 2.5) return object;
+          return { ...object, points: [...points, point.x, point.y] };
+        }
         if (object.type === "rect") return { ...object, width: point.x - object.x, height: point.y - object.y };
         return { ...object, points: [object.points?.[0] ?? point.x, object.points?.[1] ?? point.y, point.x, point.y] };
       });
@@ -499,6 +514,8 @@ export function DrawingWorkspace({
   function shapeProps(object: DiagramObject) {
     return {
       id: object.id,
+      x: object.x,
+      y: object.y,
       draggable: tool === "select",
       onClick: () => setSelectedId(object.id),
       onTap: () => setSelectedId(object.id),
