@@ -17,6 +17,7 @@ import {
   Grid3X3,
   LoaderCircle,
   MapPin,
+  Maximize2,
   Minus,
   MousePointer2,
   Pencil,
@@ -49,6 +50,10 @@ import {
 const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 780;
 const GRID_SIZE = 20;
+const MIN_ZOOM = 0.45;
+const MAX_ZOOM = 1.3;
+const MARKER_HALF_WIDTH = 23;
+const MARKER_HALF_HEIGHT = 16;
 
 type DrawingTool = "select" | "pen" | "line" | "arrow" | "rect" | "text" | "marker";
 type DiagramStatus = "draft" | "complete" | "skipped";
@@ -99,6 +104,10 @@ function snap(value: number, enabled: boolean) {
   return enabled ? Math.round(value / GRID_SIZE) * GRID_SIZE : value;
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
 function markerItems(objects: DiagramObject[]): DiagramMarkerInput[] {
   return objects
     .filter((object) => object.type === "marker")
@@ -133,8 +142,11 @@ export function DrawingWorkspace({
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const gridLayerRef = useRef<Konva.Layer>(null);
+  const canvasViewportRef = useRef<HTMLDivElement>(null);
   const initialRender = useRef(true);
   const drawingObjectId = useRef<string | null>(null);
+  const objectsRef = useRef<DiagramObject[]>(initialObjects);
+  const manualZoomRef = useRef(false);
   const historyRef = useRef<DiagramObject[][]>([initialObjects]);
   const historyIndexRef = useRef(0);
 
@@ -167,14 +179,19 @@ export function DrawingWorkspace({
 
   const dash = lineStyle === "dashed" ? [12, 7] : lineStyle === "dotted" ? [3, 6] : [];
 
+  const updateObjects = useCallback((next: DiagramObject[]) => {
+    objectsRef.current = next;
+    setObjects(next);
+  }, []);
+
   const commitObjects = useCallback((next: DiagramObject[]) => {
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push(next);
     historyIndexRef.current = historyRef.current.length - 1;
     setHistoryIndex(historyIndexRef.current);
     setHistoryLength(historyRef.current.length);
-    setObjects(next);
-  }, []);
+    updateObjects(next);
+  }, [updateObjects]);
 
   const replaceObject = useCallback((id: string, update: Partial<DiagramObject>, commit = false) => {
     setObjects((current) => {
@@ -186,9 +203,29 @@ export function DrawingWorkspace({
         setHistoryIndex(historyIndexRef.current);
         setHistoryLength(historyRef.current.length);
       }
+      objectsRef.current = next;
       return next;
     });
   }, []);
+
+  const fitCanvas = useCallback(() => {
+    const viewport = canvasViewportRef.current;
+    if (!viewport) return;
+    const availableWidth = Math.max(0, viewport.clientWidth - 44);
+    const nextZoom = clamp(availableWidth / CANVAS_WIDTH, MIN_ZOOM, 1);
+    setZoom(Math.round(nextZoom * 100) / 100);
+  }, []);
+
+  useEffect(() => {
+    fitCanvas();
+    const viewport = canvasViewportRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(() => {
+      if (!manualZoomRef.current) fitCanvas();
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [fitCanvas]);
 
   useEffect(() => {
     const transformer = transformerRef.current;
@@ -223,11 +260,11 @@ export function DrawingWorkspace({
 
   function stagePoint() {
     const stage = stageRef.current;
-    const pointer = stage?.getPointerPosition();
+    const pointer = stage?.getRelativePointerPosition();
     if (!stage || !pointer) return null;
     return {
-      x: snap((pointer.x - stage.x()) / zoom, snapEnabled),
-      y: snap((pointer.y - stage.y()) / zoom, snapEnabled),
+      x: clamp(snap(pointer.x, snapEnabled), 0, CANVAS_WIDTH),
+      y: clamp(snap(pointer.y, snapEnabled), 0, CANVAS_HEIGHT),
     };
   }
 
@@ -250,7 +287,7 @@ export function DrawingWorkspace({
     };
 
     if (tool === "text") {
-      commitObjects([...objects, { ...common, type: "text", text: "Text", fill: strokeColor }]);
+      commitObjects([...objectsRef.current, { ...common, type: "text", text: "Text", fill: strokeColor }]);
       setTool("select");
       setSelectedId(id);
       return;
@@ -260,9 +297,11 @@ export function DrawingWorkspace({
         setNotice({ type: "error", message: "Choose a finding before placing a marker." });
         return;
       }
-      commitObjects([...objects, {
+      commitObjects([...objectsRef.current, {
         ...common,
         type: "marker",
+        x: clamp(point.x, MARKER_HALF_WIDTH, CANVAS_WIDTH - MARKER_HALF_WIDTH),
+        y: clamp(point.y, MARKER_HALF_HEIGHT, CANVAS_HEIGHT - MARKER_HALF_HEIGHT),
         findingId: selectedFinding.id,
         label: selectedFinding.code,
         fill: "#fff7df",
@@ -280,26 +319,69 @@ export function DrawingWorkspace({
       : tool === "rect"
         ? { ...common, type: "rect", width: 0, height: 0 }
         : { ...common, type: tool, x: 0, y: 0, points: [point.x, point.y, point.x, point.y] };
-    setObjects([...objects, nextObject]);
+    updateObjects([...objectsRef.current, nextObject]);
   }
 
   function handlePointerMove() {
     const id = drawingObjectId.current;
     const point = stagePoint();
     if (!id || !point) return;
-    setObjects((current) => current.map((object) => {
-      if (object.id !== id) return object;
-      if (object.type === "pen") return { ...object, points: [...(object.points ?? []), point.x, point.y] };
-      if (object.type === "rect") return { ...object, width: point.x - object.x, height: point.y - object.y };
-      return { ...object, points: [object.points?.[0] ?? point.x, object.points?.[1] ?? point.y, point.x, point.y] };
-    }));
+    setObjects((current) => {
+      const next = current.map((object) => {
+        if (object.id !== id) return object;
+        if (object.type === "pen") return { ...object, points: [...(object.points ?? []), point.x, point.y] };
+        if (object.type === "rect") return { ...object, width: point.x - object.x, height: point.y - object.y };
+        return { ...object, points: [object.points?.[0] ?? point.x, object.points?.[1] ?? point.y, point.x, point.y] };
+      });
+      objectsRef.current = next;
+      return next;
+    });
   }
 
   function handlePointerUp() {
-    if (!drawingObjectId.current) return;
+    const id = drawingObjectId.current;
+    if (!id) return;
     drawingObjectId.current = null;
+    const finalized = objectsRef.current.map((object) => {
+      if (object.id !== id) return object;
+      if (object.type === "rect") {
+        const rawWidth = object.width ?? 0;
+        const rawHeight = object.height ?? 0;
+        if (Math.abs(rawWidth) < 8 && Math.abs(rawHeight) < 8) {
+          const defaultWidth = 120;
+          const defaultHeight = 80;
+          return {
+            ...object,
+            x: Math.min(object.x, CANVAS_WIDTH - defaultWidth),
+            y: Math.min(object.y, CANVAS_HEIGHT - defaultHeight),
+            width: defaultWidth,
+            height: defaultHeight,
+          };
+        }
+        return {
+          ...object,
+          x: rawWidth < 0 ? object.x + rawWidth : object.x,
+          y: rawHeight < 0 ? object.y + rawHeight : object.y,
+          width: Math.abs(rawWidth),
+          height: Math.abs(rawHeight),
+        };
+      }
+      if ((object.type === "line" || object.type === "arrow") && object.points) {
+        const [startX, startY, endX, endY] = object.points;
+        if (Math.hypot(endX - startX, endY - startY) < 8) {
+          const defaultLength = 100;
+          const safeStartX = Math.min(startX, CANVAS_WIDTH - defaultLength);
+          return {
+            ...object,
+            points: [safeStartX, startY, safeStartX + defaultLength, startY],
+          };
+        }
+      }
+      return object;
+    });
+    updateObjects(finalized);
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
-    historyRef.current.push(objects);
+    historyRef.current.push(finalized);
     historyIndexRef.current = historyRef.current.length - 1;
     setHistoryIndex(historyIndexRef.current);
     setHistoryLength(historyRef.current.length);
@@ -309,7 +391,7 @@ export function DrawingWorkspace({
     if (historyIndexRef.current <= 0) return;
     historyIndexRef.current -= 1;
     setHistoryIndex(historyIndexRef.current);
-    setObjects(historyRef.current[historyIndexRef.current]);
+    updateObjects(historyRef.current[historyIndexRef.current]);
     setSelectedId(null);
   }
 
@@ -317,7 +399,7 @@ export function DrawingWorkspace({
     if (historyIndexRef.current >= historyRef.current.length - 1) return;
     historyIndexRef.current += 1;
     setHistoryIndex(historyIndexRef.current);
-    setObjects(historyRef.current[historyIndexRef.current]);
+    updateObjects(historyRef.current[historyIndexRef.current]);
     setSelectedId(null);
   }
 
@@ -403,9 +485,18 @@ export function DrawingWorkspace({
       onClick: () => setSelectedId(object.id),
       onTap: () => setSelectedId(object.id),
       onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
+        const marker = object.type === "marker";
         replaceObject(object.id, {
-          x: snap(event.target.x(), snapEnabled),
-          y: snap(event.target.y(), snapEnabled),
+          x: clamp(
+            snap(event.target.x(), snapEnabled),
+            marker ? MARKER_HALF_WIDTH : 0,
+            marker ? CANVAS_WIDTH - MARKER_HALF_WIDTH : CANVAS_WIDTH,
+          ),
+          y: clamp(
+            snap(event.target.y(), snapEnabled),
+            marker ? MARKER_HALF_HEIGHT : 0,
+            marker ? CANVAS_HEIGHT - MARKER_HALF_HEIGHT : CANVAS_HEIGHT,
+          ),
         }, true);
       },
       onTransformEnd: (event: Konva.KonvaEventObject<Event>) => {
@@ -518,13 +609,14 @@ export function DrawingWorkspace({
               <button title="Redo" onClick={redo} disabled={historyIndex >= historyLength - 1}><Redo2 size={17} /></button>
               <button title="Delete selected" onClick={deleteSelected} disabled={!selectedId}><Trash2 size={17} /></button>
               <button title="Toggle snap grid" className={snapEnabled ? "active" : ""} onClick={() => setSnapEnabled((current) => !current)}><Grid3X3 size={17} /></button>
-              <button title="Zoom out" onClick={() => setZoom((current) => Math.max(0.45, current - 0.1))}><ZoomOut size={17} /></button>
+              <button title="Fit canvas" onClick={() => { manualZoomRef.current = false; fitCanvas(); }}><Maximize2 size={17} /></button>
+              <button title="Zoom out" onClick={() => { manualZoomRef.current = true; setZoom((current) => Math.max(MIN_ZOOM, current - 0.1)); }}><ZoomOut size={17} /></button>
               <span>{Math.round(zoom * 100)}%</span>
-              <button title="Zoom in" onClick={() => setZoom((current) => Math.min(1.3, current + 0.1))}><ZoomIn size={17} /></button>
+              <button title="Zoom in" onClick={() => { manualZoomRef.current = true; setZoom((current) => Math.min(MAX_ZOOM, current + 0.1)); }}><ZoomIn size={17} /></button>
             </div>
           </div>
 
-          <div className="drawing-canvas-scroll">
+          <div className="drawing-canvas-scroll" ref={canvasViewportRef}>
             <div className="drawing-canvas-frame" style={{ width: CANVAS_WIDTH * zoom, height: CANVAS_HEIGHT * zoom }}>
               <Stage
                 ref={stageRef}
