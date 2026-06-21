@@ -17,6 +17,7 @@ The following migrations have been applied to the production project:
 4. `20260620030000_contacts_and_job_parties.sql`
 5. `20260620080000_job_editing_and_prior_inspections.sql`
 6. `20260620200000_job_report_fields.sql`
+7. `20260621120000_contact_addresses_and_inspectors.sql`
 
 The latest migration was applied through the Supabase SQL Editor on June 21, 2026.
 
@@ -84,6 +85,11 @@ Do not commit database passwords, full connection strings, secret/service-role k
 - Existing job creation and update signatures remain supported during rollout.
 - The existing `summary` column stores the report-facing general property description.
 - `escrow_number` stores the job-specific escrow reference.
+
+The contact-address and inspector migration was applied through the Supabase SQL
+Editor on June 21, 2026. Verification returned seven contact address columns, one
+property county column, two job inspector columns, one inspector profile table, one
+private signature bucket, and one each of the new create/update job RPC overloads.
 
 ## Next Database Steps
 

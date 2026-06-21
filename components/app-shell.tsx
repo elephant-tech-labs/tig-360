@@ -10,6 +10,7 @@ import {
   LogOut,
   Plus,
   Search,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
@@ -18,7 +19,7 @@ type AppShellProps = {
   children: React.ReactNode;
   organizationName: string;
   userName: string;
-  active?: "dashboard" | "jobs" | "schedule" | "contacts" | "properties" | "documents";
+  active?: "dashboard" | "jobs" | "schedule" | "contacts" | "properties" | "documents" | "team";
 };
 
 const navItems = [
@@ -26,6 +27,7 @@ const navItems = [
   { key: "jobs", label: "Inspection jobs", href: "/jobs", icon: ClipboardCheck },
   { key: "schedule", label: "Schedule", href: "#", icon: CalendarDays },
   { key: "contacts", label: "Contacts", href: "/contacts", icon: Users },
+  { key: "team", label: "Inspectors", href: "/team/inspectors", icon: ShieldCheck },
   { key: "properties", label: "Properties", href: "#", icon: Building2 },
   { key: "documents", label: "Documents", href: "#", icon: FileCheck2 },
 ] as const;

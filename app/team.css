@@ -1,0 +1,34 @@
+.team-page { display: grid; gap: 16px; padding: 0 30px 42px; }
+.inspector-profile-list { border: 1px solid var(--line); background: #fff; }
+.inspector-profile-row { align-items: start; border-top: 1px solid var(--line); display: grid; gap: 20px; grid-template-columns: minmax(210px, .8fr) minmax(420px, 1.5fr) 250px; padding: 20px; }
+.inspector-profile-row:first-child { border-top: 0; }
+.inspector-identity { align-items: center; display: flex; gap: 12px; }
+.inspector-identity strong, .inspector-identity span { display: block; }
+.inspector-identity span { color: var(--muted); font-size: 11px; margin-top: 4px; text-transform: capitalize; }
+.inspector-profile-form { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+.inspector-profile-form label { color: #35413d; display: grid; font-size: 12px; font-weight: 700; gap: 6px; }
+.inspector-profile-form input { background: #fff; border: 1px solid #cbd4d0; border-radius: 5px; min-height: 40px; padding: 0 10px; width: 100%; }
+.inspector-profile-form .signature-upload, .inspector-profile-form .primary-button { grid-column: 1 / -1; }
+.inspector-profile-form input[type="file"] { padding: 8px; }
+.signature-preview { align-items: center; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.signature-preview img { background: #fff; border: 1px solid var(--line); height: 90px; object-fit: contain; padding: 8px; width: 220px; }
+.signature-preview span { color: var(--muted); font-size: 10px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signature-empty { align-items: center; background: #f2f5f3; border: 1px dashed #bdc8c3; color: var(--muted); display: flex; height: 90px; justify-content: center; width: 220px; }
+.danger-text-button { background: transparent; border: 0; color: var(--red); cursor: pointer; font-size: 11px; padding: 3px; }
+.inspector-signature-control { align-self: end; display: grid; gap: 8px; min-height: 66px; padding-bottom: 2px; }
+.signature-ready, .signature-missing { font-size: 11px; }
+.field-help { color: var(--muted); font-size: 10px; font-weight: 500; }
+.field-help a { color: var(--green-dark); font-weight: 750; }
+.signature-ready { color: var(--green); }
+.signature-missing { color: #9b5a18; }
+
+@media (max-width: 1050px) {
+  .inspector-profile-row { grid-template-columns: 1fr 1.4fr; }
+  .signature-preview { grid-column: 2; }
+}
+
+@media (max-width: 720px) {
+  .team-page { padding-left: 14px; padding-right: 14px; }
+  .inspector-profile-row { grid-template-columns: 1fr; }
+  .signature-preview { align-items: flex-start; grid-column: auto; }
+}

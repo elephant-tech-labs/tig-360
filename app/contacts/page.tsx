@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { Building2, Mail, Phone, Plus, Search, UserRound } from "lucide-react";
+import { Building2, Mail, Pencil, Phone, Plus, Search, UserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentContext } from "@/lib/current-organization";
 
 type ContactsPageProps = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; updated?: string }>;
 };
 
 export default async function ContactsPage({ searchParams }: ContactsPageProps) {
   const { supabase, organization, userName } = await getCurrentContext();
-  const { q = "" } = await searchParams;
+  const { q = "", updated } = await searchParams;
   let query = supabase
     .from("contacts")
     .select(`
@@ -19,6 +19,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
       email,
       mobile_phone,
       job_title,
+      category,
       created_at,
       companies(name),
       job_parties(id)
@@ -49,6 +50,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
       </div>
 
       <section className="directory-panel">
+        {updated ? <div className="form-alert success">Contact updated.</div> : null}
         <form className="directory-search" action="/contacts">
           <Search size={17} />
           <input name="q" defaultValue={q} placeholder="Search name or email" />
@@ -81,6 +83,9 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
                     <Building2 size={15} />
                     <span>{contact.job_parties.length} job role{contact.job_parties.length === 1 ? "" : "s"}</span>
                   </div>
+                  <Link className="icon-button" href={`/contacts/${contact.id}/edit`} title="Edit contact">
+                    <Pencil size={15} />
+                  </Link>
                 </article>
               );
             })}
