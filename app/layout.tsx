@@ -3,6 +3,7 @@ import { Inter, Manrope } from "next/font/google";
 import "./globals.css";
 import "./workflows.css";
 import "./contacts.css";
+import "./report-fields.css";
 
 const inter = Inter({
   variable: "--font-sans",
