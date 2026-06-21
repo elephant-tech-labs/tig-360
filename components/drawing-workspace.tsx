@@ -108,6 +108,14 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
+function eventClientPoint(event: MouseEvent | TouchEvent) {
+  if ("touches" in event) {
+    const touch = event.touches[0] ?? event.changedTouches[0];
+    return touch ? { x: touch.clientX, y: touch.clientY } : null;
+  }
+  return { x: event.clientX, y: event.clientY };
+}
+
 function markerItems(objects: DiagramObject[]): DiagramMarkerInput[] {
   return objects
     .filter((object) => object.type === "marker")
@@ -258,13 +266,23 @@ export function DrawingWorkspace({
     return () => window.clearTimeout(timer);
   }, [jobId, objects, organizationId, status]);
 
-  function stagePoint() {
+  function stagePoint(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
     const stage = stageRef.current;
-    const pointer = stage?.getRelativePointerPosition();
-    if (!stage || !pointer) return null;
+    const clientPoint = eventClientPoint(event.evt);
+    if (!stage || !clientPoint) return null;
+    const bounds = stage.container().getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return null;
     return {
-      x: clamp(snap(pointer.x, snapEnabled), 0, CANVAS_WIDTH),
-      y: clamp(snap(pointer.y, snapEnabled), 0, CANVAS_HEIGHT),
+      x: clamp(
+        snap((clientPoint.x - bounds.left) * (CANVAS_WIDTH / bounds.width), snapEnabled),
+        0,
+        CANVAS_WIDTH,
+      ),
+      y: clamp(
+        snap((clientPoint.y - bounds.top) * (CANVAS_HEIGHT / bounds.height), snapEnabled),
+        0,
+        CANVAS_HEIGHT,
+      ),
     };
   }
 
@@ -273,7 +291,7 @@ export function DrawingWorkspace({
       if (event.target === event.target.getStage()) setSelectedId(null);
       return;
     }
-    const point = stagePoint();
+    const point = stagePoint(event);
     if (!point) return;
     const id = crypto.randomUUID();
     const common = {
@@ -322,9 +340,9 @@ export function DrawingWorkspace({
     updateObjects([...objectsRef.current, nextObject]);
   }
 
-  function handlePointerMove() {
+  function handlePointerMove(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
     const id = drawingObjectId.current;
-    const point = stagePoint();
+    const point = stagePoint(event);
     if (!id || !point) return;
     setObjects((current) => {
       const next = current.map((object) => {
