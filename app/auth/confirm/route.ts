@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
 
     if (!error) {
+      await supabase.rpc("accept_current_invitation");
       return NextResponse.redirect(new URL(next, request.url));
     }
   }

@@ -18,6 +18,7 @@ The following migrations have been applied to the production project:
 5. `20260620080000_job_editing_and_prior_inspections.sql`
 6. `20260620200000_job_report_fields.sql`
 7. `20260621120000_contact_addresses_and_inspectors.sql`
+8. `20260621180000_independent_inspectors_and_invitations.sql`
 
 The latest migration was applied through the Supabase SQL Editor on June 21, 2026.
 
@@ -90,6 +91,12 @@ The contact-address and inspector migration was applied through the Supabase SQL
 Editor on June 21, 2026. Verification returned seven contact address columns, one
 property county column, two job inspector columns, one inspector profile table, one
 private signature bucket, and one each of the new create/update job RPC overloads.
+
+The independent-inspector migration was applied through the Supabase SQL Editor on
+June 21, 2026. It adds independent inspector business records, optional linked user
+accounts, organization invitations, and a compatibility layer for the prior
+membership-bound inspector profile implementation. All seven post-deployment checks
+passed.
 
 ## Next Database Steps
 
