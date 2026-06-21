@@ -11,10 +11,12 @@
   "dependencies": {
     "@supabase/ssr": "0.12.0",
     "@supabase/supabase-js": "2.108.2",
+    "konva": "^10.3.0",
     "lucide-react": "1.21.0",
     "next": "16.2.9",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "react-konva": "^19.2.5"
   },
   "devDependencies": {
     "@types/node": "26.0.0",
