@@ -70,6 +70,10 @@ Do not commit database passwords, full connection strings, secret/service-role k
 - Job/property editing is transactional through `update_inspection_job`.
 - Prior-inspection relationships cannot reference another organization, reference the same job, or form a circular chain.
 - Existing nine-argument job creation calls remain supported during rollout but cannot create supplemental/reinspection jobs without a prior inspection.
+- The existing `summary` column stores the report-facing general property description.
+- `escrow_number` stores the job-specific escrow reference.
+
+Migration `20260620200000_job_report_fields.sql` is the next pending production migration. It adds `escrow_number` and extends the create/update RPCs while preserving compatibility with the currently deployed signatures.
 
 ## Next Database Steps
 
