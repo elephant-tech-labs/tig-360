@@ -61,7 +61,7 @@ $$;
 create or replace function public.create_inspection_job(
   target_organization_id uuid, property_street_line_1 text, property_street_line_2 text,
   property_city text, property_region text, property_postal_code text, property_type_name text,
-  inspection_report_type text, inspection_date timestamptz, prior_inspection_job_id uuid
+  inspection_report_type text, inspection_date timestamptz, prior_inspection_job_id uuid default null
 )
 returns uuid language sql set search_path = '' as $$
   select public.create_inspection_job(
@@ -134,7 +134,7 @@ create or replace function public.update_inspection_job(
   target_organization_id uuid, target_job_id uuid, property_street_line_1 text,
   property_street_line_2 text, property_city text, property_region text, property_postal_code text,
   property_type_name text, inspection_report_type text, inspection_date timestamptz,
-  prior_inspection_job_id uuid, job_internal_notes text
+  prior_inspection_job_id uuid default null, job_internal_notes text default null
 )
 returns void language plpgsql set search_path = '' as $$
 declare
