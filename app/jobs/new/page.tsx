@@ -3,6 +3,7 @@ import { ArrowLeft, ClipboardPlus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import {
   InspectionJobForm,
+  type InspectorOption,
   type PriorInspectionOption,
 } from "@/components/inspection-job-form";
 import { getCurrentContext } from "@/lib/current-organization";
@@ -15,20 +16,36 @@ type NewJobPageProps = {
 export default async function NewJobPage({ searchParams }: NewJobPageProps) {
   const { supabase, organization, userName } = await getCurrentContext();
   const params = await searchParams;
-  const { data: previousJobs, error } = await supabase
-    .from("inspection_jobs")
-    .select(`
-      id,
-      job_number,
-      report_type,
-      status,
-      inspection_at,
-      properties(street_line_1, street_line_2, city, region, postal_code, property_type)
-    `)
-    .eq("organization_id", organization.id)
-    .order("job_number", { ascending: false });
+  const [
+    { data: previousJobs, error },
+    { data: inspectorRows, error: inspectorError },
+  ] = await Promise.all([
+    supabase
+      .from("inspection_jobs")
+      .select(`
+        id,
+        job_number,
+        report_type,
+        status,
+        inspection_at,
+        properties(street_line_1, street_line_2, city, region, postal_code, county, property_type)
+      `)
+      .eq("organization_id", organization.id)
+      .order("job_number", { ascending: false }),
+    supabase
+      .from("organization_memberships")
+      .select(`
+        user_id,
+        profiles(full_name, email),
+        inspector_profiles(license_number, signature_path, is_active)
+      `)
+      .eq("organization_id", organization.id)
+      .eq("status", "active")
+      .order("created_at"),
+  ]);
 
   if (error) throw new Error(error.message);
+  if (inspectorError) throw new Error(inspectorError.message);
   const priorInspections: PriorInspectionOption[] = (previousJobs ?? []).flatMap((job) => {
     const property = Array.isArray(job.properties) ? job.properties[0] : job.properties;
     if (!property) return [];
@@ -43,7 +60,22 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
       city: property.city,
       region: property.region,
       postalCode: property.postal_code,
+      county: property.county,
       propertyType: property.property_type,
+    }];
+  });
+  const inspectors: InspectorOption[] = (inspectorRows ?? []).flatMap((row) => {
+    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    const inspector = Array.isArray(row.inspector_profiles)
+      ? row.inspector_profiles[0]
+      : row.inspector_profiles;
+    if (!inspector?.is_active) return [];
+    return [{
+      userId: row.user_id,
+      name: profile?.full_name || profile?.email || "Inspector",
+      email: profile?.email ?? null,
+      licenseNumber: inspector.license_number,
+      hasSignature: Boolean(inspector.signature_path),
     }];
   });
 
@@ -69,6 +101,7 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
           submitLabel="Create job"
           pendingLabel="Creating job"
           priorInspections={priorInspections}
+          inspectors={inspectors}
         />
       </div>
     </AppShell>

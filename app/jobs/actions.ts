@@ -10,12 +10,15 @@ export async function createInspectionJob(formData: FormData) {
   const city = String(formData.get("city") ?? "").trim();
   const region = String(formData.get("region") ?? "").trim().toUpperCase();
   const postalCode = String(formData.get("postalCode") ?? "").trim();
+  const county = String(formData.get("county") ?? "").trim();
   const propertyType = String(formData.get("propertyType") ?? "").trim();
   const reportType = String(formData.get("reportType") ?? "complete");
   const inspectionAt = String(formData.get("inspectionAt") ?? "").trim();
   const priorJobId = String(formData.get("priorJobId") ?? "").trim();
   const generalDescription = String(formData.get("generalDescription") ?? "").trim();
   const escrowNumber = String(formData.get("escrowNumber") ?? "").trim();
+  const inspectedById = String(formData.get("inspectedById") ?? "").trim();
+  const includeInspectorSignature = formData.get("includeInspectorSignature") === "on";
 
   if (!organizationId || !streetLine1 || !city || !region || !postalCode) {
     redirect("/jobs/new?error=Complete%20the%20required%20property%20fields.");
@@ -35,6 +38,9 @@ export async function createInspectionJob(formData: FormData) {
     prior_inspection_job_id: priorJobId || null,
     job_general_description: generalDescription || null,
     job_escrow_number: escrowNumber || null,
+    property_county: county || null,
+    job_inspected_by_id: inspectedById || null,
+    job_include_inspector_signature: includeInspectorSignature,
   });
 
   if (error) redirect(`/jobs/new?error=${encodeURIComponent(error.message)}`);
@@ -49,6 +55,7 @@ export async function updateInspectionJob(formData: FormData) {
   const city = String(formData.get("city") ?? "").trim();
   const region = String(formData.get("region") ?? "").trim().toUpperCase();
   const postalCode = String(formData.get("postalCode") ?? "").trim();
+  const county = String(formData.get("county") ?? "").trim();
   const propertyType = String(formData.get("propertyType") ?? "").trim();
   const reportType = String(formData.get("reportType") ?? "complete");
   const inspectionAt = String(formData.get("inspectionAt") ?? "").trim();
@@ -56,6 +63,8 @@ export async function updateInspectionJob(formData: FormData) {
   const internalNotes = String(formData.get("internalNotes") ?? "").trim();
   const generalDescription = String(formData.get("generalDescription") ?? "").trim();
   const escrowNumber = String(formData.get("escrowNumber") ?? "").trim();
+  const inspectedById = String(formData.get("inspectedById") ?? "").trim();
+  const includeInspectorSignature = formData.get("includeInspectorSignature") === "on";
 
   if (!organizationId || !jobId || !streetLine1 || !city || !region || !postalCode) {
     redirect(`/jobs/${jobId}/edit?error=Complete%20the%20required%20property%20fields.`);
@@ -77,6 +86,9 @@ export async function updateInspectionJob(formData: FormData) {
     job_internal_notes: internalNotes || null,
     job_general_description: generalDescription || null,
     job_escrow_number: escrowNumber || null,
+    property_county: county || null,
+    job_inspected_by_id: inspectedById || null,
+    job_include_inspector_signature: includeInspectorSignature,
   });
 
   if (error) redirect(`/jobs/${jobId}/edit?error=${encodeURIComponent(error.message)}`);

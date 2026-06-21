@@ -4,6 +4,7 @@ import "./globals.css";
 import "./workflows.css";
 import "./contacts.css";
 import "./report-fields.css";
+import "./team.css";
 
 const inter = Inter({
   variable: "--font-sans",

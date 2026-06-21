@@ -64,6 +64,13 @@ export async function createContact(formData: FormData) {
     contact_job_title: clean(formData, "jobTitle"),
     contact_company_name: clean(formData, "companyName"),
     contact_notes: clean(formData, "notes"),
+    contact_category: clean(formData, "category") || "other",
+    contact_street_line_1: clean(formData, "streetLine1"),
+    contact_street_line_2: clean(formData, "streetLine2"),
+    contact_city: clean(formData, "city"),
+    contact_region: clean(formData, "region"),
+    contact_postal_code: clean(formData, "postalCode"),
+    contact_county: clean(formData, "county"),
   });
 
   if (error || !contactId) {
@@ -91,6 +98,47 @@ export async function createContact(formData: FormData) {
     revalidatePath(`/jobs/${jobId}/contacts`);
   }
   redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}saved=1`);
+}
+
+export async function updateContact(formData: FormData) {
+  const organizationId = clean(formData, "organizationId");
+  const contactId = clean(formData, "contactId");
+  const firstName = clean(formData, "firstName");
+  const lastName = clean(formData, "lastName");
+
+  if (!organizationId || !contactId || !firstName || !lastName) {
+    redirect(`/contacts/${contactId}/edit?error=${encodeURIComponent("First and last name are required.")}`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_contact", {
+    target_organization_id: organizationId,
+    target_contact_id: contactId,
+    contact_first_name: firstName,
+    contact_last_name: lastName,
+    contact_email: clean(formData, "email"),
+    contact_secondary_email: clean(formData, "secondaryEmail"),
+    contact_mobile_phone: clean(formData, "mobilePhone"),
+    contact_home_phone: clean(formData, "homePhone"),
+    contact_job_title: clean(formData, "jobTitle"),
+    contact_company_name: clean(formData, "companyName"),
+    contact_notes: clean(formData, "notes"),
+    contact_category: clean(formData, "category") || "other",
+    contact_street_line_1: clean(formData, "streetLine1"),
+    contact_street_line_2: clean(formData, "streetLine2"),
+    contact_city: clean(formData, "city"),
+    contact_region: clean(formData, "region"),
+    contact_postal_code: clean(formData, "postalCode"),
+    contact_county: clean(formData, "county"),
+  });
+
+  if (error) {
+    redirect(`/contacts/${contactId}/edit?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/contacts");
+  revalidatePath(`/contacts/${contactId}/edit`);
+  redirect(`/contacts?updated=1`);
 }
 
 export async function assignContactToJob(

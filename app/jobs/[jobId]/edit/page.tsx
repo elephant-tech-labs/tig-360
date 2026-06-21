@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { InspectionJobForm, type PriorInspectionOption } from "@/components/inspection-job-form";
+import {
+  InspectionJobForm,
+  type InspectorOption,
+  type PriorInspectionOption,
+} from "@/components/inspection-job-form";
 import { getCurrentContext } from "@/lib/current-organization";
 import { updateInspectionJob } from "@/app/jobs/actions";
 
@@ -20,19 +24,35 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
   const { error: message } = await searchParams;
   const { supabase, organization, userName } = await getCurrentContext();
 
-  const [{ data: job, error }, { data: previousJobs, error: previousJobsError }] = await Promise.all([
+  const [
+    { data: job, error },
+    { data: previousJobs, error: previousJobsError },
+    { data: inspectorRows, error: inspectorError },
+  ] = await Promise.all([
     supabase.from("inspection_jobs").select(`
-      id, job_number, report_type, inspection_at, prior_job_id, summary, escrow_number, internal_notes,
-      properties(street_line_1, street_line_2, city, region, postal_code, property_type)
+      id, job_number, report_type, inspection_at, prior_job_id, summary, escrow_number,
+      internal_notes, inspected_by_id, include_inspector_signature,
+      properties(street_line_1, street_line_2, city, region, postal_code, county, property_type)
     `).eq("id", jobId).single(),
     supabase.from("inspection_jobs").select(`
       id, job_number, report_type, status, inspection_at,
-      properties(street_line_1, street_line_2, city, region, postal_code, property_type)
+      properties(street_line_1, street_line_2, city, region, postal_code, county, property_type)
     `).eq("organization_id", organization.id).neq("id", jobId).order("job_number", { ascending: false }),
+    supabase
+      .from("organization_memberships")
+      .select(`
+        user_id,
+        profiles(full_name, email),
+        inspector_profiles(license_number, signature_path, is_active)
+      `)
+      .eq("organization_id", organization.id)
+      .eq("status", "active")
+      .order("created_at"),
   ]);
 
   if (error || !job) notFound();
   if (previousJobsError) throw new Error(previousJobsError.message);
+  if (inspectorError) throw new Error(inspectorError.message);
   const property = Array.isArray(job.properties) ? job.properties[0] : job.properties;
   if (!property) notFound();
 
@@ -44,6 +64,21 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
       inspectionAt: prior.inspection_at, streetLine1: priorProperty.street_line_1,
       streetLine2: priorProperty.street_line_2, city: priorProperty.city, region: priorProperty.region,
       postalCode: priorProperty.postal_code, propertyType: priorProperty.property_type,
+      county: priorProperty.county,
+    }];
+  });
+  const inspectors: InspectorOption[] = (inspectorRows ?? []).flatMap((row) => {
+    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    const inspector = Array.isArray(row.inspector_profiles)
+      ? row.inspector_profiles[0]
+      : row.inspector_profiles;
+    if (!inspector) return [];
+    return [{
+      userId: row.user_id,
+      name: `${profile?.full_name || profile?.email || "Inspector"}${inspector?.is_active ? "" : " (inactive)"}`,
+      email: profile?.email ?? null,
+      licenseNumber: inspector?.license_number ?? null,
+      hasSignature: Boolean(inspector?.signature_path),
     }];
   });
 
@@ -64,18 +99,22 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
           submitLabel="Save changes"
           pendingLabel="Saving changes"
           priorInspections={priorInspections}
+          inspectors={inspectors}
           initialValues={{
             streetLine1: property.street_line_1,
             streetLine2: property.street_line_2 ?? "",
             city: property.city,
             region: property.region,
             postalCode: property.postal_code,
+            county: property.county ?? "",
             propertyType: property.property_type ?? "single_family",
             reportType: job.report_type,
             inspectionAt: dateTimeLocalValue(job.inspection_at),
             priorJobId: job.prior_job_id ?? "",
             generalDescription: job.summary ?? "",
             escrowNumber: job.escrow_number ?? "",
+            inspectedById: job.inspected_by_id ?? "",
+            includeInspectorSignature: job.include_inspector_signature,
             internalNotes: job.internal_notes ?? "",
           }}
         />
