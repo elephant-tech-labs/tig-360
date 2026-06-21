@@ -33,15 +33,11 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
       .eq("organization_id", organization.id)
       .order("job_number", { ascending: false }),
     supabase
-      .from("organization_memberships")
-      .select(`
-        user_id,
-        profiles(full_name, email),
-        inspector_profiles(license_number, signature_path, is_active)
-      `)
+      .from("inspectors")
+      .select("id, full_name, email, license_number, signature_path")
       .eq("organization_id", organization.id)
-      .eq("status", "active")
-      .order("created_at"),
+      .eq("is_active", true)
+      .order("full_name"),
   ]);
 
   if (error) throw new Error(error.message);
@@ -64,20 +60,13 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
       propertyType: property.property_type,
     }];
   });
-  const inspectors: InspectorOption[] = (inspectorRows ?? []).flatMap((row) => {
-    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-    const inspector = Array.isArray(row.inspector_profiles)
-      ? row.inspector_profiles[0]
-      : row.inspector_profiles;
-    if (!inspector?.is_active) return [];
-    return [{
-      userId: row.user_id,
-      name: profile?.full_name || profile?.email || "Inspector",
-      email: profile?.email ?? null,
-      licenseNumber: inspector.license_number,
-      hasSignature: Boolean(inspector.signature_path),
-    }];
-  });
+  const inspectors: InspectorOption[] = (inspectorRows ?? []).map((row) => ({
+    userId: row.id,
+    name: row.full_name,
+    email: row.email,
+    licenseNumber: row.license_number,
+    hasSignature: Boolean(row.signature_path),
+  }));
 
   return (
     <AppShell organizationName={organization.name} userName={userName}>

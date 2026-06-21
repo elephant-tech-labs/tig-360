@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function clean(formData: FormData, name: string) {
@@ -12,115 +13,198 @@ function inspectorUrl(message: string, kind: "saved" | "error" = "saved") {
   return `/team/inspectors?${kind}=${encodeURIComponent(message)}`;
 }
 
-export async function saveInspectorProfile(formData: FormData) {
-  const organizationId = clean(formData, "organizationId");
-  const userId = clean(formData, "userId");
-  const licenseNumber = clean(formData, "licenseNumber");
-  const licenseExpiresOn = clean(formData, "licenseExpiresOn");
-  const isActive = formData.get("isActive") === "on";
-  const signature = formData.get("signature");
+async function uploadSignature(
+  organizationId: string,
+  inspectorId: string,
+  signature: FormDataEntryValue | null,
+) {
+  if (!(signature instanceof File) || signature.size === 0) return null;
+  if (!["image/png", "image/jpeg", "image/webp"].includes(signature.type)) {
+    throw new Error("Signature must be a PNG, JPEG, or WebP image.");
+  }
+  if (signature.size > 5 * 1024 * 1024) {
+    throw new Error("Signature image must be 5 MB or smaller.");
+  }
 
-  if (!organizationId || !userId) {
-    redirect(inspectorUrl("Unable to identify this team member.", "error"));
+  const extension = signature.name.split(".").pop()?.toLowerCase() || "png";
+  const path = `${organizationId}/${inspectorId}/signature-${Date.now()}.${extension}`;
+  const supabase = await createClient();
+  const { error } = await supabase.storage
+    .from("inspector-signatures")
+    .upload(path, signature, { contentType: signature.type, upsert: false });
+  if (error) throw new Error(error.message);
+  return { path, filename: signature.name, contentType: signature.type };
+}
+
+export async function createInspector(formData: FormData) {
+  const organizationId = clean(formData, "organizationId");
+  const fullName = clean(formData, "fullName");
+  const email = clean(formData, "email");
+  if (!organizationId || !fullName) {
+    redirect(inspectorUrl("Inspector name is required.", "error"));
   }
 
   const supabase = await createClient();
-  const { data: existing } = await supabase
-    .from("inspector_profiles")
-    .select("signature_path")
-    .eq("organization_id", organizationId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  const { data: inspectorId, error } = await supabase.rpc("create_inspector", {
+    target_organization_id: organizationId,
+    inspector_full_name: fullName,
+    inspector_email: email || null,
+    inspector_phone: clean(formData, "phone") || null,
+    inspector_license_number: clean(formData, "licenseNumber") || null,
+    inspector_license_expires_on: clean(formData, "licenseExpiresOn") || null,
+    inspector_is_active: true,
+  });
 
-  let signaturePath: string | null = null;
-  let signatureFilename: string | null = null;
-  let signatureContentType: string | null = null;
+  if (error || !inspectorId) {
+    redirect(inspectorUrl(error?.message ?? "Unable to create inspector.", "error"));
+  }
 
-  if (signature instanceof File && signature.size > 0) {
-    if (!["image/png", "image/jpeg", "image/webp"].includes(signature.type)) {
-      redirect(inspectorUrl("Signature must be a PNG, JPEG, or WebP image.", "error"));
-    }
-    if (signature.size > 5 * 1024 * 1024) {
-      redirect(inspectorUrl("Signature image must be 5 MB or smaller.", "error"));
-    }
-
-    const extension = signature.name.split(".").pop()?.toLowerCase() || "png";
-    signaturePath = `${organizationId}/${userId}/signature-${Date.now()}.${extension}`;
-    signatureFilename = signature.name;
-    signatureContentType = signature.type;
-
-    const { error: uploadError } = await supabase.storage
-      .from("inspector-signatures")
-      .upload(signaturePath, signature, {
-        contentType: signature.type,
-        upsert: false,
+  if (formData.get("allowLogin") === "on") {
+    if (!email) redirect(inspectorUrl("Inspector created. Add an email before inviting login.", "error"));
+    try {
+      await sendInvitation({
+        organizationId,
+        email,
+        role: "inspector",
+        inspectorId,
       });
-
-    if (uploadError) {
-      redirect(inspectorUrl(uploadError.message, "error"));
+    } catch (inviteError) {
+      redirect(inspectorUrl(
+        `Inspector created, but invitation failed: ${
+          inviteError instanceof Error ? inviteError.message : "Unknown error"
+        }`,
+        "error",
+      ));
     }
   }
 
-  const { error } = await supabase.rpc("save_inspector_profile", {
+  revalidatePath("/team/inspectors");
+  redirect(inspectorUrl("Inspector created."));
+}
+
+export async function updateInspector(formData: FormData) {
+  const organizationId = clean(formData, "organizationId");
+  const inspectorId = clean(formData, "inspectorId");
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("inspectors")
+    .select("signature_path")
+    .eq("organization_id", organizationId)
+    .eq("id", inspectorId)
+    .single();
+
+  let uploaded: Awaited<ReturnType<typeof uploadSignature>> = null;
+  try {
+    uploaded = await uploadSignature(organizationId, inspectorId, formData.get("signature"));
+  } catch (error) {
+    redirect(inspectorUrl(error instanceof Error ? error.message : "Signature upload failed.", "error"));
+  }
+
+  const { error } = await supabase.rpc("update_inspector", {
     target_organization_id: organizationId,
-    target_user_id: userId,
-    inspector_license_number: licenseNumber || null,
-    inspector_license_expires_on: licenseExpiresOn || null,
-    inspector_is_active: isActive,
-    inspector_signature_path: signaturePath,
-    inspector_signature_filename: signatureFilename,
-    inspector_signature_content_type: signatureContentType,
+    target_inspector_id: inspectorId,
+    inspector_full_name: clean(formData, "fullName"),
+    inspector_email: clean(formData, "email") || null,
+    inspector_phone: clean(formData, "phone") || null,
+    inspector_license_number: clean(formData, "licenseNumber") || null,
+    inspector_license_expires_on: clean(formData, "licenseExpiresOn") || null,
+    inspector_is_active: formData.get("isActive") === "on",
+    inspector_signature_path: uploaded?.path ?? null,
+    inspector_signature_filename: uploaded?.filename ?? null,
+    inspector_signature_content_type: uploaded?.contentType ?? null,
   });
 
   if (error) {
-    if (signaturePath) {
-      await supabase.storage.from("inspector-signatures").remove([signaturePath]);
-    }
+    if (uploaded) await supabase.storage.from("inspector-signatures").remove([uploaded.path]);
     redirect(inspectorUrl(error.message, "error"));
   }
-
-  if (signaturePath && existing?.signature_path) {
-    await supabase.storage
-      .from("inspector-signatures")
-      .remove([existing.signature_path]);
+  if (uploaded && existing?.signature_path) {
+    await supabase.storage.from("inspector-signatures").remove([existing.signature_path]);
   }
 
   revalidatePath("/team/inspectors");
   revalidatePath("/jobs/new");
-  redirect(inspectorUrl("Inspector profile saved."));
+  redirect(inspectorUrl("Inspector updated."));
+}
+
+type InvitationInput = {
+  organizationId: string;
+  email: string;
+  role: "administrator" | "manager" | "office_coordinator" | "inspector" | "treatment_coordinator";
+  inspectorId?: string | null;
+};
+
+async function sendInvitation(input: InvitationInput) {
+  const supabase = await createClient();
+  const { data: invitationId, error } = await supabase.rpc("create_organization_invitation", {
+    target_organization_id: input.organizationId,
+    invitation_email: input.email,
+    invitation_role: input.role,
+    target_inspector_id: input.inspectorId || null,
+  });
+  if (error || !invitationId) throw new Error(error?.message ?? "Unable to create invitation.");
+
+  try {
+    const admin = createAdminClient();
+    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/confirm?next=/jobs`;
+    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(input.email, {
+      redirectTo,
+      data: {
+        tig360_invitation_id: invitationId,
+        full_name: input.role === "inspector" ? undefined : input.email.split("@")[0],
+      },
+    });
+    if (inviteError) throw inviteError;
+  } catch (error) {
+    await supabase
+      .from("organization_invitations")
+      .update({ status: "failed" })
+      .eq("id", invitationId);
+    throw error;
+  }
+}
+
+export async function inviteTeamMember(formData: FormData) {
+  const organizationId = clean(formData, "organizationId");
+  const email = clean(formData, "inviteEmail").toLowerCase();
+  const role = clean(formData, "inviteRole") as InvitationInput["role"];
+  const inspectorId = clean(formData, "inspectorId") || null;
+
+  try {
+    await sendInvitation({ organizationId, email, role, inspectorId });
+  } catch (error) {
+    redirect(inspectorUrl(error instanceof Error ? error.message : "Unable to send invitation.", "error"));
+  }
+
+  revalidatePath("/team/inspectors");
+  redirect(inspectorUrl(`Invitation sent to ${email}.`));
 }
 
 export async function removeInspectorSignature(formData: FormData) {
   const organizationId = clean(formData, "organizationId");
-  const userId = clean(formData, "userId");
+  const inspectorId = clean(formData, "inspectorId");
   const supabase = await createClient();
-  const { data: inspector, error: fetchError } = await supabase
-    .from("inspector_profiles")
+  const { data: inspector, error } = await supabase
+    .from("inspectors")
     .select("signature_path")
     .eq("organization_id", organizationId)
-    .eq("user_id", userId)
+    .eq("id", inspectorId)
     .single();
 
-  if (fetchError || !inspector?.signature_path) {
-    redirect(inspectorUrl(fetchError?.message ?? "No signature is stored.", "error"));
+  if (error || !inspector?.signature_path) {
+    redirect(inspectorUrl(error?.message ?? "No signature is stored.", "error"));
   }
-
   const { error: removeError } = await supabase.storage
     .from("inspector-signatures")
     .remove([inspector.signature_path]);
   if (removeError) redirect(inspectorUrl(removeError.message, "error"));
 
-  const { error } = await supabase
-    .from("inspector_profiles")
-    .update({
-      signature_path: null,
-      signature_filename: null,
-      signature_content_type: null,
-    })
+  await supabase
+    .from("inspectors")
+    .update({ signature_path: null, signature_filename: null, signature_content_type: null })
     .eq("organization_id", organizationId)
-    .eq("user_id", userId);
+    .eq("id", inspectorId);
 
-  if (error) redirect(inspectorUrl(error.message, "error"));
   revalidatePath("/team/inspectors");
   redirect(inspectorUrl("Inspector signature removed."));
 }

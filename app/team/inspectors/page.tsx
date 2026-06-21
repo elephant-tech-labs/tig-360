@@ -1,9 +1,14 @@
 import Image from "next/image";
-import { Check, ShieldCheck, Upload } from "lucide-react";
+import { Check, KeyRound, Plus, ShieldCheck, Upload, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
-import { removeInspectorSignature, saveInspectorProfile } from "./actions";
+import {
+  createInspector,
+  inviteTeamMember,
+  removeInspectorSignature,
+  updateInspector,
+} from "./actions";
 
 type InspectorsPageProps = {
   searchParams: Promise<{ saved?: string; error?: string }>;
@@ -12,38 +17,45 @@ type InspectorsPageProps = {
 export default async function InspectorsPage({ searchParams }: InspectorsPageProps) {
   const messages = await searchParams;
   const { supabase, organization, userName, membership } = await getCurrentContext();
-  const { data: members, error } = await supabase
-    .from("organization_memberships")
-    .select(`
-      user_id,
-      role,
-      status,
-      profiles(full_name, email, phone),
-      inspector_profiles(
-        license_number,
-        license_expires_on,
-        signature_path,
-        signature_filename,
-        is_active
-      )
-    `)
-    .eq("organization_id", organization.id)
-    .eq("status", "active")
-    .order("created_at");
+  const [
+    { data: inspectors, error },
+    { data: invitations, error: invitationError },
+    { data: memberships, error: membershipError },
+  ] =
+    await Promise.all([
+      supabase
+        .from("inspectors")
+        .select(`
+          id, linked_user_id, full_name, email, phone, license_number,
+          license_expires_on, signature_path, signature_filename, is_active,
+          profiles(full_name, email)
+        `)
+        .eq("organization_id", organization.id)
+        .order("full_name"),
+      supabase
+        .from("organization_invitations")
+        .select("id, email, role, status, created_at, inspector_id")
+        .eq("organization_id", organization.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("organization_memberships")
+        .select("user_id, role, status")
+        .eq("organization_id", organization.id),
+    ]);
 
   if (error) throw new Error(error.message);
+  if (invitationError) throw new Error(invitationError.message);
+  if (membershipError) throw new Error(membershipError.message);
   const canManage = membership.role === "administrator" || membership.role === "manager";
+  const isAdmin = membership.role === "administrator";
   const signatureUrls = new Map<string, string>();
 
-  for (const member of members ?? []) {
-    const inspector = Array.isArray(member.inspector_profiles)
-      ? member.inspector_profiles[0]
-      : member.inspector_profiles;
-    if (!inspector?.signature_path) continue;
+  for (const inspector of inspectors ?? []) {
+    if (!inspector.signature_path) continue;
     const { data } = await supabase.storage
       .from("inspector-signatures")
       .createSignedUrl(inspector.signature_path, 60 * 10);
-    if (data?.signedUrl) signatureUrls.set(member.user_id, data.signedUrl);
+    if (data?.signedUrl) signatureUrls.set(inspector.id, data.signedUrl);
   }
 
   return (
@@ -51,8 +63,8 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
       <div className="page-heading">
         <div>
           <p className="eyebrow">Organization team</p>
-          <h1>Inspector profiles</h1>
-          <p>Manage report credentials and reusable signatures for active team members.</p>
+          <h1>Inspectors and access</h1>
+          <p>Inspector profiles are independent records. Login access is optional.</p>
         </div>
       </div>
 
@@ -60,70 +72,139 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
         {messages.saved ? <div className="form-alert success"><Check size={17} /> {messages.saved}</div> : null}
         {messages.error ? <div className="form-alert error">{messages.error}</div> : null}
 
+        {canManage ? (
+          <section className="team-create-band">
+            <form className="inspector-create-form" action={createInspector}>
+              <input name="organizationId" type="hidden" value={organization.id} />
+              <div className="section-heading compact">
+                <div><h2>Add inspector</h2><span className="section-subtitle">No login account is required</span></div>
+              </div>
+              <label>Full name<input name="fullName" required /></label>
+              <label>Email<input name="email" type="email" /></label>
+              <label>Phone<input name="phone" type="tel" /></label>
+              <label>License number<input name="licenseNumber" /></label>
+              <label>License expiration<input name="licenseExpiresOn" type="date" /></label>
+              {isAdmin ? (
+                <label className="inline-check"><input name="allowLogin" type="checkbox" /> Send login invitation now</label>
+              ) : null}
+              <PendingSubmitButton className="primary-button" pendingLabel="Adding inspector">
+                <Plus size={16} /> Add inspector
+              </PendingSubmitButton>
+            </form>
+
+            {isAdmin ? (
+              <form className="team-invite-form" action={inviteTeamMember}>
+                <input name="organizationId" type="hidden" value={organization.id} />
+                <div className="section-heading compact">
+                  <div><h2>Invite office user</h2><span className="section-subtitle">Grant login access without an inspector profile</span></div>
+                </div>
+                <label>Email<input name="inviteEmail" type="email" required /></label>
+                <label>
+                  Role
+                  <select name="inviteRole" defaultValue="office_coordinator">
+                    <option value="office_coordinator">Office coordinator</option>
+                    <option value="manager">Manager</option>
+                    <option value="treatment_coordinator">Treatment coordinator</option>
+                    <option value="administrator">Administrator</option>
+                  </select>
+                </label>
+                <PendingSubmitButton className="secondary-button" pendingLabel="Sending invitation">
+                  <UserPlus size={16} /> Send invitation
+                </PendingSubmitButton>
+              </form>
+            ) : null}
+          </section>
+        ) : null}
+
         <div className="inspector-profile-list">
-          {(members ?? []).map((member) => {
-            const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
-            const inspector = Array.isArray(member.inspector_profiles)
-              ? member.inspector_profiles[0]
-              : member.inspector_profiles;
-            const signatureUrl = signatureUrls.get(member.user_id);
+          {(inspectors ?? []).map((inspector) => {
+            const linkedProfile = Array.isArray(inspector.profiles)
+              ? inspector.profiles[0]
+              : inspector.profiles;
+            const linkedMembership = (memberships ?? []).find(
+              (item) => item.user_id === inspector.linked_user_id,
+            );
+            const signatureUrl = signatureUrls.get(inspector.id);
+            const pendingInvitation = (invitations ?? []).find(
+              (invitation) => invitation.inspector_id === inspector.id && invitation.status === "pending",
+            );
+
             return (
-              <article className="inspector-profile-row" key={member.user_id}>
+              <article className="inspector-profile-row" key={inspector.id}>
                 <div className="inspector-identity">
                   <div className="onboarding-icon"><ShieldCheck size={21} /></div>
                   <div>
-                    <strong>{profile?.full_name || profile?.email || "Team member"}</strong>
-                    <span>{profile?.email || "No email"} · {member.role.replaceAll("_", " ")}</span>
+                    <strong>{inspector.full_name}</strong>
+                    <span>{inspector.email || "No email"} · {inspector.is_active ? "active" : "inactive"}</span>
+                    <span className="login-state">
+                      <KeyRound size={12} />
+                      {linkedProfile
+                        ? `${linkedMembership?.status || "linked"} login`
+                        : pendingInvitation
+                          ? "invitation pending"
+                          : "profile only"}
+                    </span>
                   </div>
                 </div>
 
-                <form className="inspector-profile-form" action={saveInspectorProfile}>
+                <form className="inspector-profile-form" action={updateInspector}>
                   <input name="organizationId" type="hidden" value={organization.id} />
-                  <input name="userId" type="hidden" value={member.user_id} />
-                  <label>
-                    License number
-                    <input name="licenseNumber" defaultValue={inspector?.license_number ?? ""} disabled={!canManage} />
-                  </label>
-                  <label>
-                    License expiration
-                    <input name="licenseExpiresOn" type="date" defaultValue={inspector?.license_expires_on ?? ""} disabled={!canManage} />
-                  </label>
-                  <label className="signature-upload">
-                    Signature image
-                    <input name="signature" type="file" accept="image/png,image/jpeg,image/webp" disabled={!canManage} />
-                  </label>
-                  <label className="inline-check">
-                    <input name="isActive" type="checkbox" defaultChecked={inspector?.is_active ?? true} disabled={!canManage} />
-                    Available for inspections
-                  </label>
-                  {canManage ? (
-                    <PendingSubmitButton className="primary-button" pendingLabel="Saving inspector">
-                      <Upload size={16} /> Save profile
-                    </PendingSubmitButton>
-                  ) : null}
+                  <input name="inspectorId" type="hidden" value={inspector.id} />
+                  <label>Full name<input name="fullName" defaultValue={inspector.full_name} disabled={!canManage} required /></label>
+                  <label>Email<input name="email" type="email" defaultValue={inspector.email ?? ""} disabled={!canManage} /></label>
+                  <label>Phone<input name="phone" type="tel" defaultValue={inspector.phone ?? ""} disabled={!canManage} /></label>
+                  <label>License number<input name="licenseNumber" defaultValue={inspector.license_number ?? ""} disabled={!canManage} /></label>
+                  <label>License expiration<input name="licenseExpiresOn" type="date" defaultValue={inspector.license_expires_on ?? ""} disabled={!canManage} /></label>
+                  <label className="signature-upload">Signature image<input name="signature" type="file" accept="image/png,image/jpeg,image/webp" disabled={!canManage} /></label>
+                  <label className="inline-check"><input name="isActive" type="checkbox" defaultChecked={inspector.is_active} disabled={!canManage} /> Available for inspections</label>
+                  {canManage ? <PendingSubmitButton className="primary-button" pendingLabel="Saving inspector"><Upload size={16} /> Save profile</PendingSubmitButton> : null}
                 </form>
 
                 <div className="signature-preview">
                   {signatureUrl ? (
                     <>
-                      <Image src={signatureUrl} alt={`Signature for ${profile?.full_name || "inspector"}`} width={220} height={90} unoptimized />
-                      <span>{inspector?.signature_filename}</span>
+                      <Image src={signatureUrl} alt={`Signature for ${inspector.full_name}`} width={220} height={90} unoptimized />
+                      <span>{inspector.signature_filename}</span>
                       {canManage ? (
                         <form action={removeInspectorSignature}>
                           <input name="organizationId" type="hidden" value={organization.id} />
-                          <input name="userId" type="hidden" value={member.user_id} />
+                          <input name="inspectorId" type="hidden" value={inspector.id} />
                           <button className="danger-text-button" type="submit">Remove signature</button>
                         </form>
                       ) : null}
                     </>
-                  ) : (
-                    <div className="signature-empty">No signature stored</div>
-                  )}
+                  ) : <div className="signature-empty">No signature stored</div>}
+
+                  {isAdmin && !linkedProfile && !pendingInvitation && inspector.email ? (
+                    <form action={inviteTeamMember}>
+                      <input name="organizationId" type="hidden" value={organization.id} />
+                      <input name="inspectorId" type="hidden" value={inspector.id} />
+                      <input name="inviteEmail" type="hidden" value={inspector.email} />
+                      <input name="inviteRole" type="hidden" value="inspector" />
+                      <PendingSubmitButton className="secondary-button" pendingLabel="Sending invite">
+                        <KeyRound size={15} /> Allow login
+                      </PendingSubmitButton>
+                    </form>
+                  ) : null}
                 </div>
               </article>
             );
           })}
         </div>
+
+        {isAdmin && invitations?.length ? (
+          <section className="invitation-history">
+            <div className="section-heading compact"><div><h2>Access invitations</h2><span className="section-subtitle">Recent organization invitations</span></div></div>
+            {invitations.map((invitation) => (
+              <div className="invitation-row" key={invitation.id}>
+                <strong>{invitation.email}</strong>
+                <span>{invitation.role.replaceAll("_", " ")}</span>
+                <span className={`invitation-status ${invitation.status}`}>{invitation.status}</span>
+                <small>{new Date(invitation.created_at).toLocaleString()}</small>
+              </div>
+            ))}
+          </section>
+        ) : null}
       </div>
     </AppShell>
   );

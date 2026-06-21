@@ -36,14 +36,10 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
   const [{ data: inspector }, { data: enteredBy }] = await Promise.all([
     job.inspected_by_id
       ? supabase
-          .from("organization_memberships")
-          .select(`
-            user_id,
-            profiles(full_name, email),
-            inspector_profiles(license_number, license_expires_on, signature_path)
-          `)
+          .from("inspectors")
+          .select("id, full_name, email, license_number, license_expires_on, signature_path")
           .eq("organization_id", organization.id)
-          .eq("user_id", job.inspected_by_id)
+          .eq("id", job.inspected_by_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
     job.created_by
@@ -54,14 +50,6 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  const inspectorIdentity = inspector
-    ? (Array.isArray(inspector.profiles) ? inspector.profiles[0] : inspector.profiles)
-    : null;
-  const inspectorDetails = inspector
-    ? (Array.isArray(inspector.inspector_profiles)
-        ? inspector.inspector_profiles[0]
-        : inspector.inspector_profiles)
-    : null;
   const hasReportRecipient = job.job_parties.some(
     (party) => party.role === "report_recipient",
   );
@@ -74,7 +62,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
     { label: "Inspector selected", complete: Boolean(inspector) },
     {
       label: "Inspector signature",
-      complete: !job.include_inspector_signature || Boolean(inspectorDetails?.signature_path),
+      complete: !job.include_inspector_signature || Boolean(inspector?.signature_path),
     },
     { label: "Report recipient", complete: hasReportRecipient },
   ];
@@ -128,18 +116,18 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
         <dl>
           <div>
             <dt>Inspected by</dt>
-            <dd>{inspectorIdentity?.full_name || inspectorIdentity?.email || "Not selected"}</dd>
+            <dd>{inspector?.full_name || inspector?.email || "Not selected"}</dd>
           </div>
           <div>
             <dt>License</dt>
-            <dd>{inspectorDetails?.license_number || "Not recorded"}</dd>
+            <dd>{inspector?.license_number || "Not recorded"}</dd>
           </div>
           <div>
             <dt>Signature</dt>
             <dd>
               {!job.include_inspector_signature
                 ? "Excluded from final report"
-                : inspectorDetails?.signature_path
+                : inspector?.signature_path
                   ? "Included and available"
                   : "Included, but signature is missing"}
             </dd>
