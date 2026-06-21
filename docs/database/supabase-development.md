@@ -19,6 +19,7 @@ The following migrations have been applied to the production project:
 6. `20260620200000_job_report_fields.sql`
 7. `20260621120000_contact_addresses_and_inspectors.sql`
 8. `20260621180000_independent_inspectors_and_invitations.sql`
+9. `20260621210000_findings_workspace.sql`
 
 The latest migration was applied through the Supabase SQL Editor on June 21, 2026.
 
@@ -97,6 +98,12 @@ The independent-inspector migration was applied through the Supabase SQL Editor 
 June 21, 2026. It adds independent inspector business records, optional linked user
 accounts, organization invitations, and a compatibility layer for the prior
 membership-bound inspector profile implementation. All seven post-deployment checks
+passed.
+
+The findings-workspace migration was applied through the Supabase SQL Editor on
+June 21, 2026. It adds report-level visible-problem summaries, reusable finding
+templates, structured finding/note entries, multiple priced recommendations,
+ordering, archive/restore, and future reinspection lineage. All six schema checks
 passed.
 
 ## Next Database Steps

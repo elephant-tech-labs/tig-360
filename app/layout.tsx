@@ -5,6 +5,7 @@ import "./workflows.css";
 import "./contacts.css";
 import "./report-fields.css";
 import "./team.css";
+import "./findings.css";
 
 const inter = Inter({
   variable: "--font-sans",
