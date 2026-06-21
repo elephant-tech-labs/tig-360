@@ -1,0 +1,5 @@
+select
+  (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'inspection_jobs' and column_name = 'escrow_number') as escrow_column,
+  (select count(*) from pg_proc procedure join pg_namespace namespace on namespace.oid = procedure.pronamespace where namespace.nspname = 'public' and procedure.proname = 'create_inspection_job' and procedure.pronargs = 12) as create_rpc,
+  (select count(*) from pg_proc procedure join pg_namespace namespace on namespace.oid = procedure.pronamespace where namespace.nspname = 'public' and procedure.proname = 'update_inspection_job' and procedure.pronargs = 14) as update_rpc,
+  (select bool_and(has_function_privilege('authenticated', procedure.oid, 'EXECUTE')) from pg_proc procedure join pg_namespace namespace on namespace.oid = procedure.pronamespace where namespace.nspname = 'public' and ((procedure.proname = 'create_inspection_job' and procedure.pronargs = 12) or (procedure.proname = 'update_inspection_job' and procedure.pronargs = 14))) as authenticated_can_execute;

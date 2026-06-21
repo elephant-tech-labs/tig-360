@@ -37,6 +37,8 @@ type InspectionJobFormProps = {
     reportType: string;
     inspectionAt: string;
     priorJobId: string;
+    generalDescription: string;
+    escrowNumber: string;
     internalNotes: string;
   };
 };
@@ -51,6 +53,8 @@ const defaults = {
   reportType: "complete",
   inspectionAt: "",
   priorJobId: "",
+  generalDescription: "",
+  escrowNumber: "",
   internalNotes: "",
 };
 
@@ -105,73 +109,27 @@ export function InspectionJobForm({
         <div className="field-grid">
           <label className="field-span-2">
             Street address
-            <input
-              name="streetLine1"
-              autoComplete="address-line1"
-              value={property.streetLine1}
-              onChange={(event) =>
-                setProperty((current) => ({ ...current, streetLine1: event.target.value }))
-              }
-              required
-            />
+            <input name="streetLine1" autoComplete="address-line1" value={property.streetLine1} onChange={(event) => setProperty((current) => ({ ...current, streetLine1: event.target.value }))} required />
           </label>
           <label className="field-span-2">
             Unit or secondary address
-            <input
-              name="streetLine2"
-              autoComplete="address-line2"
-              value={property.streetLine2}
-              onChange={(event) =>
-                setProperty((current) => ({ ...current, streetLine2: event.target.value }))
-              }
-            />
+            <input name="streetLine2" autoComplete="address-line2" value={property.streetLine2} onChange={(event) => setProperty((current) => ({ ...current, streetLine2: event.target.value }))} />
           </label>
           <label>
             City
-            <input
-              name="city"
-              autoComplete="address-level2"
-              value={property.city}
-              onChange={(event) =>
-                setProperty((current) => ({ ...current, city: event.target.value }))
-              }
-              required
-            />
+            <input name="city" autoComplete="address-level2" value={property.city} onChange={(event) => setProperty((current) => ({ ...current, city: event.target.value }))} required />
           </label>
           <label>
             State
-            <input
-              name="region"
-              autoComplete="address-level1"
-              maxLength={2}
-              value={property.region}
-              onChange={(event) =>
-                setProperty((current) => ({ ...current, region: event.target.value }))
-              }
-              required
-            />
+            <input name="region" autoComplete="address-level1" maxLength={2} value={property.region} onChange={(event) => setProperty((current) => ({ ...current, region: event.target.value }))} required />
           </label>
           <label>
             ZIP code
-            <input
-              name="postalCode"
-              autoComplete="postal-code"
-              value={property.postalCode}
-              onChange={(event) =>
-                setProperty((current) => ({ ...current, postalCode: event.target.value }))
-              }
-              required
-            />
+            <input name="postalCode" autoComplete="postal-code" value={property.postalCode} onChange={(event) => setProperty((current) => ({ ...current, postalCode: event.target.value }))} required />
           </label>
           <label>
             Property type
-            <select
-              name="propertyType"
-              value={property.propertyType}
-              onChange={(event) =>
-                setProperty((current) => ({ ...current, propertyType: event.target.value }))
-              }
-            >
+            <select name="propertyType" value={property.propertyType} onChange={(event) => setProperty((current) => ({ ...current, propertyType: event.target.value }))}>
               <option value="single_family">Single-family residence</option>
               <option value="multi_family">Multi-family residence</option>
               <option value="commercial">Commercial</option>
@@ -186,17 +144,7 @@ export function InspectionJobForm({
         <div className="field-grid">
           <label>
             Report type
-            <select
-              name="reportType"
-              value={reportType}
-              onChange={(event) => {
-                const nextType = event.target.value;
-                setReportType(nextType);
-                if (nextType !== "supplemental" && nextType !== "reinspection") {
-                  setSelectedPriorId("");
-                }
-              }}
-            >
+            <select name="reportType" value={reportType} onChange={(event) => { const nextType = event.target.value; setReportType(nextType); if (nextType !== "supplemental" && nextType !== "reinspection") setSelectedPriorId(""); }}>
               <option value="complete">Complete</option>
               <option value="limited">Limited</option>
               <option value="supplemental">Supplemental</option>
@@ -213,44 +161,40 @@ export function InspectionJobForm({
           <div className="related-inspection-panel">
             <div className="related-inspection-heading">
               <Link2 size={18} />
-              <div>
-                <strong>Related prior inspection</strong>
-                <span>Required for {reportType} reports</span>
-              </div>
+              <div><strong>Related prior inspection</strong><span>Required for {reportType} reports</span></div>
             </div>
             <label>
               Previous job
-              <select
-                name="priorJobId"
-                value={selectedPriorId}
-                onChange={(event) => selectPrior(event.target.value)}
-                required
-              >
+              <select name="priorJobId" value={selectedPriorId} onChange={(event) => selectPrior(event.target.value)} required>
                 <option value="">Select a previous inspection</option>
                 {priorInspections.map((inspection) => (
-                  <option key={inspection.id} value={inspection.id}>
-                    #{inspection.jobNumber} · {inspection.streetLine1} · {inspection.reportType.replaceAll("_", " ")}
-                  </option>
+                  <option key={inspection.id} value={inspection.id}>#{inspection.jobNumber} · {inspection.streetLine1} · {inspection.reportType.replaceAll("_", " ")}</option>
                 ))}
               </select>
             </label>
             {selectedPrior ? (
               <div className="related-inspection-summary">
                 <strong>Job #{selectedPrior.jobNumber}</strong>
-                <span>
-                  {selectedPrior.inspectionAt
-                    ? new Date(selectedPrior.inspectionAt).toLocaleDateString()
-                    : "Date not scheduled"}{" "}
-                  · {selectedPrior.status.replaceAll("_", " ")}
-                </span>
-                <small>
-                  {selectedPrior.streetLine1}, {selectedPrior.city}, {selectedPrior.region}{" "}
-                  {selectedPrior.postalCode}
-                </small>
+                <span>{selectedPrior.inspectionAt ? new Date(selectedPrior.inspectionAt).toLocaleDateString() : "Date not scheduled"} · {selectedPrior.status.replaceAll("_", " ")}</span>
+                <small>{selectedPrior.streetLine1}, {selectedPrior.city}, {selectedPrior.region} {selectedPrior.postalCode}</small>
               </div>
             ) : null}
           </div>
         ) : null}
+      </fieldset>
+
+      <fieldset>
+        <legend>Report details</legend>
+        <div className="field-grid">
+          <label>
+            Escrow number
+            <input name="escrowNumber" defaultValue={values.escrowNumber} autoComplete="off" />
+          </label>
+          <label className="field-span-2">
+            General description
+            <textarea name="generalDescription" rows={5} defaultValue={values.generalDescription} />
+          </label>
+        </div>
       </fieldset>
 
       {jobId ? (
@@ -265,9 +209,7 @@ export function InspectionJobForm({
 
       <div className="form-actions">
         <Link className="secondary-button" href={cancelHref}>Cancel</Link>
-        <PendingSubmitButton className="primary-button" pendingLabel={pendingLabel}>
-          {submitLabel}
-        </PendingSubmitButton>
+        <PendingSubmitButton className="primary-button" pendingLabel={pendingLabel}>{submitLabel}</PendingSubmitButton>
       </div>
     </form>
   );
