@@ -8,7 +8,7 @@
 .draft-indicator.saved { color: var(--green-dark); }
 .draft-indicator.error { color: var(--red); }
 .drawing-notice { margin: 14px 28px 0; }
-.drawing-layout { align-items: start; display: grid; gap: 0; grid-template-columns: 82px minmax(0, 1fr) 284px; margin: 18px 28px 0; min-width: 0; }
+.drawing-layout { align-items: start; display: grid; gap: 0; grid-template-columns: 82px minmax(0, 1fr) 260px; margin: 18px 28px 0; min-width: 0; }
 
 .drawing-tool-rail { align-content: start; background: #fff; border: 1px solid var(--line); display: grid; gap: 4px; padding: 7px; }
 .drawing-tool-rail button { align-items: center; background: transparent; border: 1px solid transparent; color: var(--muted); display: flex; flex-direction: column; font-size: 9px; gap: 4px; justify-content: center; min-height: 57px; padding: 5px 2px; }
@@ -27,7 +27,7 @@
 .drawing-control-actions button:hover:not(:disabled), .drawing-control-actions button.active { background: var(--green-soft); color: var(--green-dark); }
 .drawing-control-actions button:disabled { cursor: default; opacity: .3; }
 .drawing-control-actions > span { color: var(--muted); font-size: 10px; min-width: 36px; text-align: center; }
-.drawing-canvas-scroll { min-height: 650px; overflow: auto; padding: 22px; }
+.drawing-canvas-scroll { min-height: 650px; overflow: auto; overscroll-behavior: contain; padding: 22px; }
 .drawing-canvas-frame { background: #fff; box-shadow: 0 2px 9px rgba(25, 38, 32, .16); margin: 0 auto; overflow: hidden; }
 
 .drawing-side-panel { background: #f8faf9; border: 1px solid var(--line); display: grid; min-width: 0; }
@@ -55,14 +55,14 @@
 .drawing-clear-button { align-items: center; background: transparent; border: 0; color: var(--red); display: flex; font-size: 10px; font-weight: 700; gap: 6px; justify-content: center; min-height: 40px; }
 .drawing-clear-button:disabled { opacity: .3; }
 
-@media (max-width: 1180px) {
+@media (max-width: 1500px) {
   .drawing-layout { grid-template-columns: 74px minmax(0, 1fr); }
   .drawing-side-panel { grid-column: 1 / -1; grid-template-columns: 1.3fr 1fr 1fr auto; }
   .drawing-side-panel section { border-bottom: 0; border-right: 1px solid var(--line); }
   .drawing-clear-button { min-width: 105px; padding: 10px; }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 920px) {
   .drawing-header { align-items: flex-start; flex-direction: column; padding: 18px 15px; }
   .drawing-header-actions { justify-content: flex-start; }
   .drawing-notice { margin-left: 14px; margin-right: 14px; }
