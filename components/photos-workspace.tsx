@@ -53,6 +53,19 @@ type AnnotationObject = {
   text?: string;
 };
 
+function isAnnotationObject(value: unknown): value is AnnotationObject {
+  if (!value || typeof value !== "object") return false;
+  const object = value as Partial<AnnotationObject>;
+  return Boolean(
+    object.id
+    && ["pen", "rect", "circle", "arrow", "text"].includes(String(object.type))
+    && typeof object.color === "string"
+    && typeof object.width === "number"
+    && Array.isArray(object.points)
+    && object.points.every((point) => typeof point === "number" && Number.isFinite(point)),
+  );
+}
+
 export type JobPhotoItem = {
   id: string;
   originalPath: string;
@@ -430,7 +443,11 @@ function PhotoAnnotationEditor({ organizationId, jobId, photo, onClose, onSaved 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const drawingRef = useRef<AnnotationObject | null>(null);
-  const [objects, setObjects] = useState<AnnotationObject[]>(photo.annotationJson.objects ?? []);
+  const initialAnnotationObjects = useMemo(
+    () => (photo.annotationJson.objects ?? []).filter(isAnnotationObject),
+    [photo.annotationJson.objects],
+  );
+  const [objects, setObjects] = useState<AnnotationObject[]>(initialAnnotationObjects);
   const [tool, setTool] = useState<AnnotationObject["type"]>("arrow");
   const [color, setColor] = useState("#e03131");
   const [lineWidth, setLineWidth] = useState(5);
@@ -442,11 +459,11 @@ function PhotoAnnotationEditor({ organizationId, jobId, photo, onClose, onSaved 
     image.crossOrigin = "anonymous";
     image.onload = () => {
       imageRef.current = image;
-      drawAnnotationCanvas(canvasRef.current, image, photo.annotationJson.objects ?? []);
+      drawAnnotationCanvas(canvasRef.current, image, initialAnnotationObjects);
     };
     image.onerror = () => setError("The image could not be loaded for annotation.");
     image.src = photo.originalUrl;
-  }, [photo.annotationJson.objects, photo.originalUrl]);
+  }, [initialAnnotationObjects, photo.originalUrl]);
 
   useEffect(() => {
     if (imageRef.current) drawAnnotationCanvas(canvasRef.current, imageRef.current, objects);
@@ -482,10 +499,14 @@ function PhotoAnnotationEditor({ organizationId, jobId, photo, onClose, onSaved 
     if (imageRef.current) drawAnnotationCanvas(canvasRef.current, imageRef.current, [...objects, drawing]);
   }
 
-  function pointerUp() {
-    if (!drawingRef.current) return;
-    setObjects((current) => [...current, drawingRef.current as AnnotationObject]);
+  function pointerUp(event: React.PointerEvent<HTMLCanvasElement>) {
+    const completed = drawingRef.current;
+    if (!completed) return;
     drawingRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setObjects((current) => [...current, completed]);
   }
 
   async function save() {
@@ -557,7 +578,7 @@ function drawAnnotationCanvas(canvas: HTMLCanvasElement | null, image: HTMLImage
   context.drawImage(image, x, y, width, height);
   context.lineCap = "round";
   context.lineJoin = "round";
-  objects.forEach((object) => {
+  objects.filter(isAnnotationObject).forEach((object) => {
     context.strokeStyle = object.color;
     context.fillStyle = object.color;
     context.lineWidth = object.width;
