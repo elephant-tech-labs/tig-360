@@ -50,6 +50,20 @@ export type InspectionReportSnapshot = {
   organization: {
     id: string;
     name: string;
+    legalName: string;
+    streetLine1: string | null;
+    streetLine2: string | null;
+    city: string | null;
+    region: string | null;
+    postalCode: string | null;
+    phone: string | null;
+    email: string | null;
+    website: string | null;
+    registrationNumber: string | null;
+    operatorLicense: string | null;
+    contractorLicense: string | null;
+    regulatoryContact: string | null;
+    logoPath: string | null;
   };
   job: {
     id: string;
@@ -59,6 +73,9 @@ export type InspectionReportSnapshot = {
     escrowNumber: string | null;
     generalDescription: string | null;
     priorJobNumber: number | null;
+    inspectionTagPosted: string | null;
+    otherTagsPosted: string | null;
+    garageDescription: string | null;
   };
   property: {
     streetLine1: string;
@@ -71,6 +88,8 @@ export type InspectionReportSnapshot = {
   };
   inspector: {
     name: string;
+    email: string | null;
+    phone: string | null;
     licenseNumber: string | null;
     includeSignature: boolean;
     signaturePath: string | null;
@@ -87,12 +106,22 @@ export type InspectionReportSnapshot = {
   findings: ReportFinding[];
   photos: ReportPhoto[];
   diagram: ReportDiagram | null;
+  legalContent: {
+    id: string;
+    title: string;
+    body: string;
+    placement: "before_findings" | "after_findings" | "contract";
+    sortOrder: number;
+    version: number;
+    required: boolean;
+  }[];
 };
 
 export type ReportMedia = {
   coverUrl: string | null;
   diagramUrl: string | null;
   signatureUrl: string | null;
+  companyLogoUrl: string | null;
   photoUrls: Record<string, string>;
 };
 

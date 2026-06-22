@@ -50,6 +50,9 @@ type InspectionJobFormProps = {
     priorJobId: string;
     generalDescription: string;
     escrowNumber: string;
+    inspectionTagPosted: string;
+    otherTagsPosted: string;
+    garageDescription: string;
     inspectedById: string;
     includeInspectorSignature: boolean;
     internalNotes: string;
@@ -69,6 +72,9 @@ const defaults = {
   priorJobId: "",
   generalDescription: "",
   escrowNumber: "",
+  inspectionTagPosted: "",
+  otherTagsPosted: "",
+  garageDescription: "",
   inspectedById: "",
   includeInspectorSignature: true,
   internalNotes: "",
@@ -254,6 +260,18 @@ export function InspectionJobForm({
           <label>
             Escrow number
             <input name="escrowNumber" defaultValue={values.escrowNumber} autoComplete="off" />
+          </label>
+          <label>
+            Inspection tag posted
+            <input name="inspectionTagPosted" defaultValue={values.inspectionTagPosted} placeholder="Example: Attic, garage, kitchen" />
+          </label>
+          <label>
+            Other tags observed
+            <input name="otherTagsPosted" defaultValue={values.otherTagsPosted} placeholder="Prior inspection, treatment, or fumigation tags" />
+          </label>
+          <label>
+            Garage description
+            <input name="garageDescription" defaultValue={values.garageDescription} placeholder="Example: Attached two-car garage" />
           </label>
           <label className="field-span-2">
             General description

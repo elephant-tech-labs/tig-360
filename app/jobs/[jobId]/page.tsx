@@ -23,6 +23,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
   const { supabase, organization, userName } = await getCurrentContext();
   const { data: job, error } = await supabase.from("inspection_jobs").select(`
     id, job_number, status, report_type, inspection_at, prior_job_id, summary, escrow_number,
+    inspection_tag_posted, other_tags_posted, garage_description,
     internal_notes, created_at, created_by, inspected_by_id, include_inspector_signature,
     properties(street_line_1, street_line_2, city, region, postal_code, county, property_type),
     prior_job:inspection_jobs!prior_job_id(id, job_number, report_type, inspection_at, properties(street_line_1, city, region, postal_code)),
@@ -163,12 +164,15 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
         <ShieldCheck size={25} />
       </section>
 
-      {(job.summary || job.escrow_number || property?.county) ? (
+      {(job.summary || job.escrow_number || property?.county || job.inspection_tag_posted || job.other_tags_posted || job.garage_description) ? (
         <section className="job-report-details">
           <div><p className="eyebrow">Report details</p><h2>Property description</h2></div>
           <dl>
             {job.escrow_number ? <div><dt>Escrow number</dt><dd>{job.escrow_number}</dd></div> : null}
             {property?.county ? <div><dt>County</dt><dd>{property.county}</dd></div> : null}
+            {job.inspection_tag_posted ? <div><dt>Inspection tag posted</dt><dd>{job.inspection_tag_posted}</dd></div> : null}
+            {job.other_tags_posted ? <div><dt>Other tags posted</dt><dd>{job.other_tags_posted}</dd></div> : null}
+            {job.garage_description ? <div><dt>Garage</dt><dd>{job.garage_description}</dd></div> : null}
             {job.summary ? <div className="description-row"><dt>General description</dt><dd>{job.summary}</dd></div> : null}
           </dl>
         </section>

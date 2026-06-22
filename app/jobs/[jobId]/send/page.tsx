@@ -27,7 +27,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
   const { jobId } = await params;
   const messages = await searchParams;
   const { supabase, organization, userName } = await getCurrentContext();
-  const [{ data: job, error }, versions, workflowStates, { data: deliveries }] = await Promise.all([
+  const [{ data: job, error }, versions, workflowStates, { data: deliveries }, { data: supportingDocuments }] = await Promise.all([
     supabase
       .from("inspection_jobs")
       .select(`
@@ -46,13 +46,25 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
     supabase
       .from("deliveries")
       .select(`
-        id, status, subject, created_at, sent_at, failure_message,
+        id, status, subject, package_mode, created_at, sent_at, failure_message,
         document_versions(version),
         delivery_recipients(id, email, display_name, recipient_type)
       `)
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("documents")
+      .select(`
+        id, kind, title,
+        document_versions(
+          id, version, status, approval_status, created_at,
+          assets(provider_file_id, original_filename)
+        )
+      `)
+      .eq("inspection_job_id", jobId)
+      .eq("organization_id", organization.id)
+      .in("kind", ["contract", "proposal"]),
   ]);
   if (error || !job) notFound();
 
@@ -73,6 +85,19 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
   });
   const uniqueRecipients = Array.from(new Map(recipientOptions.map((recipient) => [recipient.email.toLowerCase(), recipient])).values());
   const reportAddress = `${property?.street_line_1 ?? "Property"} · Report #${job.job_number}`;
+  const supportingVersions = (supportingDocuments ?? []).flatMap((document) =>
+    (document.document_versions ?? [])
+      .filter((version) => version.status === "ready")
+      .map((version) => {
+        const asset = Array.isArray(version.assets) ? version.assets[0] : version.assets;
+        return {
+          id: version.id,
+          label: `${document.title} · v${version.version}`,
+          kind: document.kind,
+          filename: asset?.original_filename ?? `${document.kind}.pdf`,
+        };
+      }),
+  );
 
   return (
     <AppShell organizationName={organization.name} userName={userName}>
@@ -112,6 +137,24 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                     </select>
                   </label>
                   <Link className="text-button send-download-link" href={`/jobs/${jobId}/review/versions/${latestApproved.id}/download`}><Download size={15} /> Download selected PDF</Link>
+                </section>
+
+                <section className="send-form-section">
+                  <div className="section-heading compact"><div><p className="eyebrow">Package</p><h2>What should the recipient receive?</h2></div><span className="section-subtitle">The delivery history records this choice.</span></div>
+                  <div className="send-package-options">
+                    <label><input name="packageMode" type="radio" value="report_only" defaultChecked /><span><strong>Report only</strong><small>Send the approved inspection report PDF.</small></span></label>
+                    <label className={!supportingVersions.length ? "disabled" : ""}><input name="packageMode" type="radio" value="append_contract" disabled={!supportingVersions.length} /><span><strong>Report with contract appended</strong><small>Combine both documents into one PDF.</small></span></label>
+                    <label className={!supportingVersions.length ? "disabled" : ""}><input name="packageMode" type="radio" value="separate_attachments" disabled={!supportingVersions.length} /><span><strong>Separate attachments</strong><small>Attach the report and contract as separate PDFs.</small></span></label>
+                    <label className={!supportingVersions.length ? "disabled" : ""}><input name="packageMode" type="radio" value="contract_only" disabled={!supportingVersions.length} /><span><strong>Contract only</strong><small>Send only the selected contract or proposal.</small></span></label>
+                  </div>
+                  {supportingVersions.length ? (
+                    <label>
+                      Contract or proposal
+                      <select name="supportingVersionId" defaultValue={supportingVersions[0].id}>
+                        {supportingVersions.map((version) => <option key={version.id} value={version.id}>{version.label} · {version.filename}</option>)}
+                      </select>
+                    </label>
+                  ) : <p className="send-package-empty">Report-only delivery is available now. Contract packaging will activate when this job has a ready contract or proposal version.</p>}
                 </section>
 
                 <section className="send-form-section">
@@ -158,7 +201,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
               {deliveries.map((delivery) => {
                 const version = Array.isArray(delivery.document_versions) ? delivery.document_versions[0] : delivery.document_versions;
                 return <article className="delivery-history-item" key={delivery.id}>
-                  <div><strong>{delivery.subject}</strong><span>Version {version?.version ?? "?"} · {delivery.status}</span></div>
+                  <div><strong>{delivery.subject}</strong><span>Version {version?.version ?? "?"} · {delivery.package_mode?.replaceAll("_", " ") ?? "report only"} · {delivery.status}</span></div>
                   <small>{delivery.sent_at ? `Sent ${new Date(delivery.sent_at).toLocaleString()}` : `Created ${new Date(delivery.created_at).toLocaleString()}`}</small>
                   <div className="delivery-recipient-chips">{(delivery.delivery_recipients ?? []).map((recipient) => <span key={recipient.id}>{recipient.display_name || recipient.email}</span>)}</div>
                   {delivery.failure_message ? <p>{delivery.failure_message}</p> : null}

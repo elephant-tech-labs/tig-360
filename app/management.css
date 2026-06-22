@@ -1,0 +1,38 @@
+.management-nav { background: #fff; border-bottom: 1px solid var(--line); display: flex; gap: 4px; overflow-x: auto; padding: 0 30px; }
+.management-nav a { align-items: center; border-bottom: 3px solid transparent; color: var(--muted); display: flex; font-size: 11px; font-weight: 700; gap: 7px; min-height: 48px; padding: 0 14px; white-space: nowrap; }
+.management-nav a:hover { color: var(--green-dark); }
+.management-nav a.active { border-color: var(--green); color: var(--ink); }
+.management-page { padding: 22px 30px 48px; }
+.management-panel { background: #fff; border: 1px solid var(--line); padding: 22px; }
+.management-panel-intro { align-items: flex-start; border-bottom: 1px solid var(--line); display: flex; gap: 14px; margin-bottom: 22px; padding-bottom: 18px; }
+.management-panel-intro .onboarding-icon { flex: 0 0 auto; margin: 0; }
+.management-panel-intro h2 { font-size: 20px; margin-top: 4px; }
+.management-panel-intro p:last-child { color: var(--muted); line-height: 1.5; margin: 6px 0 0; }
+.company-profile-form { display: grid; gap: 20px; }
+.company-profile-form fieldset { border: 0; border-top: 1px solid var(--line); margin: 0; padding: 20px 0 0; }
+.company-profile-form fieldset:first-of-type { border-top: 0; padding-top: 0; }
+.company-profile-form legend, .report-content-editor legend { font-family: var(--font-display); font-size: 14px; font-weight: 750; margin-bottom: 14px; padding: 0; }
+.company-profile-form label, .report-content-editor label { color: #35413d; display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
+.company-profile-form input, .report-content-editor input, .report-content-editor select, .report-content-editor textarea { background: #fff; border: 1px solid #cbd4d0; border-radius: 5px; color: var(--ink); min-height: 39px; padding: 8px 10px; resize: vertical; width: 100%; }
+.company-profile-form .primary-button { justify-self: end; }
+.company-logo-control { align-items: center; display: flex; gap: 20px; }
+.company-logo-control img, .company-logo-empty { background: #f4f6f5; border: 1px solid var(--line); height: 120px; object-fit: contain; padding: 10px; width: 240px; }
+.company-logo-empty { align-items: center; color: var(--muted); display: flex; justify-content: center; }
+.report-content-list { display: grid; gap: 16px; }
+.report-content-editor { border: 1px solid var(--line); padding: 17px; }
+.report-content-editor.new { border-style: dashed; }
+.report-content-editor > form:first-child { display: grid; gap: 13px; }
+.report-content-editor-heading { align-items: center; display: flex; justify-content: space-between; }
+.report-content-editor-heading span { background: #edf2ef; color: var(--green-dark); font-size: 9px; font-weight: 750; padding: 5px 7px; text-transform: capitalize; }
+.report-content-options { display: grid; gap: 12px; grid-template-columns: 1.1fr .7fr .8fr; }
+.report-content-editor fieldset { border: 0; border-top: 1px solid var(--line); margin: 0; padding: 13px 0 0; }
+.report-type-checks, .report-content-flags { display: flex; flex-wrap: wrap; gap: 15px; text-transform: capitalize; }
+.report-content-editor .primary-button { justify-self: end; }
+
+@media (max-width: 760px) {
+  .management-nav { padding: 0 12px; }
+  .management-page { padding: 16px; }
+  .management-panel { padding: 16px; }
+  .report-content-options { grid-template-columns: 1fr; }
+  .company-logo-control { align-items: flex-start; flex-direction: column; }
+}

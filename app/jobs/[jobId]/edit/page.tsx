@@ -32,6 +32,7 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
     supabase.from("inspection_jobs").select(`
       id, job_number, report_type, inspection_at, prior_job_id, summary, escrow_number,
       internal_notes, inspected_by_id, include_inspector_signature,
+      inspection_tag_posted, other_tags_posted, garage_description,
       properties(street_line_1, street_line_2, city, region, postal_code, county, property_type)
     `).eq("id", jobId).single(),
     supabase.from("inspection_jobs").select(`
@@ -101,6 +102,9 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
             priorJobId: job.prior_job_id ?? "",
             generalDescription: job.summary ?? "",
             escrowNumber: job.escrow_number ?? "",
+            inspectionTagPosted: job.inspection_tag_posted ?? "",
+            otherTagsPosted: job.other_tags_posted ?? "",
+            garageDescription: job.garage_description ?? "",
             inspectedById: job.inspected_by_id ?? "",
             includeInspectorSignature: job.include_inspector_signature,
             internalNotes: job.internal_notes ?? "",
