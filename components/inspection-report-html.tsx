@@ -96,7 +96,7 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
             {snapshot.job.priorJobNumber ? <div><dt>Prior report</dt><dd>#{snapshot.job.priorJobNumber}</dd></div> : null}
           </dl>
         </div>
-        {media.coverUrl ? <img className="report-cover-photo" src={media.coverUrl} alt="Property exterior" /> : <div className="report-cover-photo placeholder">Property photo not selected</div>}
+        {media.coverUrl ? <img className="report-cover-photo" src={media.coverUrl} alt="Property exterior" /> : null}
       </section>
 
       <section className="report-section report-formal-summary">

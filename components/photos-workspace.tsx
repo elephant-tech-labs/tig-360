@@ -206,6 +206,7 @@ export function PhotosWorkspace({
         findingIds: [],
       };
       setPhotos((current) => [...current, nextPhoto]);
+      setStatus("draft");
       setSelectedId(nextPhoto.id);
       setUploads((current) => current.map((item) =>
         item.id === uploadId ? { ...item, state: "done" } : item,
@@ -228,9 +229,12 @@ export function PhotosWorkspace({
         location: selected.location,
         findingIds: selected.findingIds,
       });
-      setNotice(result.ok
-        ? { type: "success", message: "Photo details saved." }
-        : { type: "error", message: result.message });
+      if (result.ok) {
+        setStatus("draft");
+        setNotice({ type: "success", message: "Photo details saved." });
+      } else {
+        setNotice({ type: "error", message: result.message });
+      }
     });
   }
 
@@ -270,6 +274,8 @@ export function PhotosWorkspace({
       if (!result.ok) {
         setPhotos(photos);
         setNotice({ type: "error", message: result.message });
+      } else {
+        setStatus("draft");
       }
     });
   }
@@ -299,6 +305,7 @@ export function PhotosWorkspace({
       }
       const remaining = photos.filter((photo) => photo.id !== selected.id);
       setPhotos(remaining);
+      setStatus("draft");
       setSelectedId(remaining[0]?.id ?? null);
     });
   }
@@ -421,7 +428,7 @@ export function PhotosWorkspace({
         </aside>
       </div>
 
-      {annotationPhoto ? <PhotoAnnotationEditor organizationId={organizationId} jobId={jobId} photo={annotationPhoto} onClose={() => setAnnotationPhoto(null)} onSaved={(updated) => { setPhotos((current) => current.map((photo) => photo.id === updated.id ? updated : photo)); setAnnotationPhoto(null); }} /> : null}
+      {annotationPhoto ? <PhotoAnnotationEditor organizationId={organizationId} jobId={jobId} photo={annotationPhoto} onClose={() => setAnnotationPhoto(null)} onSaved={(updated) => { setPhotos((current) => current.map((photo) => photo.id === updated.id ? updated : photo)); setStatus("draft"); setAnnotationPhoto(null); }} /> : null}
     </div>
   );
 }

@@ -7,6 +7,18 @@ export type PhotoMutationResult =
   | { ok: true; photoId?: string }
   | { ok: false; message: string };
 
+async function resetPhotoStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string,
+  jobId: string,
+) {
+  return supabase.rpc("set_job_photo_status", {
+    target_organization_id: organizationId,
+    target_job_id: jobId,
+    status_value: "draft",
+  });
+}
+
 export async function registerJobPhoto(input: {
   organizationId: string;
   jobId: string;
@@ -29,6 +41,8 @@ export async function registerJobPhoto(input: {
     photo_location: input.location || null,
   });
   if (error) return { ok: false, message: error.message };
+  const { error: statusError } = await resetPhotoStatus(supabase, input.organizationId, input.jobId);
+  if (statusError) return { ok: false, message: statusError.message };
   revalidatePath(`/jobs/${input.jobId}`);
   revalidatePath(`/jobs/${input.jobId}/photos`);
   return { ok: true, photoId: data ?? undefined };
@@ -57,6 +71,8 @@ export async function updateJobPhoto(input: {
     linked_finding_ids: input.findingIds,
   });
   if (error) return { ok: false, message: error.message };
+  const { error: statusError } = await resetPhotoStatus(supabase, input.organizationId, input.jobId);
+  if (statusError) return { ok: false, message: statusError.message };
   revalidatePath(`/jobs/${input.jobId}`);
   revalidatePath(`/jobs/${input.jobId}/photos`);
   return { ok: true };
@@ -77,6 +93,8 @@ export async function savePhotoAnnotation(input: {
     render_path: input.renderPath,
   });
   if (error) return { ok: false, message: error.message };
+  const { error: statusError } = await resetPhotoStatus(supabase, input.organizationId, input.jobId);
+  if (statusError) return { ok: false, message: statusError.message };
   revalidatePath(`/jobs/${input.jobId}/photos`);
   return { ok: true };
 }
@@ -118,6 +136,8 @@ export async function archiveJobPhoto(input: {
     .eq("id", input.photoId)
     .eq("organization_id", input.organizationId);
   if (error) return { ok: false, message: error.message };
+  const { error: statusError } = await resetPhotoStatus(supabase, input.organizationId, input.jobId);
+  if (statusError) return { ok: false, message: statusError.message };
   revalidatePath(`/jobs/${input.jobId}`);
   revalidatePath(`/jobs/${input.jobId}/photos`);
   return { ok: true };
@@ -136,6 +156,8 @@ export async function moveJobPhoto(input: {
     movement: input.movement,
   });
   if (error) return { ok: false, message: error.message };
+  const { error: statusError } = await resetPhotoStatus(supabase, input.organizationId, input.jobId);
+  if (statusError) return { ok: false, message: statusError.message };
   revalidatePath(`/jobs/${input.jobId}/photos`);
   return { ok: true };
 }

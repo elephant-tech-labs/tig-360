@@ -29,6 +29,7 @@ import {
   saveFindingSummary,
   saveTemplateFromEntry,
   setFindingArchived,
+  setFindingsStatus,
   type FindingRecommendationInput,
 } from "@/app/jobs/[jobId]/findings/actions";
 
@@ -77,6 +78,7 @@ type FindingsWorkspaceProps = {
   jobId: string;
   initialSummary: SummaryState;
   initialEntries: FindingEntryItem[];
+  initialStatus: "draft" | "complete";
   templates: FindingTemplateOption[];
   canManageTemplates: boolean;
 };
@@ -91,11 +93,13 @@ export function FindingsWorkspace({
   jobId,
   initialSummary,
   initialEntries,
+  initialStatus,
   templates,
   canManageTemplates,
 }: FindingsWorkspaceProps) {
   const router = useRouter();
   const [summary, setSummary] = useState(initialSummary);
+  const [workflowStatus, setWorkflowStatus] = useState(initialStatus);
   const entries = initialEntries;
   const [filter, setFilter] = useState("active");
   const [editorOpen, setEditorOpen] = useState(false);
@@ -200,6 +204,7 @@ export function FindingsWorkspace({
     setSummary(nextSummary);
     startTransition(async () => {
       const result = await saveFindingSummary({ organizationId, jobId, ...nextSummary });
+      if (result.ok) setWorkflowStatus("draft");
       setNotice(result.ok
         ? { type: "success", message: "Visible-problem summary saved." }
         : { type: "error", message: result.message });
@@ -225,6 +230,7 @@ export function FindingsWorkspace({
         setNotice({ type: "error", message: result.message });
         return;
       }
+      setWorkflowStatus("draft");
       if (entryType === "finding" && canManageTemplates && saveAsTemplate) {
         const templateResult = await saveTemplateFromEntry({
           organizationId,
@@ -263,6 +269,7 @@ export function FindingsWorkspace({
       if (!result.ok) {
         setNotice({ type: "error", message: result.message });
       } else {
+        setWorkflowStatus("draft");
         setNotice({ type: "success", message: archived ? "Entry archived." : "Entry restored." });
         router.refresh();
       }
@@ -280,8 +287,33 @@ export function FindingsWorkspace({
       if (!result.ok) {
         setNotice({ type: "error", message: result.message });
       } else {
+        setWorkflowStatus("draft");
         router.refresh();
       }
+    });
+  }
+
+  function completeFindings() {
+    const activeEntryCount = entries.filter((entry) => !entry.archived).length;
+    if (!activeEntryCount && !window.confirm("Confirm this inspection has no findings or report notes?")) return;
+    startTransition(async () => {
+      const result = await setFindingsStatus({
+        organizationId,
+        jobId,
+        status: "complete",
+      });
+      if (!result.ok) {
+        setNotice({ type: "error", message: result.message });
+        return;
+      }
+      setWorkflowStatus("complete");
+      setNotice({
+        type: "success",
+        message: activeEntryCount
+          ? "Findings review marked complete."
+          : "Inspection confirmed with no findings.",
+      });
+      router.refresh();
     });
   }
 
@@ -293,9 +325,15 @@ export function FindingsWorkspace({
           <h1>Findings and recommendations</h1>
         </div>
         <div className="findings-header-actions">
+          <span className={`findings-workflow-state ${workflowStatus}`}>{workflowStatus === "complete" ? "Complete" : "In progress"}</span>
           {canManageTemplates ? <Link className="secondary-button" href="/settings/finding-library"><BookOpen size={16} /> Finding library</Link> : null}
           <button className="secondary-button" onClick={() => openNew("note")}><StickyNote size={16} /> Add note</button>
           <button className="primary-button" onClick={() => openNew("finding")}><Plus size={17} /> Add finding</button>
+          {workflowStatus !== "complete" ? (
+            <button className="primary-button" disabled={isPending} onClick={completeFindings}>
+              <Check size={17} /> {entries.some((entry) => !entry.archived) ? "Mark findings complete" : "Complete with no findings"}
+            </button>
+          ) : null}
         </div>
       </header>
 

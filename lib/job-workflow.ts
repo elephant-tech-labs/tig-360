@@ -24,6 +24,7 @@ export async function getJobWorkflowStates(
     { data: job },
     { data: drawing },
     { count: findingCount },
+    { data: findingSummary },
     { data: photoState },
     { count: photoCount },
     { data: reportDocument },
@@ -50,6 +51,12 @@ export async function getJobWorkflowStates(
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organizationId)
       .is("archived_at", null),
+    supabase
+      .from("job_finding_summaries")
+      .select("status")
+      .eq("inspection_job_id", jobId)
+      .eq("organization_id", organizationId)
+      .maybeSingle(),
     supabase
       .from("job_photo_states")
       .select("status")
@@ -104,7 +111,11 @@ export async function getJobWorkflowStates(
         : drawingObjects?.objects?.length
           ? "in_progress"
           : "not_started",
-    findings: findingCount ? "in_progress" : "not_started",
+    findings: findingSummary?.status === "complete"
+      ? "complete"
+      : findingCount
+        ? "in_progress"
+        : "not_started",
     photos: photoState?.status === "complete"
       ? "complete"
       : photoState?.status === "not_required"

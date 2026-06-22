@@ -68,7 +68,7 @@ export async function loadInspectionReportBundle(
       .single(),
     supabase
       .from("job_finding_summaries")
-      .select("subterranean_termites, drywood_termites, fungus_dryrot, other_findings, further_inspection")
+      .select("subterranean_termites, drywood_termites, fungus_dryrot, other_findings, further_inspection, status")
       .eq("inspection_job_id", jobId)
       .maybeSingle(),
     supabase
@@ -286,8 +286,13 @@ export async function loadInspectionReportBundle(
   } else if (diagramDraft?.status === "complete" && !snapshot.diagram?.path) {
     issues.push({ key: "drawing-version", label: "Save a drawing version", detail: "The report needs a frozen drawing PNG, not only the editable draft.", severity: "blocking", href: `/jobs/${jobId}/drawing` });
   }
-  if (!["complete", "not_required"].includes(photoState?.status ?? "")) {
-    issues.push({ key: "photos", label: "Finish or skip photos", detail: "Complete the photo selection before generating a report.", severity: "blocking", href: `/jobs/${jobId}/photos` });
+  if (findingSummary?.status !== "complete") {
+    issues.push({ key: "findings-state", label: "Complete findings review", detail: "Mark findings complete, or confirm that the inspection has no findings.", severity: "blocking", href: `/jobs/${jobId}/findings` });
+  }
+  if (!snapshot.photos.length) {
+    issues.push({ key: "photos-empty", label: "No inspection photos attached", detail: "Photos are optional. The report can be generated without a cover image or photo section.", severity: "advisory", href: `/jobs/${jobId}/photos` });
+  } else if (!["complete", "not_required"].includes(photoState?.status ?? "")) {
+    issues.push({ key: "photos-state", label: "Photo selection is still in progress", detail: "Photos are optional. The report will use the current included-photo selections.", severity: "advisory", href: `/jobs/${jobId}/photos` });
   }
   if (!snapshot.findings.length) {
     issues.push({ key: "findings", label: "No report entries", detail: "The report currently has no findings or explanatory notes.", severity: "advisory", href: `/jobs/${jobId}/findings` });
