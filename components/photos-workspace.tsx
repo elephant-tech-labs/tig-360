@@ -334,10 +334,8 @@ export function PhotosWorkspace({
     <div className="photos-page">
       <header className="photos-header">
         <div>
-          <Link className="back-link" href={`/jobs/${jobId}`}><ArrowLeft size={16} /> Job #{jobNumber}</Link>
           <p className="eyebrow">Inspection evidence</p>
           <h1>Photos</h1>
-          <p>{propertyAddress}</p>
         </div>
         <div className="photos-header-actions">
           <button className="secondary-button" onClick={() => setCaptureMode(true)}><Camera size={16} /> Capture mode</button>

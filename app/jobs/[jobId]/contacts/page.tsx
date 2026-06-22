@@ -1,14 +1,17 @@
 import Link from "next/link";
-import { ArrowLeft, Check, UserPlus, Users } from "lucide-react";
+import { Check, UserPlus, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ContactFormFields } from "@/components/contact-form-fields";
+import { JobAuthoringNav } from "@/components/job-authoring-nav";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { JobWorkspaceHeader } from "@/components/job-workspace-header";
 import {
   JobContactManager,
   type AssignedParty,
   type ContactOption,
 } from "@/components/job-contact-manager";
 import { getCurrentContext } from "@/lib/current-organization";
+import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { jobPartyRoles } from "@/lib/job-parties";
 import { createContact } from "@/app/contacts/actions";
 
@@ -25,13 +28,14 @@ export default async function JobContactsPage({
   const messages = await searchParams;
   const { supabase, organization, userName } = await getCurrentContext();
 
-  const [{ data: job, error: jobError }, { data: contacts, error: contactsError }] =
+  const [{ data: job, error: jobError }, { data: contacts, error: contactsError }, workflowStates] =
     await Promise.all([
       supabase
         .from("inspection_jobs")
         .select(`
           id,
           job_number,
+          report_type,
           properties(street_line_1, city, region, postal_code),
           job_parties(
             id,
@@ -56,6 +60,7 @@ export default async function JobContactsPage({
         .eq("organization_id", organization.id)
         .order("last_name")
         .order("first_name"),
+      getJobWorkflowStates(supabase, organization.id, jobId),
     ]);
 
   if (jobError || !job) throw new Error(jobError?.message ?? "Inspection job not found");
@@ -98,17 +103,27 @@ export default async function JobContactsPage({
       },
     }];
   });
+  const locality = [
+    property?.city,
+    [property?.region, property?.postal_code].filter(Boolean).join(" "),
+  ].filter(Boolean).join(", ");
 
   return (
     <AppShell organizationName={organization.name} userName={userName}>
+      <JobWorkspaceHeader
+        address={property?.street_line_1 ?? ""}
+        jobId={jobId}
+        jobNumber={job.job_number}
+        locality={locality}
+        reportType={job.report_type}
+      />
+      <JobAuthoringNav jobId={jobId} current="setup" states={workflowStates} />
+
       <div className="job-contacts-header">
         <div>
-          <Link className="back-link" href={`/jobs/${jobId}`}>
-            <ArrowLeft size={16} /> Back to job #{job.job_number}
-          </Link>
-          <p className="eyebrow">Job contacts</p>
-          <h1>{property?.street_line_1}</h1>
-          <p>Assign report, ownership, ordering, interest, and signer roles.</p>
+          <p className="eyebrow">Job setup</p>
+          <h1>Contacts and roles</h1>
+          <p>One person can hold several roles. Sending choices remain editable in Send Center.</p>
         </div>
         <Link className="secondary-button" href="/contacts">
           <Users size={17} /> Contact directory
@@ -147,8 +162,8 @@ export default async function JobContactsPage({
               </select>
             </label>
             <div className="quick-contact-options">
-              <label className="inline-check"><input name="isPrimary" type="checkbox" defaultChecked /> Primary for role</label>
-              <label className="inline-check"><input name="receiveReport" type="checkbox" /> Send report by default</label>
+              <label className="inline-check" title="Use this person as the main contact when several people share this role."><input name="isPrimary" type="checkbox" defaultChecked /> Primary for this role</label>
+              <label className="inline-check" title="Preselect this person when Send Center opens. This does not send the report now."><input name="receiveReport" type="checkbox" /> Preselect in Send Center</label>
             </div>
             <PendingSubmitButton
               className="primary-button form-submit"

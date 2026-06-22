@@ -7,6 +7,8 @@ import {
 } from "@/components/findings-workspace";
 import { getCurrentContext } from "@/lib/current-organization";
 import { JobAuthoringNav } from "@/components/job-authoring-nav";
+import { JobWorkspaceHeader } from "@/components/job-workspace-header";
+import { getJobWorkflowStates } from "@/lib/job-workflow";
 
 type FindingsPageProps = {
   params: Promise<{ jobId: string }>;
@@ -23,7 +25,7 @@ export default async function FindingsPage({ params }: FindingsPageProps) {
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
-      .select("id, job_number, properties(street_line_1, city, region, postal_code)")
+      .select("id, job_number, report_type, properties(street_line_1, city, region, postal_code)")
       .eq("id", jobId)
       .eq("organization_id", organization.id)
       .single(),
@@ -88,20 +90,24 @@ export default async function FindingsPage({ params }: FindingsPageProps) {
     classification: template.default_classification,
     quotePrice: template.default_quote_price,
   }));
+  const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
 
   return (
     <AppShell organizationName={organization.name} userName={userName}>
-      <JobAuthoringNav jobId={jobId} current="findings" />
+      <JobWorkspaceHeader
+        jobId={jobId}
+        jobNumber={job.job_number}
+        address={property?.street_line_1 ?? ""}
+        locality={[
+          property?.city,
+          [property?.region, property?.postal_code].filter(Boolean).join(" "),
+        ].filter(Boolean).join(", ")}
+        reportType={job.report_type}
+      />
+      <JobAuthoringNav jobId={jobId} current="findings" states={workflowStates} />
       <FindingsWorkspace
         organizationId={organization.id}
         jobId={jobId}
-        jobNumber={job.job_number}
-        propertyAddress={[
-          property?.street_line_1,
-          property?.city,
-          property?.region,
-          property?.postal_code,
-        ].filter(Boolean).join(", ")}
         initialSummary={{
           subterraneanTermites: summary?.subterranean_termites ?? false,
           drywoodTermites: summary?.drywood_termites ?? false,

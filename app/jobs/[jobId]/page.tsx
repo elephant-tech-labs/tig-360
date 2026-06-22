@@ -2,21 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   AlertTriangle,
-  ArrowLeft,
   CalendarDays,
   Check,
   ClipboardCheck,
-  FileText,
-  MapPin,
-  Pencil,
-  Plus,
-  Map,
   ShieldCheck,
   Users,
+  Tags,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentContext } from "@/lib/current-organization";
 import { JobAuthoringNav } from "@/components/job-authoring-nav";
+import { JobWorkspaceHeader } from "@/components/job-workspace-header";
+import { getJobWorkflowStates } from "@/lib/job-workflow";
 
 type JobPageProps = { params: Promise<{ jobId: string }>; searchParams: Promise<{ updated?: string }> };
 
@@ -29,7 +26,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
     internal_notes, created_at, created_by, inspected_by_id, include_inspector_signature,
     properties(street_line_1, street_line_2, city, region, postal_code, county, property_type),
     prior_job:inspection_jobs!prior_job_id(id, job_number, report_type, inspection_at, properties(street_line_1, city, region, postal_code)),
-    job_parties(id, role, is_primary, contacts(first_name, last_name, email, companies(name))),
+    job_parties(id, role, is_primary, receive_report_by_default, contacts(id, first_name, last_name, email, companies(name))),
     findings(id, archived_at), assets(id, kind)
   `).eq("id", jobId).single();
 
@@ -52,54 +49,76 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  const hasReportRecipient = job.job_parties.some(
-    (party) => party.role === "report_recipient",
-  );
+  const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
+  const requiresPriorJob = job.report_type === "supplemental" || job.report_type === "reinspection";
   const readinessItems = [
     {
       label: "Property address",
       complete: Boolean(property?.street_line_1 && property.city && property.region && property.postal_code),
     },
     { label: "Inspection scheduled", complete: Boolean(job.inspection_at) },
+    { label: "Report type selected", complete: Boolean(job.report_type) },
     { label: "Inspector selected", complete: Boolean(inspector) },
     {
       label: "Inspector signature",
       complete: !job.include_inspector_signature || Boolean(inspector?.signature_path),
     },
-    { label: "Report recipient", complete: hasReportRecipient },
+    ...(requiresPriorJob
+      ? [{ label: "Prior inspection linked", complete: Boolean(job.prior_job_id) }]
+      : []),
   ];
   const readyCount = readinessItems.filter((item) => item.complete).length;
+  const uniqueContacts = new Set(job.job_parties.flatMap((party) => {
+    const contact = Array.isArray(party.contacts) ? party.contacts[0] : party.contacts;
+    return contact?.id ? [contact.id] : [];
+  })).size;
+  const groupedParties = Array.from(job.job_parties.reduce((groups, party) => {
+    const contact = Array.isArray(party.contacts) ? party.contacts[0] : party.contacts;
+    if (!contact) return groups;
+    const company = Array.isArray(contact.companies) ? contact.companies[0] : contact.companies;
+    const existing = groups.get(contact.id);
+    if (existing) {
+      existing.roles.push(party.role);
+      existing.defaultRecipient ||= party.receive_report_by_default;
+    } else {
+      groups.set(contact.id, {
+        id: contact.id,
+        name: `${contact.first_name} ${contact.last_name}`.trim(),
+        detail: company?.name || contact.email || "Contact",
+        roles: [party.role],
+        defaultRecipient: party.receive_report_by_default,
+      });
+    }
+    return groups;
+  }, new Map<string, { id: string; name: string; detail: string; roles: string[]; defaultRecipient: boolean }>()).values());
 
   return (
     <AppShell organizationName={organization.name} userName={userName}>
-      <div className="job-detail-header">
-        <div>
-          <Link className="back-link" href="/jobs"><ArrowLeft size={16} /> All jobs</Link>
-          <p className="eyebrow">Inspection job / #{job.job_number}</p>
-          <h1>{property?.street_line_1}</h1>
-          <p><MapPin size={15} /> {property?.city}, {property?.region} {property?.postal_code}</p>
-        </div>
-        <div className="job-actions">
-          <Link className="secondary-button" href={`/jobs/${jobId}/edit`}><Pencil size={16} /> Edit job</Link>
-          <button className="secondary-button"><FileText size={17} /> Preview report</button>
-          <Link className="secondary-button" href={`/jobs/${jobId}/drawing`}><Map size={17} /> Drawing</Link>
-          <Link className="primary-button" href={`/jobs/${jobId}/findings`}><Plus size={17} /> Findings</Link>
-        </div>
-      </div>
+      <JobWorkspaceHeader
+        jobId={jobId}
+        jobNumber={job.job_number}
+        address={property?.street_line_1 ?? ""}
+        locality={[
+          property?.city,
+          [property?.region, property?.postal_code].filter(Boolean).join(" "),
+        ].filter(Boolean).join(", ")}
+        reportType={job.report_type}
+        showEdit
+      />
 
+      <JobAuthoringNav jobId={jobId} current="setup" states={workflowStates} />
       {messages.updated ? <div className="job-page-notice form-alert success">Job details updated.</div> : null}
-      <JobAuthoringNav jobId={jobId} current="setup" />
 
       <section className="job-overview-grid">
         <div className="overview-tile"><ClipboardCheck size={20} /><span>Status</span><strong>{job.status.replaceAll("_", " ")}</strong></div>
+        <div className="overview-tile"><Tags size={20} /><span>Report type</span><strong>{job.report_type.replaceAll("_", " ")}</strong></div>
         <div className="overview-tile"><CalendarDays size={20} /><span>Inspection</span><strong>{job.inspection_at ? new Date(job.inspection_at).toLocaleString() : "Not scheduled"}</strong></div>
-        <div className="overview-tile"><Users size={20} /><span>Contacts</span><strong>{job.job_parties.length}</strong></div>
-        <div className="overview-tile"><FileText size={20} /><span>Findings</span><strong>{job.findings.filter((finding) => !finding.archived_at).length}</strong></div>
+        <div className="overview-tile"><Users size={20} /><span>Contacts</span><strong>{uniqueContacts} {uniqueContacts === 1 ? "person" : "people"} · {job.job_parties.length} {job.job_parties.length === 1 ? "role" : "roles"}</strong></div>
       </section>
 
       <section className="job-readiness-band">
         <div>
-          <p className="eyebrow">Report readiness</p>
+          <p className="eyebrow">Job setup</p>
           <h2>{readyCount} of {readinessItems.length} setup items complete</h2>
         </div>
         <div className="readiness-items">
@@ -171,14 +190,15 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
       })() : null}
 
       <section className="job-party-summary">
-        <div className="section-heading"><div><p className="eyebrow">Contacts on report</p><h2>Job parties</h2></div><Link className="secondary-button" href={`/jobs/${jobId}/contacts`}><Users size={17} /> Manage contacts</Link></div>
-        {job.job_parties.length ? (
+        <div className="section-heading"><div><p className="eyebrow">Job relationships</p><h2>Contacts and roles</h2></div><Link className="secondary-button" href={`/jobs/${jobId}/contacts`}><Users size={17} /> Manage contacts</Link></div>
+        {groupedParties.length ? (
           <div className="job-party-summary-grid">
-            {job.job_parties.map((party) => {
-              const contact = Array.isArray(party.contacts) ? party.contacts[0] : party.contacts;
-              const company = contact ? (Array.isArray(contact.companies) ? contact.companies[0] : contact.companies) : null;
-              return <div className="job-party-summary-item" key={party.id}><span>{party.role.replaceAll("_", " ")}</span><strong>{contact?.first_name} {contact?.last_name}</strong><small>{company?.name || contact?.email || "Contact"}</small></div>;
-            })}
+            {groupedParties.map((party) => <div className="job-party-summary-item" key={party.id}>
+              <strong>{party.name}</strong>
+              <small>{party.detail}</small>
+              <div className="job-party-role-list">{party.roles.map((role) => <span key={role}>{role.replaceAll("_", " ")}</span>)}</div>
+              {party.defaultRecipient ? <em>Preselected in Send Center</em> : null}
+            </div>)}
           </div>
         ) : <div className="compact-empty"><Users size={22} /><div><strong>No job contacts assigned</strong><span>Add the ordered by, owner, report recipient, party of interest, or signer.</span></div></div>}
       </section>
