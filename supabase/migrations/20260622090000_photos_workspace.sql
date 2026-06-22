@@ -138,7 +138,7 @@ begin
   select id into inspector_id
   from public.inspectors
   where organization_id = target_organization_id
-    and user_id = auth.uid()
+    and linked_user_id = auth.uid()
   limit 1;
 
   select coalesce(max(sort_order), -1) + 1 into next_order
