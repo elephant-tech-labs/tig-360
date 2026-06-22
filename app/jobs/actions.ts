@@ -17,6 +17,9 @@ export async function createInspectionJob(formData: FormData) {
   const priorJobId = String(formData.get("priorJobId") ?? "").trim();
   const generalDescription = String(formData.get("generalDescription") ?? "").trim();
   const escrowNumber = String(formData.get("escrowNumber") ?? "").trim();
+  const inspectionTagPosted = String(formData.get("inspectionTagPosted") ?? "").trim();
+  const otherTagsPosted = String(formData.get("otherTagsPosted") ?? "").trim();
+  const garageDescription = String(formData.get("garageDescription") ?? "").trim();
   const inspectedById = String(formData.get("inspectedById") ?? "").trim();
   const includeInspectorSignature = formData.get("includeInspectorSignature") === "on";
 
@@ -44,6 +47,16 @@ export async function createInspectionJob(formData: FormData) {
   });
 
   if (error) redirect(`/jobs/new?error=${encodeURIComponent(error.message)}`);
+  const { error: reportFieldsError } = await supabase
+    .from("inspection_jobs")
+    .update({
+      inspection_tag_posted: inspectionTagPosted || null,
+      other_tags_posted: otherTagsPosted || null,
+      garage_description: garageDescription || null,
+    })
+    .eq("id", data)
+    .eq("organization_id", organizationId);
+  if (reportFieldsError) redirect(`/jobs/${data}/edit?error=${encodeURIComponent(reportFieldsError.message)}`);
   redirect(`/jobs/${data}`);
 }
 
@@ -63,6 +76,9 @@ export async function updateInspectionJob(formData: FormData) {
   const internalNotes = String(formData.get("internalNotes") ?? "").trim();
   const generalDescription = String(formData.get("generalDescription") ?? "").trim();
   const escrowNumber = String(formData.get("escrowNumber") ?? "").trim();
+  const inspectionTagPosted = String(formData.get("inspectionTagPosted") ?? "").trim();
+  const otherTagsPosted = String(formData.get("otherTagsPosted") ?? "").trim();
+  const garageDescription = String(formData.get("garageDescription") ?? "").trim();
   const inspectedById = String(formData.get("inspectedById") ?? "").trim();
   const includeInspectorSignature = formData.get("includeInspectorSignature") === "on";
 
@@ -92,5 +108,15 @@ export async function updateInspectionJob(formData: FormData) {
   });
 
   if (error) redirect(`/jobs/${jobId}/edit?error=${encodeURIComponent(error.message)}`);
+  const { error: reportFieldsError } = await supabase
+    .from("inspection_jobs")
+    .update({
+      inspection_tag_posted: inspectionTagPosted || null,
+      other_tags_posted: otherTagsPosted || null,
+      garage_description: garageDescription || null,
+    })
+    .eq("id", jobId)
+    .eq("organization_id", organizationId);
+  if (reportFieldsError) redirect(`/jobs/${jobId}/edit?error=${encodeURIComponent(reportFieldsError.message)}`);
   redirect(`/jobs/${jobId}?updated=1`);
 }

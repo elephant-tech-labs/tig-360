@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Check, KeyRound, Plus, ShieldCheck, Upload, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { ManagementNav } from "@/components/management-nav";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
 import {
@@ -59,14 +60,15 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
   }
 
   return (
-    <AppShell organizationName={organization.name} userName={userName} active="team">
+    <AppShell organizationName={organization.name} userName={userName} active="management">
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Organization team</p>
-          <h1>Inspectors and access</h1>
-          <p>Inspector profiles are independent records. Login access is optional.</p>
+          <p className="eyebrow">Organization management</p>
+          <h1>Company and report settings</h1>
+          <p>Manage the legal identity, report content, inspectors, and access used across every inspection.</p>
         </div>
       </div>
+      <ManagementNav current="inspectors" />
 
       <div className="team-page">
         {messages.saved ? <div className="form-alert success"><Check size={17} /> {messages.saved}</div> : null}

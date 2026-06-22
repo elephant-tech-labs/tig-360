@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import type { InspectionReportSnapshot, ReportMedia } from "@/lib/reports/types";
+import type { InspectionReportSnapshot, ReportMedia, ReportParty } from "@/lib/reports/types";
 
 type InspectionReportHtmlProps = {
   snapshot: InspectionReportSnapshot;
@@ -14,6 +14,13 @@ const classificationLabels: Record<string, string> = {
   note: "Note",
 };
 
+const reportTypes = [
+  ["complete", "Complete"],
+  ["limited", "Limited"],
+  ["supplemental", "Supplemental"],
+  ["reinspection", "Reinspection"],
+] as const;
+
 function formatDate(value: string | null) {
   if (!value) return "Not recorded";
   return new Intl.DateTimeFormat("en-US", {
@@ -22,30 +29,54 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function partyText(parties: ReportParty[]) {
+  if (!parties.length) return "Not recorded";
+  return parties.map((party) => [
+    party.name,
+    party.company,
+    party.email,
+  ].filter(Boolean).join("\n")).join("\n\n");
+}
+
+function organizationAddress(snapshot: InspectionReportSnapshot) {
+  return [
+    snapshot.organization.streetLine1,
+    snapshot.organization.streetLine2,
+    [snapshot.organization.city, snapshot.organization.region, snapshot.organization.postalCode]
+      .filter(Boolean)
+      .join(", "),
+  ].filter(Boolean).join("\n");
+}
+
 export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlProps) {
   const address = [
     snapshot.property.streetLine1,
     snapshot.property.streetLine2,
     `${snapshot.property.city}, ${snapshot.property.region} ${snapshot.property.postalCode}`,
   ].filter(Boolean);
-  const visibleProblems = [
-    snapshot.findingSummary.subterraneanTermites && "Subterranean termites",
-    snapshot.findingSummary.drywoodTermites && "Drywood termites",
-    snapshot.findingSummary.fungusDryrot && "Fungus / dryrot",
-    snapshot.findingSummary.otherFindings && "Other findings",
-    snapshot.findingSummary.furtherInspection && "Further inspection",
-  ].filter(Boolean) as string[];
-  const reportContacts = snapshot.parties.filter((party) =>
-    ["ordered_by", "property_owner", "report_recipient", "party_of_interest"].includes(party.role),
+  const conditions = [
+    ["Subterranean termites", snapshot.findingSummary.subterraneanTermites],
+    ["Drywood termites", snapshot.findingSummary.drywoodTermites],
+    ["Fungus / dryrot", snapshot.findingSummary.fungusDryrot],
+    ["Other findings", snapshot.findingSummary.otherFindings],
+    ["Further inspection", snapshot.findingSummary.furtherInspection],
+  ] as const;
+  const orderedBy = snapshot.parties.filter((party) => party.role === "ordered_by");
+  const ownersAndInterests = snapshot.parties.filter((party) =>
+    ["property_owner", "party_of_interest"].includes(party.role),
   );
+  const recipients = snapshot.parties.filter((party) => party.role === "report_recipient" || party.sendByDefault);
+  const beforeFindings = snapshot.legalContent.filter((block) => block.placement === "before_findings");
+  const afterFindings = snapshot.legalContent.filter((block) => block.placement === "after_findings");
+  let sectionNumber = 2;
 
   return (
     <article className="inspection-report">
       <section className="report-cover">
         <div className="report-cover-brand">
-          <span>TI</span>
+          {media.companyLogoUrl ? <img src={media.companyLogoUrl} alt="" /> : <span>TI</span>}
           <div>
-            <strong>{snapshot.organization.name}</strong>
+            <strong>{snapshot.organization.legalName}</strong>
             <small>Structural Pest Inspection</small>
           </div>
         </div>
@@ -63,42 +94,94 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
         {media.coverUrl ? <img className="report-cover-photo" src={media.coverUrl} alt="Property exterior" /> : <div className="report-cover-photo placeholder">Property photo not selected</div>}
       </section>
 
-      <section className="report-section report-overview">
-        <header><span>01</span><div><p>Inspection overview</p><h2>Property and parties</h2></div></header>
-        <div className="report-two-column">
-          <div>
-            <h3>Property</h3>
-            <p>{address.join("\n")}</p>
-            {snapshot.property.county ? <p><strong>County:</strong> {snapshot.property.county}</p> : null}
-            {snapshot.property.propertyType ? <p><strong>Property type:</strong> {snapshot.property.propertyType}</p> : null}
+      <section className="report-section report-formal-summary">
+        <h2>Wood Destroying Pests and Organisms Inspection Report</h2>
+        <div className="formal-topline">
+          <div><span>Property address</span><strong>{address.join(", ")}</strong></div>
+          <div><span>Report number</span><strong>{snapshot.job.number}</strong></div>
+          <div><span>Date of inspection</span><strong>{formatDate(snapshot.job.inspectionAt)}</strong></div>
+        </div>
+
+        <div className="formal-company">
+          <div className="formal-company-logo">
+            {media.companyLogoUrl ? <img src={media.companyLogoUrl} alt={`${snapshot.organization.legalName} logo`} /> : <strong>{snapshot.organization.legalName}</strong>}
           </div>
           <div>
-            <h3>Inspection</h3>
-            <p><strong>Inspector:</strong> {snapshot.inspector?.name ?? "Not recorded"}</p>
-            <p><strong>License:</strong> {snapshot.inspector?.licenseNumber ?? "Not recorded"}</p>
-            <p><strong>Date:</strong> {formatDate(snapshot.job.inspectionAt)}</p>
+            <strong>{snapshot.organization.legalName}</strong>
+            <p>{organizationAddress(snapshot) || "Company address not recorded"}</p>
+            <p>{[snapshot.organization.phone, snapshot.organization.email, snapshot.organization.website].filter(Boolean).join(" · ")}</p>
+          </div>
+          <div className="formal-licenses">
+            {snapshot.organization.registrationNumber ? <p><span>Registration</span>{snapshot.organization.registrationNumber}</p> : null}
+            {snapshot.organization.operatorLicense ? <p><span>Operator license</span>{snapshot.organization.operatorLicense}</p> : null}
+            {snapshot.organization.contractorLicense ? <p><span>Contractor license</span>{snapshot.organization.contractorLicense}</p> : null}
           </div>
         </div>
-        {snapshot.job.generalDescription ? <div className="report-description"><h3>General description</h3><p>{snapshot.job.generalDescription}</p></div> : null}
-        {reportContacts.length ? (
-          <div className="report-contact-grid">
-            {reportContacts.map((party, index) => (
-              <div key={`${party.contactId}-${party.role}-${index}`}>
-                <span>{party.roleLabel}</span>
-                <strong>{party.name}</strong>
-                <small>{party.company || party.email || "Contact"}</small>
-              </div>
-            ))}
+
+        <div className="formal-party-grid">
+          <div><span>Ordered by</span><p>{partyText(orderedBy)}</p></div>
+          <div><span>Property owner / party of interest</span><p>{partyText(ownersAndInterests)}</p></div>
+          <div><span>Report sent to</span><p>{partyText(recipients)}</p></div>
+        </div>
+
+        <div className="formal-report-types">
+          {reportTypes.map(([value, label]) => (
+            <span className={snapshot.job.reportType === value ? "selected" : ""} key={value}>
+              <i>{snapshot.job.reportType === value ? "✓" : ""}</i>{label} report
+            </span>
+          ))}
+        </div>
+
+        <div className="formal-property-grid">
+          <div className="wide"><span>General description</span><p>{snapshot.job.generalDescription || "Not recorded"}</p></div>
+          <div><span>Escrow number</span><p>{snapshot.job.escrowNumber || "Not recorded"}</p></div>
+          <div><span>Inspection tag posted</span><p>{snapshot.job.inspectionTagPosted || "Not recorded"}</p></div>
+          <div><span>Other tags posted</span><p>{snapshot.job.otherTagsPosted || "None recorded"}</p></div>
+          <div><span>Garage</span><p>{snapshot.job.garageDescription || "Not recorded"}</p></div>
+        </div>
+
+        <p className="formal-scope">
+          An inspection was made of the structure(s) shown on the diagram in accordance with the Structural Pest Control Act. Areas or structures not shown on the diagram were not inspected.
+        </p>
+        <div className="formal-conditions">
+          {conditions.map(([label, selected]) => <span className={selected ? "selected" : ""} key={label}><i>{selected ? "✓" : ""}</i>{label}</span>)}
+        </div>
+
+        <div className="formal-diagram-layout">
+          <div className="formal-diagram">
+            {media.diagramUrl ? <img src={media.diagramUrl} alt="Property inspection diagram" /> : <div>Diagram not required or not provided</div>}
+            <strong>Diagram not to scale</strong>
           </div>
-        ) : null}
+          <div className="formal-reference-list">
+            <span>Finding references</span>
+            {snapshot.findings.filter((finding) => finding.entryType === "finding").length ? (
+              snapshot.findings.filter((finding) => finding.entryType === "finding").map((finding) => (
+                <p key={finding.id}><strong>{finding.reference}</strong>{finding.title}</p>
+              ))
+            ) : <p>No findings recorded.</p>}
+          </div>
+        </div>
+
+        <div className="formal-inspector">
+          <div><span>Inspected by</span><strong>{snapshot.inspector?.name ?? "Not recorded"}</strong></div>
+          <div><span>State license</span><strong>{snapshot.inspector?.licenseNumber ?? "Not recorded"}</strong></div>
+          <div className="formal-signature">
+            <span>Signature</span>
+            {media.signatureUrl ? <img src={media.signatureUrl} alt={`${snapshot.inspector?.name} signature`} /> : <strong>Not included</strong>}
+          </div>
+        </div>
+        <p className="formal-regulatory-note">{snapshot.organization.regulatoryContact || "Questions about this report should first be directed to the inspection company. Regulatory contact information may be maintained in the company profile."}</p>
       </section>
 
+      {beforeFindings.length ? (
+        <section className="report-section report-legal">
+          <header><span>01</span><div><p>Scope and disclosures</p><h2>Important report information</h2></div></header>
+          {beforeFindings.map((block) => <article key={block.id}><h3>{block.title}</h3><p>{block.body}</p></article>)}
+        </section>
+      ) : null}
+
       <section className="report-section">
-        <header><span>02</span><div><p>Visible conditions</p><h2>Findings and recommendations</h2></div></header>
-        <div className="report-problem-summary">
-          <strong>Categories observed</strong>
-          <p>{visibleProblems.length ? visibleProblems.join(" · ") : "No visible-problem categories selected."}</p>
-        </div>
+        <header><span>{String(sectionNumber++).padStart(2, "0")}</span><div><p>Visible conditions</p><h2>Findings and recommendations</h2></div></header>
         <div className="report-findings">
           {snapshot.findings.length ? snapshot.findings.map((finding) => (
             <section className={`report-finding ${finding.entryType}`} key={finding.id}>
@@ -121,16 +204,16 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
         </div>
       </section>
 
-      {media.diagramUrl ? (
-        <section className="report-section">
-          <header><span>03</span><div><p>Property diagram</p><h2>Finding locations</h2></div></header>
-          <img className="report-diagram" src={media.diagramUrl} alt="Property inspection diagram" />
+      {afterFindings.length ? (
+        <section className="report-section report-legal">
+          <header><span>{String(sectionNumber++).padStart(2, "0")}</span><div><p>Additional disclosures</p><h2>Report notices</h2></div></header>
+          {afterFindings.map((block) => <article key={block.id}><h3>{block.title}</h3><p>{block.body}</p></article>)}
         </section>
       ) : null}
 
       {snapshot.photos.length ? (
         <section className="report-section">
-          <header><span>{media.diagramUrl ? "04" : "03"}</span><div><p>Inspection evidence</p><h2>Report photographs</h2></div></header>
+          <header><span>{String(sectionNumber++).padStart(2, "0")}</span><div><p>Inspection evidence</p><h2>Report photographs</h2></div></header>
           <div className="report-photo-grid">
             {snapshot.photos.map((photo, index) => (
               <figure key={photo.id}>
@@ -146,7 +229,7 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
       ) : null}
 
       <section className="report-section report-certification">
-        <header><span>{snapshot.photos.length ? (media.diagramUrl ? "05" : "04") : (media.diagramUrl ? "04" : "03")}</span><div><p>Certification</p><h2>Inspector declaration</h2></div></header>
+        <header><span>{String(sectionNumber).padStart(2, "0")}</span><div><p>Certification</p><h2>Inspector declaration</h2></div></header>
         <p>This report reflects the visible and accessible conditions observed on the inspection date. Findings and recommendations are limited to the scope and conditions documented in this report.</p>
         <div className="report-signature">
           {media.signatureUrl ? <img src={media.signatureUrl} alt={`${snapshot.inspector?.name} signature`} /> : null}

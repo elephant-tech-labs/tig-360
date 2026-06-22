@@ -45,11 +45,13 @@ export async function loadInspectionReportBundle(
     { data: diagramDraft },
     { data: latestDiagram },
     { data: photoState },
+    { data: reportProfile },
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
       .select(`
         id, job_number, report_type, inspection_at, escrow_number, summary,
+        inspection_tag_posted, other_tags_posted, garage_description,
         include_inspector_signature, inspected_by_id,
         properties(street_line_1, street_line_2, city, region, postal_code, county, property_type),
         prior_job:inspection_jobs!prior_job_id(job_number),
@@ -58,7 +60,7 @@ export async function loadInspectionReportBundle(
           contacts(id, first_name, last_name, email, companies(name))
         ),
         inspectors:inspectors!inspection_jobs_inspected_by_inspector_fkey(
-          full_name, email, license_number, signature_path
+          full_name, email, phone, license_number, signature_path
         )
       `)
       .eq("id", jobId)
@@ -113,6 +115,11 @@ export async function loadInspectionReportBundle(
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
       .maybeSingle(),
+    supabase
+      .from("organization_report_profiles")
+      .select("*")
+      .eq("organization_id", organization.id)
+      .maybeSingle(),
   ]);
 
   if (jobError || !job) throw new Error(jobError?.message ?? "Inspection job not found.");
@@ -124,10 +131,38 @@ export async function loadInspectionReportBundle(
   const priorJob = one(job.prior_job);
   if (!property) throw new Error("The inspection property was not found.");
 
+  const { data: applicableLegalBlocks, error: legalError } = await supabase
+    .from("report_content_blocks")
+    .select("id, title, body, placement, sort_order, version, is_required")
+    .eq("organization_id", organization.id)
+    .eq("is_active", true)
+    .contains("report_types", [job.report_type])
+    .or(`effective_from.is.null,effective_from.lte.${new Date().toISOString().slice(0, 10)}`)
+    .order("placement")
+    .order("sort_order");
+  if (legalError) throw new Error(legalError.message);
+
   const snapshot: InspectionReportSnapshot = {
     schemaVersion: 1,
     capturedAt: new Date().toISOString(),
-    organization,
+    organization: {
+      id: organization.id,
+      name: organization.name,
+      legalName: reportProfile?.legal_name || organization.name,
+      streetLine1: reportProfile?.street_line_1 ?? null,
+      streetLine2: reportProfile?.street_line_2 ?? null,
+      city: reportProfile?.city ?? null,
+      region: reportProfile?.region ?? null,
+      postalCode: reportProfile?.postal_code ?? null,
+      phone: reportProfile?.phone ?? null,
+      email: reportProfile?.email ?? null,
+      website: reportProfile?.website ?? null,
+      registrationNumber: reportProfile?.registration_number ?? null,
+      operatorLicense: reportProfile?.operator_license ?? null,
+      contractorLicense: reportProfile?.contractor_license ?? null,
+      regulatoryContact: reportProfile?.regulatory_contact ?? null,
+      logoPath: reportProfile?.logo_path ?? null,
+    },
     job: {
       id: job.id,
       number: Number(job.job_number),
@@ -136,6 +171,9 @@ export async function loadInspectionReportBundle(
       escrowNumber: job.escrow_number,
       generalDescription: job.summary,
       priorJobNumber: priorJob?.job_number ? Number(priorJob.job_number) : null,
+      inspectionTagPosted: job.inspection_tag_posted,
+      otherTagsPosted: job.other_tags_posted,
+      garageDescription: job.garage_description,
     },
     property: {
       streetLine1: property.street_line_1,
@@ -149,6 +187,8 @@ export async function loadInspectionReportBundle(
     inspector: inspector
       ? {
           name: inspector.full_name || inspector.email || "Inspector",
+          email: inspector.email,
+          phone: inspector.phone,
           licenseNumber: inspector.license_number,
           includeSignature: job.include_inspector_signature,
           signaturePath: inspector.signature_path,
@@ -213,6 +253,15 @@ export async function loadInspectionReportBundle(
           bucket: "diagram-renders",
         }
       : null,
+    legalContent: (applicableLegalBlocks ?? []).map((block) => ({
+      id: block.id,
+      title: block.title,
+      body: block.body,
+      placement: block.placement as "before_findings" | "after_findings" | "contract",
+      sortOrder: block.sort_order,
+      version: block.version,
+      required: block.is_required,
+    })),
   };
 
   const issues: ReadinessIssue[] = [];
@@ -264,6 +313,9 @@ export async function loadInspectionReportBundle(
       : null,
     signatureUrl: snapshot.inspector?.includeSignature
       ? await signedUrl(supabase, snapshot.inspector.signatureBucket, snapshot.inspector.signaturePath)
+      : null,
+    companyLogoUrl: snapshot.organization.logoPath
+      ? await signedUrl(supabase, "organization-branding", snapshot.organization.logoPath)
       : null,
     photoUrls: Object.fromEntries(photoUrlEntries.filter((entry): entry is [string, string] => Boolean(entry[1]))),
   };
