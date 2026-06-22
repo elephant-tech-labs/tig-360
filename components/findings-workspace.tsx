@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   Archive,
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   BookOpen,
   Check,
@@ -76,8 +75,6 @@ type SummaryState = {
 type FindingsWorkspaceProps = {
   organizationId: string;
   jobId: string;
-  jobNumber: number;
-  propertyAddress: string;
   initialSummary: SummaryState;
   initialEntries: FindingEntryItem[];
   templates: FindingTemplateOption[];
@@ -92,8 +89,6 @@ const emptyRecommendation = (): FindingRecommendationInput => ({
 export function FindingsWorkspace({
   organizationId,
   jobId,
-  jobNumber,
-  propertyAddress,
   initialSummary,
   initialEntries,
   templates,
@@ -294,10 +289,8 @@ export function FindingsWorkspace({
     <div className="findings-page">
       <header className="findings-header">
         <div>
-          <Link className="back-link" href={`/jobs/${jobId}`}><ArrowLeft size={16} /> Job #{jobNumber}</Link>
           <p className="eyebrow">Inspection authoring</p>
           <h1>Findings and recommendations</h1>
-          <p>{propertyAddress}</p>
         </div>
         <div className="findings-header-actions">
           {canManageTemplates ? <Link className="secondary-button" href="/settings/finding-library"><BookOpen size={16} /> Finding library</Link> : null}

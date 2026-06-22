@@ -4,6 +4,8 @@ import {
   DrawingWorkspaceLoader,
 } from "@/components/drawing-workspace-loader";
 import { JobAuthoringNav } from "@/components/job-authoring-nav";
+import { JobWorkspaceHeader } from "@/components/job-workspace-header";
+import { getJobWorkflowStates } from "@/lib/job-workflow";
 import type {
   DrawingVersion,
   DrawingWorkspaceProps,
@@ -25,7 +27,7 @@ export default async function DrawingPage({ params }: DrawingPageProps) {
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
-      .select("id, job_number, properties(street_line_1, city, region, postal_code)")
+      .select("id, job_number, report_type, properties(street_line_1, city, region, postal_code)")
       .eq("id", jobId)
       .eq("organization_id", organization.id)
       .single(),
@@ -61,20 +63,25 @@ export default async function DrawingPage({ params }: DrawingPageProps) {
   const initialStatus = draft?.status === "complete" || draft?.status === "skipped"
     ? draft.status
     : "draft";
+  const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
 
   return (
     <AppShell organizationName={organization.name} userName={userName}>
-      <JobAuthoringNav jobId={jobId} current="drawing" />
+      <JobWorkspaceHeader
+        jobId={jobId}
+        jobNumber={job.job_number}
+        address={property?.street_line_1 ?? ""}
+        locality={[
+          property?.city,
+          [property?.region, property?.postal_code].filter(Boolean).join(" "),
+        ].filter(Boolean).join(", ")}
+        reportType={job.report_type}
+      />
+      <JobAuthoringNav jobId={jobId} current="drawing" states={workflowStates} />
       <DrawingWorkspaceLoader
         organizationId={organization.id}
         jobId={jobId}
         jobNumber={job.job_number}
-        propertyAddress={[
-          property?.street_line_1,
-          property?.city,
-          property?.region,
-          property?.postal_code,
-        ].filter(Boolean).join(", ")}
         initialObjects={Array.isArray(sourceJson?.objects) ? sourceJson.objects : []}
         initialStatus={initialStatus}
         findings={(findings ?? []).filter((finding) => finding.code).map((finding) => ({

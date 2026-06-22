@@ -8,9 +8,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import Link from "next/link";
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
   Download,
@@ -93,7 +91,6 @@ export type DrawingWorkspaceProps = {
   organizationId: string;
   jobId: string;
   jobNumber: number;
-  propertyAddress: string;
   initialObjects: DiagramObject[];
   initialStatus: DiagramStatus;
   findings: DrawingFinding[];
@@ -141,7 +138,6 @@ export function DrawingWorkspace({
   organizationId,
   jobId,
   jobNumber,
-  propertyAddress,
   initialObjects,
   initialStatus,
   findings,
@@ -604,10 +600,8 @@ export function DrawingWorkspace({
     <div className="drawing-page">
       <header className="drawing-header">
         <div>
-          <Link className="back-link" href={`/jobs/${jobId}`}><ArrowLeft size={16} /> Job #{jobNumber}</Link>
           <p className="eyebrow">Inspection authoring</p>
           <h1>Property diagram</h1>
-          <p>{propertyAddress}</p>
         </div>
         <div className="drawing-header-actions">
           <span className={`draft-indicator ${saveState}`}>

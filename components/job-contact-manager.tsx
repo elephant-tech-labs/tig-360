@@ -56,6 +56,20 @@ export function JobContactManager({
   const [parties, setParties] = useState(initialParties);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const groupedParties = Array.from(
+    parties.reduce((groups, party) => {
+      const current = groups.get(party.contact.id);
+      if (current) {
+        current.assignments.push(party);
+      } else {
+        groups.set(party.contact.id, {
+          contact: party.contact,
+          assignments: [party],
+        });
+      }
+      return groups;
+    }, new Map<string, { contact: ContactOption; assignments: AssignedParty[] }>()),
+  ).map(([, group]) => group);
 
   async function handleAssign(
     event: FormEvent<HTMLFormElement>,
@@ -174,56 +188,68 @@ export function JobContactManager({
           </div>
         </div>
 
-        {parties.length ? (
+        {groupedParties.length ? (
           <div className="assigned-party-list">
-            {parties.map((party) => {
-              const isRemoving = pendingKey === `remove:${party.id}`;
+            {groupedParties.map(({ contact, assignments }) => {
+              const isOptimistic = assignments.some((party) => party.id.startsWith("optimistic:"));
               return (
                 <article
-                  className={`assigned-party-row ${party.id.startsWith("optimistic:") ? "is-optimistic" : ""}`}
-                  key={party.id}
+                  className={`assigned-party-row ${isOptimistic ? "is-optimistic" : ""}`}
+                  key={contact.id}
                 >
                   <div className="contact-avatar">
-                    {(party.contact.firstName[0] ?? "") +
-                      (party.contact.lastName[0] ?? "")}
+                    {(contact.firstName[0] ?? "") +
+                      (contact.lastName[0] ?? "")}
                   </div>
                   <div className="assigned-party-person">
                     <strong>
-                      {party.contact.firstName} {party.contact.lastName}
+                      {contact.firstName} {contact.lastName}
                     </strong>
                     <span>
-                      {party.contact.companyName ||
-                        party.contact.email ||
+                      {contact.companyName ||
+                        contact.email ||
                         "Contact"}
                     </span>
                   </div>
-                  <div>
-                    <span className="role-badge">
-                      {jobPartyRoleLabel(party.role)}
-                    </span>
-                    {party.isPrimary ? (
-                      <span className="primary-marker">
-                        <Star size={12} /> Primary
-                      </span>
-                    ) : null}
-                  </div>
                   <div className="assigned-party-channel">
-                    <Mail size={14} /> {party.contact.email || "No email"}
+                    <Mail size={14} /> {contact.email || "No email"}
                   </div>
-                  <button
-                    aria-label={`Remove ${party.contact.firstName} ${party.contact.lastName} from ${jobPartyRoleLabel(party.role)}`}
-                    className="icon-button small danger-button"
-                    disabled={Boolean(pendingKey)}
-                    onClick={() => handleRemove(party)}
-                    title="Remove from job"
-                    type="button"
-                  >
-                    {isRemoving ? (
-                      <LoaderCircle className="button-spinner" size={16} />
-                    ) : (
-                      <Trash2 size={16} />
-                    )}
-                  </button>
+                  <div className="assigned-contact-roles">
+                    {assignments.map((party) => {
+                      const isRemoving = pendingKey === `remove:${party.id}`;
+                      return (
+                        <div className="assigned-role-line" key={party.id}>
+                          <span className="role-badge">
+                            {jobPartyRoleLabel(party.role)}
+                          </span>
+                          {party.isPrimary ? (
+                            <span className="primary-marker" title="Primary contact for this role">
+                              <Star size={12} /> Primary for role
+                            </span>
+                          ) : null}
+                          {party.receiveReport ? (
+                            <span className="send-default-marker" title="Preselected in Send Center">
+                              <Mail size={12} /> Send Center default
+                            </span>
+                          ) : null}
+                          <button
+                            aria-label={`Remove ${contact.firstName} ${contact.lastName} from ${jobPartyRoleLabel(party.role)}`}
+                            className="icon-button small danger-button"
+                            disabled={Boolean(pendingKey)}
+                            onClick={() => handleRemove(party)}
+                            title={`Remove ${jobPartyRoleLabel(party.role)} role`}
+                            type="button"
+                          >
+                            {isRemoving ? (
+                              <LoaderCircle className="button-spinner" size={16} />
+                            ) : (
+                              <Trash2 size={15} />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </article>
               );
             })}
@@ -285,11 +311,11 @@ export function JobContactManager({
                 </select>
                 <label className="inline-check">
                   <input disabled={Boolean(pendingKey)} name="isPrimary" type="checkbox" />
-                  Primary
+                  Primary for role
                 </label>
-                <label className="inline-check">
+                <label className="inline-check" title="Preselect this person when Send Center opens.">
                   <input disabled={Boolean(pendingKey)} name="receiveReport" type="checkbox" />
-                  Send report
+                  Send Center
                 </label>
                 <button
                   className="secondary-button"

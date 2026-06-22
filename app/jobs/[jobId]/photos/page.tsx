@@ -3,6 +3,8 @@ import { AppShell } from "@/components/app-shell";
 import { JobAuthoringNav } from "@/components/job-authoring-nav";
 import { PhotosWorkspace, type JobPhotoItem } from "@/components/photos-workspace";
 import { getCurrentContext } from "@/lib/current-organization";
+import { JobWorkspaceHeader } from "@/components/job-workspace-header";
+import { getJobWorkflowStates } from "@/lib/job-workflow";
 
 type PhotosPageProps = { params: Promise<{ jobId: string }> };
 
@@ -17,7 +19,7 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
-      .select("id, job_number, inspected_by_id, properties(street_line_1, city, region, postal_code)")
+      .select("id, job_number, report_type, inspected_by_id, properties(street_line_1, city, region, postal_code)")
       .eq("id", jobId)
       .eq("organization_id", organization.id)
       .single(),
@@ -101,10 +103,21 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
       .map((link) => link.finding_id)
       .filter(Boolean) as string[],
   }));
+  const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
 
   return (
     <AppShell organizationName={organization.name} userName={userName}>
-      <JobAuthoringNav jobId={jobId} current="photos" />
+      <JobWorkspaceHeader
+        jobId={jobId}
+        jobNumber={job.job_number}
+        address={property?.street_line_1 ?? ""}
+        locality={[
+          property?.city,
+          [property?.region, property?.postal_code].filter(Boolean).join(" "),
+        ].filter(Boolean).join(", ")}
+        reportType={job.report_type}
+      />
+      <JobAuthoringNav jobId={jobId} current="photos" states={workflowStates} />
       <PhotosWorkspace
         organizationId={organization.id}
         jobId={jobId}
