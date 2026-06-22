@@ -15,6 +15,7 @@ import { AppShell } from "@/components/app-shell";
 import { InspectionReportHtml } from "@/components/inspection-report-html";
 import { JobAuthoringNav } from "@/components/job-authoring-nav";
 import { JobWorkspaceHeader } from "@/components/job-workspace-header";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import {
@@ -82,12 +83,22 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
           </div>
           <div className="review-actions">
             {approvedVersion ? <Link className="secondary-button" href={`/jobs/${jobId}/send`}><Mail size={17} /> Send Center</Link> : null}
-            <form action={generateInspectionReport}>
-              <input name="jobId" type="hidden" value={jobId} />
-              <button className="primary-button" disabled={!bundle.readiness.canGenerate} type="submit">
-                <FilePlus2 size={17} /> Generate new PDF
-              </button>
-            </form>
+            {bundle.readiness.canGenerate ? (
+              <form action={generateInspectionReport}>
+                <input name="jobId" type="hidden" value={jobId} />
+                <PendingSubmitButton className="primary-button" pendingLabel="Generating PDF">
+                  <FilePlus2 size={17} /> Generate new PDF
+                </PendingSubmitButton>
+              </form>
+            ) : (
+              <Link
+                className="primary-button review-blocked-action"
+                href={blockingIssues[0]?.href ?? `#report-checks`}
+                title={blockingIssues[0]?.detail ?? "Resolve report blockers before generating a PDF."}
+              >
+                <AlertTriangle size={17} /> Resolve blocker to generate
+              </Link>
+            )}
           </div>
         </header>
 
@@ -99,7 +110,7 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
 
         <div className="review-layout">
           <aside className="review-sidebar">
-            <section className="review-panel">
+            <section className="review-panel" id="report-checks">
               <div className="section-heading compact"><div><p className="eyebrow">Readiness</p><h2>Report checks</h2></div></div>
               {!bundle.readiness.issues.length ? <div className="review-all-clear"><CheckCircle2 size={20} /><div><strong>All checks passed</strong><span>The current job data is ready to snapshot.</span></div></div> : null}
               <div className="review-issue-list">
