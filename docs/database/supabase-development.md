@@ -67,9 +67,9 @@ It adds approval metadata to immutable document versions, a private
 `report-pdfs` storage bucket, report generation/finalization RPCs, manager
 approval, and auditable delivery-draft creation. Verification returned:
 
-| approval_columns | private_report_bucket | begin_rpc | complete_rpc | approve_rpc | delivery_rpc | authenticated_can_generate | authenticated_can_approve |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 4 | 1 | 1 | 1 | 1 | 1 | true | true |
+| approval_columns | private_report_bucket | begin_rpc | complete_rpc | approve_rpc | delivery_rpc | immutable_version_trigger | authenticated_can_generate | authenticated_can_approve |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 4 | 1 | 1 | 1 | 1 | 1 | 1 | true | true |
 
 Generated report PDFs use Supabase Storage initially. Each PDF is represented
 by an `assets` row and attached to an immutable `document_versions` snapshot.

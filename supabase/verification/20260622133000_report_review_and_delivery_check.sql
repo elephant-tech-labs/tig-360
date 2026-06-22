@@ -7,5 +7,6 @@ select
   (select count(*) from pg_proc where proname = 'complete_inspection_report_version') as complete_rpc,
   (select count(*) from pg_proc where proname = 'approve_inspection_report_version') as approve_rpc,
   (select count(*) from pg_proc where proname = 'create_report_delivery_draft') as delivery_rpc,
+  (select count(*) from pg_trigger where tgname = 'document_versions_protect_snapshot' and not tgisinternal) as immutable_version_trigger,
   has_function_privilege('authenticated', 'public.begin_inspection_report_version(uuid,uuid,jsonb)', 'execute') as authenticated_can_generate,
   has_function_privilege('authenticated', 'public.approve_inspection_report_version(uuid,uuid,uuid,text)', 'execute') as authenticated_can_approve;

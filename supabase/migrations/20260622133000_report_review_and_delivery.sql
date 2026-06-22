@@ -10,6 +10,38 @@ alter table public.document_versions
 create index if not exists document_versions_document_created_idx
 on public.document_versions(document_id, version desc);
 
+create or replace function public.protect_document_version_snapshot()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'DELETE' then
+    if old.approval_status = 'approved' then
+      raise exception 'Approved document versions cannot be deleted.';
+    end if;
+    return old;
+  end if;
+
+  if new.document_id is distinct from old.document_id
+     or new.version is distinct from old.version
+     or new.snapshot is distinct from old.snapshot then
+    raise exception 'Document version identity and snapshots are immutable.';
+  end if;
+
+  if old.approval_status = 'approved' and new is distinct from old then
+    raise exception 'Approved document versions cannot be changed.';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists document_versions_protect_snapshot on public.document_versions;
+create trigger document_versions_protect_snapshot
+before update or delete on public.document_versions
+for each row execute procedure public.protect_document_version_snapshot();
+
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'report-pdfs',
