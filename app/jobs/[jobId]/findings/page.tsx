@@ -31,7 +31,7 @@ export default async function FindingsPage({ params }: FindingsPageProps) {
       .single(),
     supabase
       .from("job_finding_summaries")
-      .select("subterranean_termites, drywood_termites, fungus_dryrot, other_findings, further_inspection")
+      .select("subterranean_termites, drywood_termites, fungus_dryrot, other_findings, further_inspection, status")
       .eq("inspection_job_id", jobId)
       .maybeSingle(),
     supabase
@@ -116,6 +116,7 @@ export default async function FindingsPage({ params }: FindingsPageProps) {
           furtherInspection: summary?.further_inspection ?? false,
         }}
         initialEntries={initialEntries}
+        initialStatus={summary?.status === "complete" ? "complete" : "draft"}
         templates={templateOptions}
         canManageTemplates={membership.role === "administrator" || membership.role === "manager"}
       />
