@@ -57,6 +57,24 @@ Job report-fields verification returned:
 
 The repeatable query is stored at `supabase/tests/verify_job_report_fields.sql`.
 
+## Report Review And Delivery
+
+The report review and delivery migration was applied on June 22, 2026:
+
+- `20260622133000_report_review_and_delivery.sql`
+
+It adds approval metadata to immutable document versions, a private
+`report-pdfs` storage bucket, report generation/finalization RPCs, manager
+approval, and auditable delivery-draft creation. Verification returned:
+
+| approval_columns | private_report_bucket | begin_rpc | complete_rpc | approve_rpc | delivery_rpc | authenticated_can_generate | authenticated_can_approve |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 4 | 1 | 1 | 1 | 1 | 1 | true | true |
+
+Generated report PDFs use Supabase Storage initially. Each PDF is represented
+by an `assets` row and attached to an immutable `document_versions` snapshot.
+Send Center always points to one approved version instead of a mutable job.
+
 ## Connection Usage
 
 - Browser: project URL plus publishable key.

@@ -26,6 +26,7 @@ export async function getJobWorkflowStates(
     { count: findingCount },
     { data: photoState },
     { count: photoCount },
+    { data: reportDocument },
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
@@ -62,6 +63,13 @@ export async function getJobWorkflowStates(
       .eq("organization_id", organizationId)
       .in("kind", ["property_photo", "inspection_photo"])
       .neq("status", "archived"),
+    supabase
+      .from("documents")
+      .select("document_versions(status, approval_status, version)")
+      .eq("inspection_job_id", jobId)
+      .eq("organization_id", organizationId)
+      .eq("kind", "inspection_report")
+      .maybeSingle(),
   ]);
 
   const property = job
@@ -83,6 +91,9 @@ export async function getJobWorkflowStates(
     && (!requiresPriorJob || job.prior_job_id),
   );
   const drawingObjects = drawing?.source_json as { objects?: unknown[] } | null;
+  const reportVersions = [...(reportDocument?.document_versions ?? [])]
+    .sort((a, b) => b.version - a.version);
+  const latestReport = reportVersions[0];
 
   return {
     setup: setupComplete ? "complete" : "attention",
@@ -101,6 +112,12 @@ export async function getJobWorkflowStates(
         : photoCount
           ? "in_progress"
           : "not_started",
-    review: "not_started",
+    review: latestReport?.approval_status === "approved"
+      ? "complete"
+      : latestReport?.status === "ready"
+        ? "attention"
+        : latestReport?.status === "generating"
+          ? "in_progress"
+          : "not_started",
   };
 }

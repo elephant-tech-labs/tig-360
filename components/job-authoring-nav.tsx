@@ -23,7 +23,7 @@ const steps = [
   { id: "drawing", label: "Drawing", icon: Map, href: (jobId: string) => `/jobs/${jobId}/drawing` },
   { id: "findings", label: "Findings", icon: CheckCircle2, href: (jobId: string) => `/jobs/${jobId}/findings` },
   { id: "photos", label: "Photos", icon: Camera, href: (jobId: string) => `/jobs/${jobId}/photos` },
-  { id: "review", label: "Review", icon: FileCheck2, href: () => "" },
+  { id: "review", label: "Review", icon: FileCheck2, href: (jobId: string) => `/jobs/${jobId}/review` },
 ] as const;
 
 function StepIndicator({ index, state }: { index: number; state: WorkflowStepState }) {
@@ -39,12 +39,9 @@ export function JobAuthoringNav({ jobId, current, states }: JobAuthoringNavProps
     <nav className="job-authoring-nav" aria-label="Inspection authoring workflow">
       {steps.map((step, index) => {
         const Icon = step.icon;
-        const unavailable = step.id === "review";
         const state = states[step.id];
         const content = <><StepIndicator index={index + 1} state={state} /><Icon size={15} />{step.label}</>;
-        return unavailable
-          ? <span className="job-authoring-step unavailable" title="Review workspace is coming next" key={step.id}>{content}</span>
-          : <Link className={`job-authoring-step ${current === step.id ? "active" : ""} state-${state}`} href={step.href(jobId)} key={step.id}>{content}</Link>;
+        return <Link className={`job-authoring-step ${current === step.id ? "active" : ""} state-${state}`} href={step.href(jobId)} key={step.id}>{content}</Link>;
       })}
     </nav>
   );
