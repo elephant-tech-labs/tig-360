@@ -60,7 +60,7 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
       .from("inspectors")
       .select("id")
       .eq("organization_id", organization.id)
-      .eq("user_id", user.id)
+      .eq("linked_user_id", user.id)
       .maybeSingle();
     if (!inspector || inspector.id !== job.inspected_by_id) notFound();
   }
