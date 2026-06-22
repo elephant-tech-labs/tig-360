@@ -31,7 +31,11 @@ function formatDate(value: string | null) {
 
 function partyText(parties: ReportParty[]) {
   if (!parties.length) return "Not recorded";
-  return parties.map((party) => [
+  const uniqueParties = Array.from(new Map(parties.map((party) => [
+    party.contactId || party.email?.toLowerCase() || `${party.name}|${party.company ?? ""}`,
+    party,
+  ])).values());
+  return uniqueParties.map((party) => [
     party.name,
     party.company,
     party.email,
@@ -66,6 +70,7 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
     ["property_owner", "party_of_interest"].includes(party.role),
   );
   const recipients = snapshot.parties.filter((party) => party.role === "report_recipient" || party.sendByDefault);
+  const reportPhotos = snapshot.photos.filter((photo) => !photo.isCover);
   const beforeFindings = snapshot.legalContent.filter((block) => block.placement === "before_findings");
   const afterFindings = snapshot.legalContent.filter((block) => block.placement === "after_findings");
   let sectionNumber = 2;
@@ -211,11 +216,11 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
         </section>
       ) : null}
 
-      {snapshot.photos.length ? (
+      {reportPhotos.length ? (
         <section className="report-section">
           <header><span>{String(sectionNumber++).padStart(2, "0")}</span><div><p>Inspection evidence</p><h2>Report photographs</h2></div></header>
           <div className="report-photo-grid">
-            {snapshot.photos.map((photo, index) => (
+            {reportPhotos.map((photo, index) => (
               <figure key={photo.id}>
                 {media.photoUrls[photo.id] ? <img src={media.photoUrls[photo.id]} alt={photo.caption || photo.filename} /> : <div className="report-photo-missing">Photo unavailable</div>}
                 <figcaption>

@@ -96,7 +96,11 @@ function date(value: string | null) {
 
 function partyText(parties: ReportParty[]) {
   if (!parties.length) return "Not recorded";
-  return parties.map((party) => [party.name, party.company, party.email].filter(Boolean).join("\n")).join("\n\n");
+  const uniqueParties = Array.from(new Map(parties.map((party) => [
+    party.contactId || party.email?.toLowerCase() || `${party.name}|${party.company ?? ""}`,
+    party,
+  ])).values());
+  return uniqueParties.map((party) => [party.name, party.company, party.email].filter(Boolean).join("\n")).join("\n\n");
 }
 
 function Footer({ snapshot }: { snapshot: InspectionReportSnapshot }) {
@@ -148,6 +152,7 @@ export function InspectionReportPdf({
   const orderedBy = snapshot.parties.filter((party) => party.role === "ordered_by");
   const ownersAndInterests = snapshot.parties.filter((party) => ["property_owner", "party_of_interest"].includes(party.role));
   const recipients = snapshot.parties.filter((party) => party.role === "report_recipient" || party.sendByDefault);
+  const reportPhotos = snapshot.photos.filter((photo) => !photo.isCover);
   const beforeFindings = snapshot.legalContent.filter((block) => block.placement === "before_findings");
   const afterFindings = snapshot.legalContent.filter((block) => block.placement === "after_findings");
   const conditions = [
@@ -253,11 +258,11 @@ export function InspectionReportPdf({
 
       {afterFindings.length ? <LegalPage blocks={afterFindings} sectionNumber={String(sectionNumber++).padStart(2, "0")} snapshot={snapshot} title="Report notices" /> : null}
 
-      {snapshot.photos.length ? (
+      {reportPhotos.length ? (
         <Page size="LETTER" style={styles.page} wrap>
           <View style={styles.sectionHeader}><Text style={styles.sectionNumber}>{String(sectionNumber++).padStart(2, "0")}</Text><Text style={styles.sectionTitle}>Report photographs</Text></View>
           <View style={styles.photoGrid}>
-            {snapshot.photos.map((photo, index) => media.photoUrls[photo.id] ? (
+            {reportPhotos.map((photo, index) => media.photoUrls[photo.id] ? (
               <View style={styles.photo} key={photo.id} wrap={false}>
                 <Image src={media.photoUrls[photo.id]} style={styles.photoImage} />
                 <Text style={styles.photoCaption}>Photo {index + 1}{photo.location ? ` · ${photo.location}` : ""}{"\n"}{photo.caption || photo.filename}</Text>
