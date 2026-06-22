@@ -7,6 +7,7 @@ import "./report-fields.css";
 import "./team.css";
 import "./findings.css";
 import "./drawing.css";
+import "./photos.css";
 
 const inter = Inter({
   variable: "--font-sans",

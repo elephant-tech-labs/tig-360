@@ -16,7 +16,7 @@ const steps = [
   { id: "setup", label: "Job setup", icon: ClipboardList, href: (jobId: string) => `/jobs/${jobId}` },
   { id: "drawing", label: "Drawing", icon: Map, href: (jobId: string) => `/jobs/${jobId}/drawing` },
   { id: "findings", label: "Findings", icon: CheckCircle2, href: (jobId: string) => `/jobs/${jobId}/findings` },
-  { id: "photos", label: "Photos", icon: Camera, href: () => "" },
+  { id: "photos", label: "Photos", icon: Camera, href: (jobId: string) => `/jobs/${jobId}/photos` },
   { id: "review", label: "Review", icon: FileCheck2, href: () => "" },
 ] as const;
 
@@ -25,7 +25,7 @@ export function JobAuthoringNav({ jobId, current }: JobAuthoringNavProps) {
     <nav className="job-authoring-nav" aria-label="Inspection authoring workflow">
       {steps.map((step, index) => {
         const Icon = step.icon;
-        const unavailable = step.id === "photos" || step.id === "review";
+        const unavailable = step.id === "review";
         const content = <><span>{index + 1}</span><Icon size={15} />{step.label}</>;
         return unavailable
           ? <span className="job-authoring-step unavailable" key={step.id}>{content}</span>
