@@ -3,7 +3,9 @@ import {
   Document,
   Image,
   Page,
+  Path,
   StyleSheet,
+  Svg,
   Text,
   View,
 } from "@react-pdf/renderer";
@@ -30,48 +32,62 @@ const styles = StyleSheet.create({
   sectionNumber: { color: green, fontSize: 9, fontWeight: 700, marginRight: 10 },
   sectionTitle: { fontSize: 16, fontWeight: 700 },
   paragraph: { lineHeight: 1.5, marginBottom: 6 },
-  finding: { borderBottomColor: "#dce2df", borderBottomWidth: 1, display: "flex", flexDirection: "row", gap: 12, paddingBottom: 12, paddingTop: 12 },
-  reference: { backgroundColor: green, color: "#ffffff", fontSize: 10, fontWeight: 700, padding: 7, textAlign: "center", width: 42 },
+  finding: { alignItems: "flex-start", borderBottomColor: "#dce2df", borderBottomWidth: 1, display: "flex", flexDirection: "row", gap: 10, paddingBottom: 11, paddingTop: 11 },
+  reference: { alignSelf: "flex-start", backgroundColor: green, color: "#ffffff", fontSize: 9, fontWeight: 700, minWidth: 34, paddingBottom: 6, paddingLeft: 5, paddingRight: 5, paddingTop: 6, textAlign: "center" },
   findingBody: { flex: 1 },
-  findingTitle: { fontSize: 10, fontWeight: 700, marginBottom: 5 },
-  recommendation: { backgroundColor: "#f1f4f2", lineHeight: 1.45, marginTop: 6, padding: 7 },
+  findingHeading: { alignItems: "center", display: "flex", flexDirection: "row", gap: 7, marginBottom: 5 },
+  findingTitle: { flex: 1, fontSize: 10, fontWeight: 700 },
+  classification: { backgroundColor: "#e7f2ed", color: green, fontSize: 6.5, fontWeight: 700, paddingBottom: 3, paddingLeft: 5, paddingRight: 5, paddingTop: 3, textTransform: "uppercase" },
+  findingCondition: { fontSize: 8.5, fontWeight: 700, marginBottom: 5 },
+  findingText: { fontSize: 8.5, lineHeight: 1.35, marginBottom: 4 },
+  recommendation: { backgroundColor: "#f1f4f2", fontSize: 8.3, lineHeight: 1.35, marginTop: 5, padding: 7 },
   photoGrid: { display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 12 },
   photo: { borderColor: "#dce2df", borderWidth: 1, padding: 6, width: "48%" },
-  photoImage: { height: 180, objectFit: "contain", width: "100%" },
+  photoSingle: { alignSelf: "center", width: "76%" },
+  photoImage: { height: 205, objectFit: "contain", width: "100%" },
+  photoImageSingle: { height: 300 },
   photoCaption: { lineHeight: 1.35, marginTop: 6 },
-  certification: { lineHeight: 1.6, marginBottom: 28 },
-  signature: { height: 70, objectFit: "contain", objectPosition: "left", width: 180 },
+  certificationSection: { borderTopColor: green, borderTopWidth: 2, marginTop: 24, paddingTop: 12 },
+  certificationTitle: { fontSize: 14, fontWeight: 700, marginBottom: 8 },
+  certification: { fontSize: 8.5, lineHeight: 1.45, marginBottom: 14 },
+  certificationIdentity: { alignItems: "flex-end", display: "flex", flexDirection: "row", gap: 18 },
+  signature: { height: 48, objectFit: "contain", objectPosition: "left", width: 140 },
+  certificationName: { flex: 1, paddingBottom: 3 },
   footer: { bottom: 18, color: "#68736f", fontSize: 7, left: 34, position: "absolute", right: 34, textAlign: "center" },
 
-  formalPage: { fontSize: 7.3, padding: 24 },
+  formalPage: { fontSize: 7, padding: 22 },
   formalTitle: { borderBottomColor: ink, borderBottomWidth: 2.5, fontSize: 15, fontWeight: 700, paddingBottom: 5, textAlign: "center", textTransform: "uppercase" },
   table: { borderBottomColor: line, borderBottomWidth: 0.7, borderLeftColor: line, borderLeftWidth: 0.7, borderRightColor: line, borderRightWidth: 0.7, display: "flex", flexDirection: "row" },
   cell: { borderLeftColor: line, borderLeftWidth: 0.7, padding: 5 },
   firstCell: { borderLeftWidth: 0 },
   cellLabel: { color: "#5f6c67", fontSize: 5.8, fontWeight: 700, marginBottom: 2, textTransform: "uppercase" },
   cellValue: { fontSize: 7.5, fontWeight: 700, lineHeight: 1.25 },
-  companyRow: { minHeight: 84 },
-  companyLogoCell: { alignItems: "center", display: "flex", justifyContent: "center", width: "25%" },
-  companyLogo: { maxHeight: 62, objectFit: "contain", width: 125 },
+  companyRow: { minHeight: 66 },
+  companyLogoCell: { alignItems: "center", backgroundColor: ink, display: "flex", justifyContent: "center", width: "25%" },
+  companyLogo: { maxHeight: 48, objectFit: "contain", width: 115 },
+  companyLogoFallback: { color: "#ffffff", fontSize: 8, fontWeight: 700, textAlign: "center" },
   companyDetails: { width: "45%" },
   companyLicenses: { width: "30%" },
-  partyCell: { minHeight: 83, width: "33.333%" },
-  typeRow: { borderBottomColor: line, borderBottomWidth: 0.7, borderLeftColor: line, borderLeftWidth: 0.7, borderRightColor: line, borderRightWidth: 0.7, display: "flex", flexDirection: "row", justifyContent: "space-between", padding: 5 },
-  choice: { color: "#68736f", fontSize: 6.2, fontWeight: 700, textTransform: "uppercase" },
+  partyCell: { minHeight: 62, width: "33.333%" },
+  typeRow: { borderBottomColor: line, borderBottomWidth: 0.7, borderLeftColor: line, borderLeftWidth: 0.7, borderRightColor: line, borderRightWidth: 0.7, display: "flex", flexDirection: "row", justifyContent: "space-between", padding: 4 },
+  choiceWrap: { alignItems: "center", display: "flex", flexDirection: "row", gap: 3 },
+  choiceBox: { alignItems: "center", borderColor: "#8a9691", borderWidth: 0.7, display: "flex", height: 8, justifyContent: "center", width: 8 },
+  choiceBoxSelected: { backgroundColor: green, borderColor: green },
+  choice: { color: "#68736f", fontSize: 5.8, fontWeight: 700, textTransform: "uppercase" },
   choiceSelected: { color: green },
-  propertyDescription: { minHeight: 73, width: "64%" },
+  propertyDescription: { minHeight: 58, width: "64%" },
   propertyMeta: { width: "36%" },
   propertyMetaItem: { borderBottomColor: line, borderBottomWidth: 0.7, paddingBottom: 3, paddingTop: 3 },
   scope: { borderBottomColor: line, borderBottomWidth: 0.7, borderLeftColor: line, borderLeftWidth: 0.7, borderRightColor: line, borderRightWidth: 0.7, fontSize: 6.2, lineHeight: 1.3, padding: 5, textAlign: "center" },
-  diagramRow: { borderBottomColor: line, borderBottomWidth: 0.7, borderLeftColor: line, borderLeftWidth: 0.7, borderRightColor: line, borderRightWidth: 0.7, display: "flex", flexDirection: "row", height: 330 },
+  diagramRow: { borderBottomColor: line, borderBottomWidth: 0.7, borderLeftColor: line, borderLeftWidth: 0.7, borderRightColor: line, borderRightWidth: 0.7, display: "flex", flexDirection: "row", height: 258 },
   diagramCell: { alignItems: "center", borderRightColor: line, borderRightWidth: 0.7, display: "flex", justifyContent: "center", padding: 7, width: "72%" },
-  diagram: { height: 300, objectFit: "contain", width: "100%" },
+  diagram: { height: 235, objectFit: "contain", width: "100%" },
   referenceList: { padding: 7, width: "28%" },
   referenceItem: { borderTopColor: "#dfe4e1", borderTopWidth: 0.5, display: "flex", flexDirection: "row", lineHeight: 1.2, paddingBottom: 3, paddingTop: 3 },
   referenceCode: { color: green, fontWeight: 700, width: 24 },
   referenceTitle: { flex: 1 },
-  inspectorCell: { minHeight: 52, width: "33.333%" },
-  formalSignature: { height: 32, objectFit: "contain", objectPosition: "left", width: 110 },
+  inspectorCell: { minHeight: 42, width: "33.333%" },
+  formalSignature: { height: 25, objectFit: "contain", objectPosition: "left", width: 100 },
   regulatory: { borderBottomColor: line, borderBottomWidth: 0.7, borderLeftColor: line, borderLeftWidth: 0.7, borderRightColor: line, borderRightWidth: 0.7, fontSize: 5.6, lineHeight: 1.3, padding: 5, textAlign: "center" },
   pageCount: { fontSize: 6, marginTop: 3, textAlign: "right" },
   legalBlock: { borderBottomColor: "#dce2df", borderBottomWidth: 1, paddingBottom: 14, paddingTop: 14 },
@@ -103,8 +119,71 @@ function partyText(parties: ReportParty[]) {
   return uniqueParties.map((party) => [party.name, party.company, party.email].filter(Boolean).join("\n")).join("\n\n");
 }
 
+const classificationLabels: Record<string, string> = {
+  section_i: "Section I",
+  section_ii: "Section II",
+  further_inspection: "Further inspection",
+  other: "Other",
+  note: "Note",
+};
+
+function normalizeText(value: string, organizationName?: string) {
+  let normalized = value.replace(/\s+/g, " ").trim();
+  if (organizationName) {
+    normalized = normalized
+      .replace(/\bCOMPANY\b/g, organizationName)
+      .replace(/\bSUPLEMENTAL\b/gi, "SUPPLEMENTAL");
+  }
+  return normalized;
+}
+
+function findingAreaTitle(title: string, reference: string) {
+  const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return normalizeText(title)
+    .replace(new RegExp(`^${escapedReference}\\s*[^A-Za-z0-9/]*\\s*`, "i"), "")
+    .trim() || "Finding";
+}
+
+function findingCopy(description: string) {
+  const normalized = normalizeText(description);
+  const marker = normalized.indexOf("Finding:");
+  if (marker <= 0) return { condition: null, body: normalized.replace(/^Finding:\s*/i, "") };
+  return {
+    condition: normalized.slice(0, marker).trim(),
+    body: normalized.slice(marker + "Finding:".length).trim(),
+  };
+}
+
+function recommendationCopy(description: string, organizationName: string) {
+  const normalized = normalizeText(description, organizationName);
+  return normalized.replace(/^o restore\b/i, "To restore");
+}
+
+function Choice({ label, selected }: { label: string; selected: boolean }) {
+  return (
+    <View style={styles.choiceWrap}>
+      <View style={[styles.choiceBox, selected ? styles.choiceBoxSelected : {}]}>
+        {selected ? (
+          <Svg height={6} viewBox="0 0 8 8" width={6}>
+            <Path d="M1 4.2 3 6.2 7 1.8" fill="none" stroke="#ffffff" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.4} />
+          </Svg>
+        ) : null}
+      </View>
+      <Text style={[styles.choice, selected ? styles.choiceSelected : {}]}>{label}</Text>
+    </View>
+  );
+}
+
 function Footer({ snapshot }: { snapshot: InspectionReportSnapshot }) {
-  return <Text fixed style={styles.footer}>{snapshot.organization.legalName} · Inspection Report #{snapshot.job.number}</Text>;
+  return (
+    <Text
+      fixed
+      style={styles.footer}
+      render={({ pageNumber, totalPages }) =>
+        `${snapshot.organization.legalName} · Inspection Report #${snapshot.job.number} · Page ${pageNumber} of ${totalPages}`
+      }
+    />
+  );
 }
 
 function LegalPage({
@@ -189,7 +268,7 @@ export function InspectionReportPdf({
           <View style={[styles.cell, { width: "27%" }]}><Text style={styles.cellLabel}>Date of inspection</Text><Text style={styles.cellValue}>{date(snapshot.job.inspectionAt)}</Text><Text style={styles.pageCount} render={({ totalPages }) => `Page 2 of ${totalPages}`} /></View>
         </View>
         <View style={[styles.table, styles.companyRow]}>
-          <View style={[styles.cell, styles.firstCell, styles.companyLogoCell]}>{media.companyLogoUrl ? <Image src={media.companyLogoUrl} style={styles.companyLogo} /> : <Text style={styles.cellValue}>{snapshot.organization.legalName}</Text>}</View>
+          <View style={[styles.cell, styles.firstCell, styles.companyLogoCell]}>{media.companyLogoUrl ? <Image src={media.companyLogoUrl} style={styles.companyLogo} /> : <Text style={styles.companyLogoFallback}>{snapshot.organization.legalName}</Text>}</View>
           <View style={[styles.cell, styles.companyDetails]}><Text style={styles.cellValue}>{snapshot.organization.legalName}</Text><Text style={styles.paragraph}>{companyAddress || "Company address not recorded"}</Text><Text>{[snapshot.organization.phone, snapshot.organization.email, snapshot.organization.website].filter(Boolean).join("\n")}</Text></View>
           <View style={[styles.cell, styles.companyLicenses]}>
             {snapshot.organization.registrationNumber ? <Text style={styles.paragraph}>Registration: {snapshot.organization.registrationNumber}</Text> : null}
@@ -202,7 +281,7 @@ export function InspectionReportPdf({
           <View style={[styles.cell, styles.partyCell]}><Text style={styles.cellLabel}>Property owner / party of interest</Text><Text>{partyText(ownersAndInterests)}</Text></View>
           <View style={[styles.cell, styles.partyCell]}><Text style={styles.cellLabel}>Report sent to</Text><Text>{partyText(recipients)}</Text></View>
         </View>
-        <View style={styles.typeRow}>{reportTypes.map(([value, label]) => <Text key={value} style={[styles.choice, snapshot.job.reportType === value ? styles.choiceSelected : {}]}>{snapshot.job.reportType === value ? "■" : "□"} {label} report</Text>)}</View>
+        <View style={styles.typeRow}>{reportTypes.map(([value, label]) => <Choice key={value} label={`${label} report`} selected={snapshot.job.reportType === value} />)}</View>
         <View style={styles.table}>
           <View style={[styles.cell, styles.firstCell, styles.propertyDescription]}><Text style={styles.cellLabel}>General description</Text><Text>{snapshot.job.generalDescription || "Not recorded"}</Text></View>
           <View style={[styles.cell, styles.propertyMeta]}>
@@ -213,7 +292,7 @@ export function InspectionReportPdf({
           </View>
         </View>
         <Text style={styles.scope}>An inspection was made of the structure(s) shown on the diagram in accordance with the Structural Pest Control Act. Areas or structures not shown on the diagram were not inspected.</Text>
-        <View style={styles.typeRow}>{conditions.map(([label, selected]) => <Text key={label} style={[styles.choice, selected ? styles.choiceSelected : {}]}>{selected ? "■" : "□"} {label}</Text>)}</View>
+        <View style={styles.typeRow}>{conditions.map(([label, selected]) => <Choice key={label} label={label} selected={selected} />)}</View>
         <View style={styles.diagramRow}>
           <View style={styles.diagramCell}>{media.diagramUrl ? <Image src={media.diagramUrl} style={styles.diagram} /> : <Text>Diagram not required or not provided</Text>}</View>
           <View style={styles.referenceList}>
@@ -221,7 +300,7 @@ export function InspectionReportPdf({
             {snapshot.findings.filter((finding) => finding.entryType === "finding").slice(0, 25).map((finding) => (
               <View key={finding.id} style={styles.referenceItem}>
                 <Text style={styles.referenceCode}>{finding.reference}</Text>
-                <Text style={styles.referenceTitle}>{finding.title}</Text>
+                <Text style={styles.referenceTitle}>{findingAreaTitle(finding.title, finding.reference)}</Text>
               </View>
             ))}
           </View>
@@ -238,47 +317,61 @@ export function InspectionReportPdf({
 
       <Page size="LETTER" style={styles.page} wrap>
         <View style={styles.sectionHeader}><Text style={styles.sectionNumber}>{String(sectionNumber++).padStart(2, "0")}</Text><Text style={styles.sectionTitle}>Findings and recommendations</Text></View>
-        {snapshot.findings.length ? snapshot.findings.map((finding) => (
-          <View style={styles.finding} key={finding.id} wrap={false}>
-            <Text style={styles.reference}>{finding.reference}</Text>
-            <View style={styles.findingBody}>
-              <Text style={styles.findingTitle}>{finding.title}</Text>
-              <Text style={styles.paragraph}>{finding.entryType === "note" ? "Note: " : "Finding: "}{finding.description}</Text>
-              {finding.recommendations.map((recommendation) => (
-                <Text style={styles.recommendation} key={recommendation.id}>
-                  Recommendation: {recommendation.description}
-                  {recommendation.estimatedCost !== null ? ` · $${recommendation.estimatedCost.toFixed(2)}` : ""}
-                </Text>
-              ))}
+        {snapshot.findings.length ? snapshot.findings.map((finding) => {
+          const copy = findingCopy(finding.description);
+          const classification = classificationLabels[finding.classification ?? ""] ?? finding.classification?.replaceAll("_", " ") ?? "Unclassified";
+          return (
+            <View style={styles.finding} key={finding.id}>
+              <Text style={styles.reference}>{finding.reference}</Text>
+              <View style={styles.findingBody}>
+                <View style={styles.findingHeading}>
+                  <Text style={styles.findingTitle}>{findingAreaTitle(finding.title, finding.reference)}</Text>
+                  <Text style={styles.classification}>{classification}</Text>
+                </View>
+                {copy.condition ? <Text style={styles.findingCondition}>{copy.condition}</Text> : null}
+                <Text style={styles.findingText}>{finding.entryType === "note" ? "Note: " : "Finding: "}{copy.body}</Text>
+                {finding.recommendations.map((recommendation) => (
+                  <Text style={styles.recommendation} key={recommendation.id}>
+                    Recommendation: {recommendationCopy(recommendation.description, snapshot.organization.legalName)}
+                    {recommendation.estimatedCost !== null ? ` · $${recommendation.estimatedCost.toFixed(2)}` : ""}
+                  </Text>
+                ))}
+              </View>
             </View>
-          </View>
-        )) : <Text>No findings or report notes were entered.</Text>}
+          );
+        }) : <Text>No findings or report notes were entered.</Text>}
         <Footer snapshot={snapshot} />
       </Page>
 
       {afterFindings.length ? <LegalPage blocks={afterFindings} sectionNumber={String(sectionNumber++).padStart(2, "0")} snapshot={snapshot} title="Report notices" /> : null}
 
-      {reportPhotos.length ? (
-        <Page size="LETTER" style={styles.page} wrap>
+      <Page size="LETTER" style={styles.page} wrap>
+        {reportPhotos.length ? (
+          <>
           <View style={styles.sectionHeader}><Text style={styles.sectionNumber}>{String(sectionNumber++).padStart(2, "0")}</Text><Text style={styles.sectionTitle}>Report photographs</Text></View>
           <View style={styles.photoGrid}>
-            {reportPhotos.map((photo, index) => media.photoUrls[photo.id] ? (
-              <View style={styles.photo} key={photo.id} wrap={false}>
-                <Image src={media.photoUrls[photo.id]} style={styles.photoImage} />
-                <Text style={styles.photoCaption}>Photo {index + 1}{photo.location ? ` · ${photo.location}` : ""}{"\n"}{photo.caption || photo.filename}</Text>
+            {reportPhotos.map((photo) => media.photoUrls[photo.id] ? (
+              <View style={[styles.photo, reportPhotos.length === 1 ? styles.photoSingle : {}]} key={photo.id} wrap={false}>
+                <Image src={media.photoUrls[photo.id]} style={[styles.photoImage, reportPhotos.length === 1 ? styles.photoImageSingle : {}]} />
+                {photo.caption || photo.location ? (
+                  <Text style={styles.photoCaption}>{[photo.location, normalizeText(photo.caption)].filter(Boolean).join(" · ")}</Text>
+                ) : null}
               </View>
             ) : null)}
           </View>
-          <Footer snapshot={snapshot} />
-        </Page>
-      ) : null}
-
-      <Page size="LETTER" style={styles.page}>
-        <View style={styles.sectionHeader}><Text style={styles.sectionNumber}>{String(sectionNumber).padStart(2, "0")}</Text><Text style={styles.sectionTitle}>Inspector certification</Text></View>
+          </>
+        ) : null}
+        <View style={styles.certificationSection} wrap={false}>
+        <Text style={styles.certificationTitle}>{String(sectionNumber).padStart(2, "0")}  Inspector certification</Text>
         <Text style={styles.certification}>This report reflects the visible and accessible conditions observed on the inspection date. Findings and recommendations are limited to the scope and conditions documented in this report.</Text>
-        {media.signatureUrl ? <Image src={media.signatureUrl} style={styles.signature} /> : null}
-        <Text style={styles.value}>{snapshot.inspector?.name ?? "Inspector"}</Text>
-        <Text>{snapshot.inspector?.licenseNumber ? `License ${snapshot.inspector.licenseNumber}` : "License not recorded"}</Text>
+        <View style={styles.certificationIdentity}>
+          {media.signatureUrl ? <Image src={media.signatureUrl} style={styles.signature} /> : null}
+          <View style={styles.certificationName}>
+            <Text style={styles.value}>{snapshot.inspector?.name ?? "Inspector"}</Text>
+            <Text>{snapshot.inspector?.licenseNumber ? `License ${snapshot.inspector.licenseNumber}` : "License not recorded"}</Text>
+          </View>
+        </View>
+        </View>
         <Footer snapshot={snapshot} />
       </Page>
     </Document>
