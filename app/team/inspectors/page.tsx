@@ -1,13 +1,18 @@
 import Image from "next/image";
-import { Check, KeyRound, Plus, ShieldCheck, Upload, UserPlus } from "lucide-react";
+import { redirect } from "next/navigation";
+import { Ban, Check, KeyRound, Plus, RotateCw, ShieldCheck, Upload, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ManagementNav } from "@/components/management-nav";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { canAccessManagement, roleLabels, type MembershipRole } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import {
   createInspector,
   inviteTeamMember,
+  resendTeamInvitation,
   removeInspectorSignature,
+  revokeTeamInvitation,
+  updateTeamMemberAccess,
   updateInspector,
 } from "./actions";
 
@@ -18,6 +23,7 @@ type InspectorsPageProps = {
 export default async function InspectorsPage({ searchParams }: InspectorsPageProps) {
   const messages = await searchParams;
   const { supabase, organization, userName, membership } = await getCurrentContext();
+  if (!canAccessManagement(membership.role)) redirect("/jobs");
   const [
     { data: inspectors, error },
     { data: invitations, error: invitationError },
@@ -35,12 +41,12 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
         .order("full_name"),
       supabase
         .from("organization_invitations")
-        .select("id, email, role, status, created_at, inspector_id")
+        .select("id, email, role, status, created_at, expires_at, last_sent_at, send_count, inspector_id")
         .eq("organization_id", organization.id)
         .order("created_at", { ascending: false }),
       supabase
         .from("organization_memberships")
-        .select("user_id, role, status")
+        .select("user_id, role, status, created_at, profiles(full_name, email)")
         .eq("organization_id", organization.id),
     ]);
 
@@ -60,7 +66,7 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
   }
 
   return (
-    <AppShell organizationName={organization.name} userName={userName} active="management">
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role} active="management">
       <div className="page-heading">
         <div>
           <p className="eyebrow">Organization management</p>
@@ -194,15 +200,92 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
           })}
         </div>
 
+        {isAdmin && memberships?.length ? (
+          <section className="team-access-list">
+            <div className="section-heading compact">
+              <div>
+                <h2>Team access</h2>
+                <span className="section-subtitle">Roles determine what each signed-in person can see and change</span>
+              </div>
+            </div>
+            {(memberships ?? []).map((teamMember) => {
+              const profile = Array.isArray(teamMember.profiles)
+                ? teamMember.profiles[0]
+                : teamMember.profiles;
+              const isCurrentUser = teamMember.user_id === membership.user_id;
+
+              return (
+                <form className="team-access-row" action={updateTeamMemberAccess} key={teamMember.user_id}>
+                  <input name="organizationId" type="hidden" value={organization.id} />
+                  <input name="userId" type="hidden" value={teamMember.user_id} />
+                  <div className="team-member-name">
+                    <strong>{profile?.full_name || profile?.email || "Team member"}</strong>
+                    <small>{profile?.email || "No email"}{isCurrentUser ? " · You" : ""}</small>
+                  </div>
+                  <label>
+                    <span>Role</span>
+                    <select name="role" defaultValue={teamMember.role} disabled={isCurrentUser}>
+                      {(Object.keys(roleLabels) as MembershipRole[]).map((role) => (
+                        <option value={role} key={role}>{roleLabels[role]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Access</span>
+                    <select name="status" defaultValue={teamMember.status} disabled={isCurrentUser}>
+                      <option value="active">Active</option>
+                      <option value="suspended">Suspended</option>
+                    </select>
+                  </label>
+                  {isCurrentUser ? (
+                    <span className="current-access">Current administrator</span>
+                  ) : (
+                    <PendingSubmitButton className="secondary-button" pendingLabel="Updating access">
+                      Save access
+                    </PendingSubmitButton>
+                  )}
+                </form>
+              );
+            })}
+          </section>
+        ) : null}
+
         {isAdmin && invitations?.length ? (
           <section className="invitation-history">
             <div className="section-heading compact"><div><h2>Access invitations</h2><span className="section-subtitle">Recent organization invitations</span></div></div>
             {invitations.map((invitation) => (
               <div className="invitation-row" key={invitation.id}>
-                <strong>{invitation.email}</strong>
+                <div>
+                  <strong>{invitation.email}</strong>
+                  <small>
+                    {invitation.last_sent_at
+                      ? `Last sent ${new Date(invitation.last_sent_at).toLocaleString()}`
+                      : `Created ${new Date(invitation.created_at).toLocaleString()}`}
+                  </small>
+                </div>
                 <span>{invitation.role.replaceAll("_", " ")}</span>
                 <span className={`invitation-status ${invitation.status}`}>{invitation.status}</span>
-                <small>{new Date(invitation.created_at).toLocaleString()}</small>
+                <small>{invitation.send_count} email{invitation.send_count === 1 ? "" : "s"}</small>
+                {["pending", "expired", "failed"].includes(invitation.status) ? (
+                  <div className="invitation-actions">
+                    <form action={resendTeamInvitation}>
+                      <input name="organizationId" type="hidden" value={organization.id} />
+                      <input name="inviteEmail" type="hidden" value={invitation.email} />
+                      <input name="inviteRole" type="hidden" value={invitation.role} />
+                      <input name="inspectorId" type="hidden" value={invitation.inspector_id ?? ""} />
+                      <PendingSubmitButton className="secondary-button" pendingLabel="Resending">
+                        <RotateCw size={14} /> Resend
+                      </PendingSubmitButton>
+                    </form>
+                    <form action={revokeTeamInvitation}>
+                      <input name="organizationId" type="hidden" value={organization.id} />
+                      <input name="invitationId" type="hidden" value={invitation.id} />
+                      <PendingSubmitButton className="danger-outline-button" pendingLabel="Revoking">
+                        <Ban size={14} /> Revoke
+                      </PendingSubmitButton>
+                    </form>
+                  </div>
+                ) : <span />}
               </div>
             ))}
           </section>

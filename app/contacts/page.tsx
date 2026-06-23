@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Building2, Mail, Pencil, Phone, Plus, Search, UserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { canAccessContacts } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 
 type ContactsPageProps = {
@@ -8,7 +10,8 @@ type ContactsPageProps = {
 };
 
 export default async function ContactsPage({ searchParams }: ContactsPageProps) {
-  const { supabase, organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName, membership } = await getCurrentContext();
+  if (!canAccessContacts(membership.role)) redirect("/jobs");
   const { q = "", updated } = await searchParams;
   let query = supabase
     .from("contacts")
@@ -39,7 +42,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
   if (error) throw new Error(error.message);
 
   return (
-    <AppShell organizationName={organization.name} userName={userName} active="contacts">
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role} active="contacts">
       <div className="page-heading">
         <div>
           <p className="eyebrow">CRM directory</p>

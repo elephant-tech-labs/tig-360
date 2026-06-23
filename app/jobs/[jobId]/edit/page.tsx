@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -7,6 +7,7 @@ import {
   type InspectorOption,
   type PriorInspectionOption,
 } from "@/components/inspection-job-form";
+import { canCreateJobs } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { updateInspectionJob } from "@/app/jobs/actions";
 
@@ -22,7 +23,8 @@ function dateTimeLocalValue(value: string | null) {
 export default async function EditJobPage({ params, searchParams }: EditJobPageProps) {
   const { jobId } = await params;
   const { error: message } = await searchParams;
-  const { supabase, organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName, membership } = await getCurrentContext();
+  if (!canCreateJobs(membership.role)) redirect(`/jobs/${jobId}`);
 
   const [
     { data: job, error },
@@ -72,7 +74,7 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
   }));
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <div className="form-page">
         <Link className="back-link" href={`/jobs/${jobId}`}><ArrowLeft size={16} /> Back to job #{job.job_number}</Link>
         <div className="form-page-heading">

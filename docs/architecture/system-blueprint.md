@@ -120,6 +120,22 @@ Initial roles:
 - inspector;
 - treatment coordinator.
 
+Access responsibilities:
+
+- administrators manage invitations, active memberships, roles, suspensions, and organization settings;
+- managers oversee inspection operations and report approval without granting administrator access;
+- office coordinators create and maintain jobs, contacts, report content, and delivery preparation;
+- inspectors work in assigned inspection authoring areas without organization-management access;
+- treatment coordinators are reserved for treatment operations and read-oriented handoff workflows.
+
+Team access is invitation-only. A fresh invitation establishes a short-lived Supabase
+session, then routes the recipient through an Inspect360 activation page to set their
+name and password. Invitation records retain status, expiry, resend count, acceptance,
+revocation, and optional inspector-profile linkage. Administrators can resend or revoke
+pending invitations and can change or suspend active memberships. The system prevents
+an administrator from removing their own access or suspending the final active
+administrator.
+
 The first organization is created through a security-definer onboarding function that also assigns the creating user as administrator. Secret/service-role credentials are never exposed to browser code.
 
 ## Zoho CRM Synchronization

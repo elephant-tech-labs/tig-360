@@ -15,7 +15,7 @@ export default async function FindingLibraryPage({ searchParams }: FindingLibrar
   const { supabase, organization, userName, membership } = await getCurrentContext();
   if (membership.role !== "administrator" && membership.role !== "manager") {
     return (
-      <AppShell organizationName={organization.name} userName={userName}>
+      <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
         <div className="form-page"><div className="form-alert error">Administrator or manager access required.</div></div>
       </AppShell>
     );
@@ -30,7 +30,7 @@ export default async function FindingLibraryPage({ searchParams }: FindingLibrar
   const editing = templates?.find((template) => template.id === messages.edit);
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <div className="library-page">
         <div className="page-heading">
           <div>

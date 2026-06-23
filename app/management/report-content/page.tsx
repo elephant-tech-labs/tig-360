@@ -1,7 +1,9 @@
 import { Check, FilePlus2, Save, Trash2 } from "lucide-react";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { ManagementNav } from "@/components/management-nav";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { canAccessManagement } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { deleteReportContentBlock, saveReportContentBlock } from "./actions";
 
@@ -14,6 +16,7 @@ const reportTypes = ["complete", "limited", "supplemental", "reinspection"];
 export default async function ReportContentPage({ searchParams }: ReportContentPageProps) {
   const messages = await searchParams;
   const { supabase, organization, userName, membership } = await getCurrentContext();
+  if (!canAccessManagement(membership.role)) redirect("/jobs");
   const { data: blocks, error } = await supabase
     .from("report_content_blocks")
     .select("*")
@@ -24,7 +27,7 @@ export default async function ReportContentPage({ searchParams }: ReportContentP
   const canManage = membership.role === "administrator" || membership.role === "manager";
 
   return (
-    <AppShell organizationName={organization.name} userName={userName} active="management">
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role} active="management">
       <div className="page-heading">
         <div><p className="eyebrow">Organization management</p><h1>Company and report settings</h1><p>Manage the legal identity, report content, inspectors, and access used across every inspection.</p></div>
       </div>

@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ContactFormFields } from "@/components/contact-form-fields";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { canAccessContacts } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { createContact } from "../actions";
 
@@ -11,11 +13,12 @@ type NewContactPageProps = {
 };
 
 export default async function NewContactPage({ searchParams }: NewContactPageProps) {
-  const { organization, userName } = await getCurrentContext();
+  const { organization, userName, membership } = await getCurrentContext();
+  if (!canAccessContacts(membership.role)) redirect("/jobs");
   const { error } = await searchParams;
 
   return (
-    <AppShell organizationName={organization.name} userName={userName} active="contacts">
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role} active="contacts">
       <div className="form-page">
         <Link className="back-link" href="/contacts"><ArrowLeft size={16} /> Back to contacts</Link>
         <div className="form-page-heading">

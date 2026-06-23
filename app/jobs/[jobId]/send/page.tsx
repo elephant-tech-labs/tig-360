@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
   AlertTriangle,
   Check,
@@ -13,6 +13,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { JobAuthoringNav } from "@/components/job-authoring-nav";
 import { JobWorkspaceHeader } from "@/components/job-workspace-header";
+import { canCreateJobs } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { loadReportVersions } from "@/lib/reports/load-report";
@@ -26,7 +27,8 @@ type SendPageProps = {
 export default async function SendCenterPage({ params, searchParams }: SendPageProps) {
   const { jobId } = await params;
   const messages = await searchParams;
-  const { supabase, organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName, membership } = await getCurrentContext();
+  if (!canCreateJobs(membership.role)) redirect(`/jobs/${jobId}`);
   const [{ data: job, error }, versions, workflowStates, { data: deliveries }, { data: supportingDocuments }] = await Promise.all([
     supabase
       .from("inspection_jobs")
@@ -100,7 +102,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
   );
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         address={property?.street_line_1 ?? ""}
         jobId={jobId}

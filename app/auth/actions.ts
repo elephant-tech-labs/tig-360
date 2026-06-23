@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,34 +22,8 @@ export async function signIn(formData: FormData) {
     redirect(loginUrl(error.message));
   }
 
+  await supabase.rpc("activate_current_invitation");
   redirect("/");
-}
-
-export async function signUp(formData: FormData) {
-  const fullName = String(formData.get("fullName") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-
-  if (!fullName || !email || password.length < 8) {
-    redirect(loginUrl("Enter your name, email, and a password of at least 8 characters."));
-  }
-
-  const origin = (await headers()).get("origin") ?? process.env.NEXT_PUBLIC_APP_URL!;
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { full_name: fullName },
-      emailRedirectTo: `${origin}/auth/confirm`,
-    },
-  });
-
-  if (error) {
-    redirect(loginUrl(error.message));
-  }
-
-  redirect(loginUrl("Check your email to confirm your account.", "message"));
 }
 
 export async function signOut() {
