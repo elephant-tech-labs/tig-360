@@ -23,14 +23,14 @@ The following migrations have been applied to the production project:
 
 The latest migration was applied through the Supabase SQL Editor on June 21, 2026.
 
-The following migration is prepared but must be applied before deploying its matching
-application branch:
+The following migration was applied through the Supabase SQL Editor on June 23, 2026:
 
 - `20260623120000_team_invitation_lifecycle.sql`
 
 It adds invitation expiry and resend history, acceptance and activation RPCs, active
 member role/status administration, and safeguards for the final administrator.
-After applying it, run `supabase/tests/verify_team_invitation_lifecycle.sql`.
+`supabase/tests/verify_team_invitation_lifecycle.sql` returned four lifecycle
+columns and one instance of each expected invitation and member-access function.
 
 Post-deployment verification returned:
 
