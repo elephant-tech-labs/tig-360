@@ -319,7 +319,7 @@ create or replace function public.update_organization_member_access(
   target_organization_id uuid,
   target_user_id uuid,
   target_role public.membership_role,
-  target_status public.membership_status
+  target_status text
 )
 returns void
 language plpgsql
@@ -329,7 +329,7 @@ as $$
 declare
   current_user_id uuid := (select auth.uid());
   existing_role public.membership_role;
-  existing_status public.membership_status;
+  existing_status text;
   active_admin_count integer;
 begin
   if not public.has_organization_role(
@@ -337,6 +337,10 @@ begin
     array['administrator']::public.membership_role[]
   ) then
     raise exception 'Administrator access required';
+  end if;
+
+  if target_status not in ('active', 'suspended') then
+    raise exception 'Invalid membership status';
   end if;
 
   select membership.role, membership.status
@@ -387,7 +391,7 @@ revoke all on function public.update_organization_member_access(
   uuid,
   uuid,
   public.membership_role,
-  public.membership_status
+  text
 ) from public;
 
 grant execute on function public.mark_organization_invitation_sent(uuid, uuid) to authenticated;
@@ -398,7 +402,7 @@ grant execute on function public.update_organization_member_access(
   uuid,
   uuid,
   public.membership_role,
-  public.membership_status
+  text
 ) to authenticated;
 
 commit;
