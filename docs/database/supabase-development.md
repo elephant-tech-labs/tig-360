@@ -23,6 +23,15 @@ The following migrations have been applied to the production project:
 
 The latest migration was applied through the Supabase SQL Editor on June 21, 2026.
 
+The following migration is prepared but must be applied before deploying its matching
+application branch:
+
+- `20260623120000_team_invitation_lifecycle.sql`
+
+It adds invitation expiry and resend history, acceptance and activation RPCs, active
+member role/status administration, and safeguards for the final administrator.
+After applying it, run `supabase/tests/verify_team_invitation_lifecycle.sql`.
+
 Post-deployment verification returned:
 
 | Check | Result |
@@ -82,6 +91,16 @@ Send Center always points to one approved version instead of a mutable job.
 - Deployed Next.js server: transaction pooler on port 6543.
 - Migrations: session pooler on port 5432 when direct IPv6 is unavailable.
 - Direct connection: optional for environments with IPv6 support.
+
+Supabase Authentication URL configuration must include:
+
+- Site URL: `https://tig-360.vercel.app`
+- Redirect URL: `https://tig-360.vercel.app/auth/accept`
+- Local redirect URL: `http://localhost:3000/auth/accept`
+
+Production invitation emails should use the Inspect360 redirect above. The app accepts
+both PKCE `code` links and legacy token fragments, then sends authenticated recipients
+to `/activate` to choose their password.
 
 Do not commit database passwords, full connection strings, secret/service-role keys, or Zoho credentials.
 

@@ -18,7 +18,7 @@ type DrawingPageProps = {
 
 export default async function DrawingPage({ params }: DrawingPageProps) {
   const { jobId } = await params;
-  const { supabase, organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName, membership } = await getCurrentContext();
   const [
     { data: job, error: jobError },
     { data: draft, error: draftError },
@@ -66,7 +66,7 @@ export default async function DrawingPage({ params }: DrawingPageProps) {
   const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         jobId={jobId}
         jobNumber={job.job_number}

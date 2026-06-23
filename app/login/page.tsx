@@ -1,5 +1,5 @@
 import { Building2, CheckCircle2, ClipboardCheck, ShieldCheck } from "lucide-react";
-import { signIn, signUp } from "@/app/auth/actions";
+import { signIn } from "@/app/auth/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 type LoginPageProps = {
@@ -59,35 +59,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </PendingSubmitButton>
           </form>
 
-          <details className="signup-panel">
-            <summary>Create the first account</summary>
-            <form className="form-stack" action={signUp}>
-              <label>
-                Full name
-                <input name="fullName" autoComplete="name" required />
-              </label>
-              <label>
-                Email
-                <input name="email" type="email" autoComplete="email" required />
-              </label>
-              <label>
-                Password
-                <input
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                />
-              </label>
-              <PendingSubmitButton
-                className="secondary-button form-submit"
-                pendingLabel="Creating account"
-              >
-                Create account
-              </PendingSubmitButton>
-            </form>
-          </details>
+          <p className="auth-help">Accounts are created by invitation. Contact your administrator if you need access or a fresh invitation link.</p>
         </div>
       </section>
     </main>

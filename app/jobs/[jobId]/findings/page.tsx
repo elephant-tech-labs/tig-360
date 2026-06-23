@@ -93,7 +93,7 @@ export default async function FindingsPage({ params }: FindingsPageProps) {
   const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         jobId={jobId}
         jobNumber={job.job_number}

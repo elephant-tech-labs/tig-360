@@ -39,6 +39,14 @@ select { font: inherit; }
 .signup-panel { border-top: 1px solid var(--line); margin-top: 23px; padding-top: 17px; }
 .signup-panel summary { color: var(--green-dark); cursor: pointer; font-weight: 750; }
 .signup-panel[open] summary { margin-bottom: 16px; }
+.auth-help { border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.55; margin: 22px 0 0; padding-top: 16px; }
+.activation-page { align-items: center; background: #edf2ef; display: flex; justify-content: center; min-height: 100vh; padding: 24px; }
+.activation-card { background: #fff; border: 1px solid var(--line); border-radius: 7px; max-width: 520px; padding: 34px; width: 100%; }
+.activation-card h1 { margin: 7px 0 10px; }
+.activation-card > p { color: var(--muted); line-height: 1.55; }
+.activation-intro strong { color: var(--ink); }
+.activation-icon, .auth-loading-mark { align-items: center; background: var(--green-soft); border-radius: 6px; color: var(--green-dark); display: flex; height: 44px; justify-content: center; margin-bottom: 18px; width: 44px; }
+.auth-loading-mark { background: #ef9b3d; color: var(--ink); font-weight: 800; }
 
 .onboarding-page { align-items: center; background: #edf1ef; display: flex; justify-content: center; min-height: 100vh; padding: 24px; }
 .onboarding-card { background: #fff; border: 1px solid var(--line); border-radius: 7px; max-width: 520px; padding: 38px; width: 100%; }

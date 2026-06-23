@@ -1,8 +1,10 @@
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { Building2, Check, Upload } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ManagementNav } from "@/components/management-nav";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { canAccessManagement } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { removeCompanyLogo, saveCompanyProfile } from "@/app/management/actions";
 
@@ -13,6 +15,7 @@ type ManagementPageProps = {
 export default async function ManagementPage({ searchParams }: ManagementPageProps) {
   const messages = await searchParams;
   const { supabase, organization, userName, membership } = await getCurrentContext();
+  if (!canAccessManagement(membership.role)) redirect("/jobs");
   const { data: profile, error } = await supabase
     .from("organization_report_profiles")
     .select("*")
@@ -30,7 +33,7 @@ export default async function ManagementPage({ searchParams }: ManagementPagePro
   }
 
   return (
-    <AppShell organizationName={organization.name} userName={userName} active="management">
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role} active="management">
       <div className="page-heading">
         <div><p className="eyebrow">Organization management</p><h1>Company and report settings</h1><p>Manage the legal identity, report content, inspectors, and access used across every inspection.</p></div>
       </div>

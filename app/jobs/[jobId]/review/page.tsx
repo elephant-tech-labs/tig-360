@@ -57,7 +57,7 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
   const advisoryIssues = bundle.readiness.issues.filter((issue) => issue.severity === "advisory");
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         address={property?.street_line_1 ?? ""}
         jobId={jobId}

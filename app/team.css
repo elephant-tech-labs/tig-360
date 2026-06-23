@@ -1,6 +1,6 @@
 .team-page { display: grid; gap: 16px; padding: 0 30px 42px; }
 .team-create-band { align-items: start; display: grid; gap: 18px; grid-template-columns: 1.4fr 1fr; }
-.inspector-create-form, .team-invite-form, .invitation-history { background: #fff; border: 1px solid var(--line); display: grid; gap: 13px; padding: 18px; }
+.inspector-create-form, .team-invite-form, .team-access-list, .invitation-history { background: #fff; border: 1px solid var(--line); display: grid; gap: 13px; padding: 18px; }
 .inspector-create-form { grid-template-columns: 1fr 1fr; }
 .inspector-create-form .section-heading, .inspector-create-form .primary-button { grid-column: 1 / -1; }
 .inspector-create-form label, .team-invite-form label { color: #35413d; display: grid; font-size: 12px; font-weight: 700; gap: 6px; }
@@ -29,18 +29,33 @@
 .signature-ready { color: var(--green); }
 .signature-missing { color: #9b5a18; }
 .invitation-history { gap: 0; }
-.invitation-row { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: minmax(180px, 1fr) 160px 90px 170px; padding: 11px 0; }
+.invitation-row { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: minmax(220px, 1fr) 150px 85px 75px 190px; padding: 11px 0; }
 .invitation-row strong, .invitation-row span, .invitation-row small { font-size: 11px; }
-.invitation-row small { color: var(--muted); }
+.invitation-row strong, .invitation-row small { display: block; }
+.invitation-row small { color: var(--muted); margin-top: 3px; }
 .invitation-status { font-weight: 750; text-transform: capitalize; }
 .invitation-status.pending { color: #8a4c0d; }
 .invitation-status.accepted { color: var(--green); }
-.invitation-status.failed, .invitation-status.revoked { color: var(--red); }
+.invitation-status.failed, .invitation-status.revoked, .invitation-status.expired { color: var(--red); }
+.invitation-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.invitation-actions form { margin: 0; }
+.invitation-actions button { min-height: 32px; padding: 0 9px; }
+.danger-outline-button { align-items: center; background: #fff; border: 1px solid #d8a29b; border-radius: 6px; color: var(--red); display: inline-flex; font-size: 11px; font-weight: 700; gap: 6px; justify-content: center; min-height: 36px; padding: 0 12px; }
+.danger-outline-button:disabled { cursor: wait; opacity: .7; }
+.team-access-list { gap: 0; }
+.team-access-list .section-heading { margin-bottom: 6px; }
+.team-access-row { align-items: end; border-top: 1px solid var(--line); display: grid; gap: 14px; grid-template-columns: minmax(220px, 1fr) minmax(180px, .7fr) minmax(140px, .5fr) auto; padding: 15px 0; }
+.team-access-row label { color: #35413d; display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
+.team-access-row select { background: #fff; border: 1px solid #cbd4d0; border-radius: 5px; min-height: 38px; padding: 0 9px; width: 100%; }
+.team-member-name { display: grid; gap: 4px; }
+.team-member-name small, .current-access { color: var(--muted); font-size: 11px; }
+.current-access { align-self: center; font-weight: 700; }
 
 @media (max-width: 1050px) {
   .team-create-band { grid-template-columns: 1fr; }
   .inspector-profile-row { grid-template-columns: 1fr 1.4fr; }
   .signature-preview { grid-column: 2; }
+  .team-access-row { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 720px) {
@@ -50,4 +65,6 @@
   .inspector-create-form { grid-template-columns: 1fr; }
   .inspector-create-form .section-heading, .inspector-create-form .primary-button { grid-column: auto; }
   .invitation-row { grid-template-columns: 1fr 90px; }
+  .invitation-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .team-access-row { align-items: stretch; grid-template-columns: 1fr; }
 }

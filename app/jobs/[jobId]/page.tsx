@@ -20,7 +20,7 @@ type JobPageProps = { params: Promise<{ jobId: string }>; searchParams: Promise<
 export default async function JobPage({ params, searchParams }: JobPageProps) {
   const { jobId } = await params;
   const messages = await searchParams;
-  const { supabase, organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName, membership } = await getCurrentContext();
   const { data: job, error } = await supabase.from("inspection_jobs").select(`
     id, job_number, status, report_type, inspection_at, prior_job_id, summary, escrow_number,
     inspection_tag_posted, other_tags_posted, garage_description,
@@ -94,7 +94,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
   }, new Map<string, { id: string; name: string; detail: string; roles: string[]; defaultRecipient: boolean }>()).values());
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         jobId={jobId}
         jobNumber={job.job_number}

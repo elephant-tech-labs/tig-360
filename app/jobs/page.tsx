@@ -15,7 +15,7 @@ function statusLabel(status: string) {
 }
 
 export default async function JobsPage() {
-  const { supabase, organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName, membership } = await getCurrentContext();
   const { data: jobs, error } = await supabase
     .from("inspection_jobs")
     .select(`
@@ -33,7 +33,7 @@ export default async function JobsPage() {
   if (error) throw new Error(error.message);
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <div className="page-heading">
         <div>
           <p className="eyebrow">Inspection operations</p>

@@ -14,11 +14,19 @@ import {
   Users,
 } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
+import {
+  canAccessContacts,
+  canAccessManagement,
+  canCreateJobs,
+  roleLabels,
+  type MembershipRole,
+} from "@/lib/access";
 
 type AppShellProps = {
   children: React.ReactNode;
   organizationName: string;
   userName: string;
+  membershipRole: MembershipRole;
   active?: "dashboard" | "jobs" | "schedule" | "contacts" | "properties" | "documents" | "management";
 };
 
@@ -36,6 +44,7 @@ export function AppShell({
   children,
   organizationName,
   userName,
+  membershipRole,
   active = "jobs",
 }: AppShellProps) {
   const initials = userName
@@ -57,7 +66,14 @@ export function AppShell({
         <div className="organization-label">{organizationName}</div>
 
         <nav className="primary-nav" aria-label="Primary navigation">
-          {navItems.map((item) => {
+          {navItems.filter((item) => {
+            if (item.key === "management") return canAccessManagement(membershipRole);
+            if (item.key === "contacts") return canAccessContacts(membershipRole);
+            if (item.key === "schedule" || item.key === "properties" || item.key === "documents") {
+              return membershipRole !== "inspector";
+            }
+            return true;
+          }).map((item) => {
             const Icon = item.icon;
             return (
               <Link
@@ -73,7 +89,7 @@ export function AppShell({
 
         <div className="sidebar-footer">
           <div className="workspace-avatar">{initials}</div>
-          <div><strong>{userName}</strong><span>Team member</span></div>
+          <div><strong>{userName}</strong><span>{roleLabels[membershipRole]}</span></div>
           <details className="account-menu">
             <summary aria-label="Account menu"><ChevronDown size={16} /></summary>
             <form action={signOut}>
@@ -93,9 +109,11 @@ export function AppShell({
             <button className="icon-button" title="Notifications" aria-label="Notifications">
               <Bell size={18} />
             </button>
-            <Link className="new-job-button" href="/jobs/new">
-              <Plus size={17} /> New job
-            </Link>
+            {canCreateJobs(membershipRole) ? (
+              <Link className="new-job-button" href="/jobs/new">
+                <Plus size={17} /> New job
+              </Link>
+            ) : null}
           </div>
         </header>
         {children}

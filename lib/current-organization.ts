@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { MembershipRole } from "@/lib/access";
 
 export async function getCurrentContext() {
   const supabase = await createClient();
@@ -11,7 +12,7 @@ export async function getCurrentContext() {
 
   const { data: membership, error } = await supabase
     .from("organization_memberships")
-    .select("organization_id, role, organizations(id, name, slug)")
+    .select("organization_id, user_id, role, organizations(id, name, slug)")
     .eq("status", "active")
     .limit(1)
     .maybeSingle();
@@ -28,7 +29,10 @@ export async function getCurrentContext() {
   return {
     supabase,
     user,
-    membership,
+    membership: {
+      ...membership,
+      role: membership.role as MembershipRole,
+    },
     organization,
     userName:
       String(user.user_metadata.full_name ?? user.user_metadata.name ?? user.email ?? "Team member"),

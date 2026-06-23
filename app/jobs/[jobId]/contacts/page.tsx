@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Check, UserPlus, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ContactFormFields } from "@/components/contact-form-fields";
@@ -10,6 +11,7 @@ import {
   type AssignedParty,
   type ContactOption,
 } from "@/components/job-contact-manager";
+import { canAccessContacts } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { jobPartyRoles } from "@/lib/job-parties";
@@ -26,7 +28,8 @@ export default async function JobContactsPage({
 }: JobContactsPageProps) {
   const { jobId } = await params;
   const messages = await searchParams;
-  const { supabase, organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName, membership } = await getCurrentContext();
+  if (!canAccessContacts(membership.role)) redirect(`/jobs/${jobId}`);
 
   const [{ data: job, error: jobError }, { data: contacts, error: contactsError }, workflowStates] =
     await Promise.all([
@@ -109,7 +112,7 @@ export default async function JobContactsPage({
   ].filter(Boolean).join(", ");
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         address={property?.street_line_1 ?? ""}
         jobId={jobId}

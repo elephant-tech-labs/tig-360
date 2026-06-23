@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, ClipboardPlus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -6,6 +7,7 @@ import {
   type InspectorOption,
   type PriorInspectionOption,
 } from "@/components/inspection-job-form";
+import { canCreateJobs } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { createInspectionJob } from "../actions";
 
@@ -14,7 +16,8 @@ type NewJobPageProps = {
 };
 
 export default async function NewJobPage({ searchParams }: NewJobPageProps) {
-  const { supabase, organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName, membership } = await getCurrentContext();
+  if (!canCreateJobs(membership.role)) redirect("/jobs");
   const params = await searchParams;
   const [
     { data: previousJobs, error },
@@ -69,7 +72,7 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
   }));
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <div className="form-page">
         <Link className="back-link" href="/jobs"><ArrowLeft size={16} /> Back to jobs</Link>
         <div className="form-page-heading">

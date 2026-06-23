@@ -106,7 +106,7 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
   const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
 
   return (
-    <AppShell organizationName={organization.name} userName={userName}>
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         jobId={jobId}
         jobNumber={job.job_number}

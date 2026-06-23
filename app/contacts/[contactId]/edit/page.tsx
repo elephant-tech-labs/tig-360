@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ContactFormFields } from "@/components/contact-form-fields";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { canAccessContacts } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { updateContact } from "../../actions";
 
@@ -18,7 +19,8 @@ export default async function EditContactPage({
 }: EditContactPageProps) {
   const { contactId } = await params;
   const { error: message } = await searchParams;
-  const { supabase, organization, userName } = await getCurrentContext();
+  const { supabase, organization, userName, membership } = await getCurrentContext();
+  if (!canAccessContacts(membership.role)) redirect("/jobs");
   const { data: contact, error } = await supabase
     .from("contacts")
     .select(`
@@ -36,7 +38,7 @@ export default async function EditContactPage({
     : contact.companies;
 
   return (
-    <AppShell organizationName={organization.name} userName={userName} active="contacts">
+    <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role} active="contacts">
       <div className="form-page">
         <Link className="back-link" href="/contacts">
           <ArrowLeft size={16} /> Back to contacts

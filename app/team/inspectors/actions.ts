@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentContext } from "@/lib/current-organization";
 
 function clean(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -135,7 +136,11 @@ type InvitationInput = {
 };
 
 async function sendInvitation(input: InvitationInput) {
-  const supabase = await createClient();
+  const { supabase, organization, membership } = await getCurrentContext();
+  if (membership.role !== "administrator" || organization.id !== input.organizationId) {
+    throw new Error("Administrator access required.");
+  }
+
   const { data: invitationId, error } = await supabase.rpc("create_organization_invitation", {
     target_organization_id: input.organizationId,
     invitation_email: input.email,
@@ -146,7 +151,7 @@ async function sendInvitation(input: InvitationInput) {
 
   try {
     const admin = createAdminClient();
-    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/confirm?next=/jobs`;
+    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/accept`;
     const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(input.email, {
       redirectTo,
       data: {
@@ -154,7 +159,25 @@ async function sendInvitation(input: InvitationInput) {
         full_name: input.role === "inspector" ? undefined : input.email.split("@")[0],
       },
     });
-    if (inviteError) throw inviteError;
+    if (inviteError) {
+      const existingAccount = /already|registered|exists/i.test(inviteError.message);
+      if (!existingAccount) throw inviteError;
+
+      const { error: magicLinkError } = await admin.auth.signInWithOtp({
+        email: input.email,
+        options: {
+          emailRedirectTo: redirectTo,
+          shouldCreateUser: false,
+        },
+      });
+      if (magicLinkError) throw magicLinkError;
+    }
+
+    const { error: sentError } = await supabase.rpc("mark_organization_invitation_sent", {
+      target_organization_id: input.organizationId,
+      target_invitation_id: invitationId,
+    });
+    if (sentError) throw sentError;
   } catch (error) {
     await supabase
       .from("organization_invitations")
@@ -178,6 +201,63 @@ export async function inviteTeamMember(formData: FormData) {
 
   revalidatePath("/team/inspectors");
   redirect(inspectorUrl(`Invitation sent to ${email}.`));
+}
+
+export async function resendTeamInvitation(formData: FormData) {
+  const organizationId = clean(formData, "organizationId");
+  const email = clean(formData, "inviteEmail").toLowerCase();
+  const role = clean(formData, "inviteRole") as InvitationInput["role"];
+  const inspectorId = clean(formData, "inspectorId") || null;
+
+  try {
+    await sendInvitation({ organizationId, email, role, inspectorId });
+  } catch (error) {
+    redirect(inspectorUrl(error instanceof Error ? error.message : "Unable to resend invitation.", "error"));
+  }
+
+  revalidatePath("/team/inspectors");
+  redirect(inspectorUrl(`A fresh invitation was sent to ${email}.`));
+}
+
+export async function revokeTeamInvitation(formData: FormData) {
+  const organizationId = clean(formData, "organizationId");
+  const invitationId = clean(formData, "invitationId");
+  const { supabase, organization, membership } = await getCurrentContext();
+  if (membership.role !== "administrator" || organization.id !== organizationId) {
+    redirect(inspectorUrl("Administrator access required.", "error"));
+  }
+
+  const { error } = await supabase.rpc("revoke_organization_invitation", {
+    target_organization_id: organizationId,
+    target_invitation_id: invitationId,
+  });
+  if (error) redirect(inspectorUrl(error.message, "error"));
+
+  revalidatePath("/team/inspectors");
+  redirect(inspectorUrl("Invitation revoked."));
+}
+
+export async function updateTeamMemberAccess(formData: FormData) {
+  const organizationId = clean(formData, "organizationId");
+  const userId = clean(formData, "userId");
+  const role = clean(formData, "role") as InvitationInput["role"];
+  const status = clean(formData, "status") as "active" | "suspended";
+  const { supabase, organization, membership } = await getCurrentContext();
+
+  if (membership.role !== "administrator" || organization.id !== organizationId) {
+    redirect(inspectorUrl("Administrator access required.", "error"));
+  }
+
+  const { error } = await supabase.rpc("update_organization_member_access", {
+    target_organization_id: organizationId,
+    target_user_id: userId,
+    target_role: role,
+    target_status: status,
+  });
+  if (error) redirect(inspectorUrl(error.message, "error"));
+
+  revalidatePath("/team/inspectors");
+  redirect(inspectorUrl("Team access updated."));
 }
 
 export async function removeInspectorSignature(formData: FormData) {
