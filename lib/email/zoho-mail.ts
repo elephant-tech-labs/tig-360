@@ -58,16 +58,23 @@ export function createZohoMailProvider(): EmailProvider {
       const attachmentData = [];
 
       for (const attachment of input.attachments) {
+        const upload = new FormData();
+        upload.append(
+          "attach",
+          new Blob([Buffer.from(attachment.bytes)], {
+            type: attachment.contentType || "application/octet-stream",
+          }),
+          attachment.filename,
+        );
         const uploadResponse = await fetch(
-          `${apiUrl}/accounts/${accountId}/messages/attachments?fileName=${encodeURIComponent(attachment.filename)}`,
+          `${apiUrl}/accounts/${accountId}/messages/attachments?uploadType=multipart&isInline=false`,
           {
             method: "POST",
             headers: {
               Authorization: `Zoho-oauthtoken ${accessToken}`,
               Accept: "application/json",
-              "Content-Type": "application/json",
             },
-            body: Buffer.from(attachment.bytes),
+            body: upload,
           },
         );
         const uploadResult = await parseZohoResponse<ZohoAttachmentResponse>(
