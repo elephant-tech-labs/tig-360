@@ -25,6 +25,18 @@ type ZohoSendResponse = {
   };
 };
 
+async function parseZohoResponse<T>(response: Response, operation: string) {
+  const body = await response.text();
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    const contentType = response.headers.get("content-type") || "unknown content type";
+    throw new Error(
+      `Zoho Mail ${operation} returned HTTP ${response.status} (${contentType}) instead of JSON.`,
+    );
+  }
+}
+
 function addressList(recipients: SendEmailInput["to"]) {
   return recipients.map((recipient) =>
     recipient.name ? `${recipient.name}<${recipient.email}>` : recipient.email,
@@ -52,12 +64,16 @@ export function createZohoMailProvider(): EmailProvider {
             method: "POST",
             headers: {
               Authorization: `Zoho-oauthtoken ${accessToken}`,
-              "Content-Type": attachment.contentType || "application/octet-stream",
+              Accept: "application/json",
+              "Content-Type": "application/json",
             },
             body: Buffer.from(attachment.bytes),
           },
         );
-        const uploadResult = await uploadResponse.json() as ZohoAttachmentResponse;
+        const uploadResult = await parseZohoResponse<ZohoAttachmentResponse>(
+          uploadResponse,
+          "attachment upload",
+        );
         const uploaded = Array.isArray(uploadResult.data)
           ? uploadResult.data[0]
           : uploadResult.data;
@@ -75,6 +91,7 @@ export function createZohoMailProvider(): EmailProvider {
         method: "POST",
         headers: {
           Authorization: `Zoho-oauthtoken ${accessToken}`,
+          Accept: "application/json",
           "Content-Type": "application/json",
           "X-TIG360-Idempotency-Key": input.idempotencyKey,
         },
@@ -91,7 +108,7 @@ export function createZohoMailProvider(): EmailProvider {
           askReceipt: "yes",
         }),
       });
-      const result = await response.json() as ZohoSendResponse;
+      const result = await parseZohoResponse<ZohoSendResponse>(response, "send");
       const messageId = result.data?.messageId;
       if (!response.ok || !messageId) {
         throw new Error(result.status?.description ?? "Zoho Mail rejected the email.");

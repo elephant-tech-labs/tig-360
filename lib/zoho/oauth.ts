@@ -3,6 +3,18 @@ type ZohoTokenResponse = {
   error?: string;
 };
 
+async function parseZohoTokenResponse(response: Response) {
+  const body = await response.text();
+  try {
+    return JSON.parse(body) as ZohoTokenResponse;
+  } catch {
+    const contentType = response.headers.get("content-type") || "unknown content type";
+    throw new Error(
+      `Zoho OAuth returned HTTP ${response.status} (${contentType}) instead of JSON.`,
+    );
+  }
+}
+
 export async function getZohoAccessToken() {
   const clientId = process.env.ZOHO_CLIENT_ID;
   const clientSecret = process.env.ZOHO_CLIENT_SECRET;
@@ -23,7 +35,7 @@ export async function getZohoAccessToken() {
     }),
     cache: "no-store",
   });
-  const result = await response.json() as ZohoTokenResponse;
+  const result = await parseZohoTokenResponse(response);
   if (!response.ok || !result.access_token) {
     throw new Error(result.error ?? "Unable to authenticate with Zoho.");
   }
