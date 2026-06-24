@@ -32,6 +32,15 @@ member role/status administration, and safeguards for the final administrator.
 `supabase/tests/verify_team_invitation_lifecycle.sql` returned four lifecycle
 columns and one instance of each expected invitation and member-access function.
 
+The Send Center operations migration was applied through the Supabase SQL Editor on
+June 23, 2026:
+
+- `20260623150000_send_center_operations.sql`
+
+It adds eight delivery lifecycle columns, immutable delivery attempts, editable draft
+RPCs, and atomic begin/complete attempt functions. Verification returned `8`, `true`,
+`1`, `1`, and `1` for the expected columns, table, and functions.
+
 Post-deployment verification returned:
 
 | Check | Result |
@@ -88,6 +97,7 @@ Send Center always points to one approved version instead of a mutable job.
 
 - Browser: project URL plus publishable key.
 - Administrator invitation actions: server-only Supabase secret key.
+- Send Center email: `EMAIL_PROVIDER` plus Zoho Mail or Resend server credentials.
 - Deployed Next.js server: transaction pooler on port 6543.
 - Migrations: session pooler on port 5432 when direct IPv6 is unavailable.
 - Direct connection: optional for environments with IPv6 support.
