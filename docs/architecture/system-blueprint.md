@@ -165,6 +165,18 @@ A communication provider sends the message and returns a provider message ID. A 
 
 The final choice depends on deliverability, attachment limits, CRM visibility, and available Zoho API behavior.
 
+The implemented Send Center uses a provider adapter with Zoho Mail and Resend
+implementations. Zoho Mail is preferred when its account and OAuth settings are
+available. Every delivery points to an approved immutable report version, stores its
+package mode and recipients, and owns one or more immutable delivery attempts. A failed
+attempt can be retried without erasing the original failure. Sending the same report
+again creates a new delivery record from the prior composition.
+
+After a successful email, the CRM adapter records a report-delivery note against
+recipient contacts that already have Zoho CRM contact IDs. Email success is never
+changed to failure merely because CRM logging failed; the two statuses are retained
+separately for operational follow-up.
+
 ## Reliability Rules
 
 - provider calls run through durable jobs with retries and exponential backoff;

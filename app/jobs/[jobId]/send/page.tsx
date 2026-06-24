@@ -4,31 +4,65 @@ import {
   AlertTriangle,
   Check,
   Clock3,
-  Download,
   FileCheck2,
   Mail,
-  Send,
-  Users,
+  RotateCw,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { JobAuthoringNav } from "@/components/job-authoring-nav";
 import { JobWorkspaceHeader } from "@/components/job-workspace-header";
+import {
+  SendCenterComposer,
+  type SendCenterDraft,
+  type SendCenterRecipient,
+} from "@/components/send-center-composer";
 import { canCreateJobs } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
+import { jobPartyRoleLabel } from "@/lib/job-parties";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { loadReportVersions } from "@/lib/reports/load-report";
-import { prepareReportDelivery } from "@/app/jobs/[jobId]/send/actions";
 
 type SendPageProps = {
   params: Promise<{ jobId: string }>;
-  searchParams: Promise<{ saved?: string; sent?: string; error?: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    sent?: string;
+    error?: string;
+    draft?: string;
+    resend?: string;
+  }>;
 };
+
+type DeliveryRecipient = {
+  contact_id: string | null;
+  email: string;
+  display_name: string | null;
+  recipient_type: "to" | "cc" | "bcc";
+};
+
+function providerLabel() {
+  const selected = process.env.EMAIL_PROVIDER?.trim().toLowerCase();
+  if (selected === "zoho_mail") {
+    return process.env.ZOHO_MAIL_ACCOUNT_ID && process.env.ZOHO_REFRESH_TOKEN && process.env.REPORT_EMAIL_FROM
+      ? "Zoho Mail"
+      : null;
+  }
+  if (selected === "resend") {
+    return process.env.RESEND_API_KEY && process.env.REPORT_EMAIL_FROM ? "Resend" : null;
+  }
+  if (process.env.ZOHO_MAIL_ACCOUNT_ID && process.env.ZOHO_REFRESH_TOKEN && process.env.REPORT_EMAIL_FROM) {
+    return "Zoho Mail";
+  }
+  if (process.env.RESEND_API_KEY && process.env.REPORT_EMAIL_FROM) return "Resend";
+  return null;
+}
 
 export default async function SendCenterPage({ params, searchParams }: SendPageProps) {
   const { jobId } = await params;
   const messages = await searchParams;
   const { supabase, organization, userName, membership } = await getCurrentContext();
   if (!canCreateJobs(membership.role)) redirect(`/jobs/${jobId}`);
+
   const [{ data: job, error }, versions, workflowStates, { data: deliveries }, { data: supportingDocuments }] = await Promise.all([
     supabase
       .from("inspection_jobs")
@@ -37,7 +71,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
         properties(street_line_1, city, region, postal_code),
         job_parties(
           id, role, is_primary, receive_report_by_default,
-          contacts(id, first_name, last_name, email)
+          contacts(id, first_name, last_name, email, secondary_email)
         )
       `)
       .eq("id", jobId)
@@ -48,9 +82,13 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
     supabase
       .from("deliveries")
       .select(`
-        id, status, subject, package_mode, created_at, sent_at, failure_message,
+        id, document_version_id, status, subject, message_body, reply_to,
+        package_mode, attachment_version_ids, provider, provider_message_id,
+        attempt_count, created_at, sent_at, failure_message,
+        crm_sync_status, crm_failure_message,
         document_versions(version),
-        delivery_recipients(id, email, display_name, recipient_type)
+        delivery_recipients(id, contact_id, email, display_name, recipient_type, delivery_status),
+        delivery_attempts(id, attempt_number, provider, status, started_at, completed_at, failure_message)
       `)
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
@@ -71,22 +109,10 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
   if (error || !job) notFound();
 
   const property = Array.isArray(job.properties) ? job.properties[0] : job.properties;
-  const approvedVersions = versions.filter((version) => version.approvalStatus === "approved" && version.status === "ready");
+  const approvedVersions = versions.filter(
+    (version) => version.approvalStatus === "approved" && version.status === "ready",
+  );
   const latestApproved = approvedVersions[0] ?? null;
-  const recipientOptions = (job.job_parties ?? []).flatMap((party) => {
-    const contact = Array.isArray(party.contacts) ? party.contacts[0] : party.contacts;
-    if (!contact?.email) return [];
-    return [{
-      key: `${contact.id}-${party.role}`,
-      contactId: contact.id,
-      name: `${contact.first_name} ${contact.last_name}`.trim(),
-      email: contact.email,
-      role: party.role.replaceAll("_", " "),
-      selected: party.receive_report_by_default || party.role === "report_recipient",
-    }];
-  });
-  const uniqueRecipients = Array.from(new Map(recipientOptions.map((recipient) => [recipient.email.toLowerCase(), recipient])).values());
-  const reportAddress = `${property?.street_line_1 ?? "Property"} · Report #${job.job_number}`;
   const supportingVersions = (supportingDocuments ?? []).flatMap((document) =>
     (document.document_versions ?? [])
       .filter((version) => version.status === "ready")
@@ -95,11 +121,76 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
         return {
           id: version.id,
           label: `${document.title} · v${version.version}`,
-          kind: document.kind,
           filename: asset?.original_filename ?? `${document.kind}.pdf`,
         };
       }),
   );
+
+  const sourceDeliveryId = messages.draft || messages.resend || null;
+  const sourceDelivery = sourceDeliveryId
+    ? (deliveries ?? []).find((delivery) => delivery.id === sourceDeliveryId) ?? null
+    : null;
+  const sourceRecipients = (sourceDelivery?.delivery_recipients ?? []) as DeliveryRecipient[];
+  const isResend = Boolean(messages.resend);
+  const recipientByEmail = new Map<string, SendCenterRecipient>();
+
+  for (const party of job.job_parties ?? []) {
+    const contact = Array.isArray(party.contacts) ? party.contacts[0] : party.contacts;
+    if (!contact) continue;
+    const name = `${contact.first_name} ${contact.last_name}`.trim();
+    const emails = [
+      { email: contact.email, label: "Primary email" },
+      { email: contact.secondary_email, label: "Secondary email" },
+    ].filter((entry): entry is { email: string; label: string } => Boolean(entry.email));
+
+    for (const entry of emails) {
+      const key = entry.email.trim().toLowerCase();
+      const existing = recipientByEmail.get(key);
+      const saved = sourceRecipients.find((recipient) => recipient.email.toLowerCase() === key);
+      if (existing) {
+        if (!existing.roles.includes(jobPartyRoleLabel(party.role))) {
+          existing.roles.push(jobPartyRoleLabel(party.role));
+        }
+        existing.selected = existing.selected || party.receive_report_by_default || Boolean(saved);
+        continue;
+      }
+      recipientByEmail.set(key, {
+        key,
+        contactId: contact.id,
+        name,
+        email: entry.email,
+        roles: [jobPartyRoleLabel(party.role)],
+        selected: sourceDelivery
+          ? Boolean(saved)
+          : party.receive_report_by_default || party.role === "report_recipient",
+        type: saved?.recipient_type ?? "to",
+        channelLabel: entry.label,
+      });
+    }
+  }
+  const directoryRecipients = Array.from(recipientByEmail.values()).sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+  const reportAddress = `${property?.street_line_1 ?? "Property"} · Report #${job.job_number}`;
+  const defaultSubject = `Inspection Report #${job.job_number} - ${property?.street_line_1 ?? "Property"}`;
+  const defaultMessage = `Hello,\n\nPlease find attached the structural pest inspection report for ${reportAddress}.\n\nRegards,\n${organization.name}`;
+  const initialDraft: SendCenterDraft = {
+    id: sourceDelivery && !isResend && ["draft", "failed"].includes(sourceDelivery.status)
+      ? sourceDelivery.id
+      : null,
+    versionId: sourceDelivery?.document_version_id ?? latestApproved?.id ?? "",
+    packageMode: sourceDelivery?.package_mode ?? "report_only",
+    supportingVersionId: sourceDelivery?.attachment_version_ids?.[0] ?? supportingVersions[0]?.id ?? "",
+    subject: sourceDelivery?.subject ?? defaultSubject,
+    message: sourceDelivery?.message_body ?? defaultMessage,
+    replyTo: sourceDelivery?.reply_to ?? process.env.REPORT_EMAIL_FROM ?? "",
+    recipients: sourceRecipients.map((recipient) => ({
+      contactId: recipient.contact_id,
+      email: recipient.email,
+      name: recipient.display_name ?? "",
+      type: recipient.recipient_type,
+    })),
+  };
 
   return (
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
@@ -121,72 +212,34 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
         {messages.sent ? <div className="form-alert success"><Check size={17} /> {messages.sent}</div> : null}
 
         <header className="send-center-heading">
-          <div><p className="eyebrow">Approved document delivery</p><h1>Send Center</h1><p>Choose an approved PDF, confirm recipients, and retain a permanent delivery record.</p></div>
-          <Link className="secondary-button" href={`/jobs/${jobId}/review`}><FileCheck2 size={17} /> Back to Review</Link>
+          <div>
+            <p className="eyebrow">Approved document delivery</p>
+            <h1>Send Center</h1>
+            <p>Compose, send, retry, and audit every report delivery from one workspace.</p>
+          </div>
+          <Link className="secondary-button" href={`/jobs/${jobId}/review`}>
+            <FileCheck2 size={17} /> Back to Review
+          </Link>
         </header>
 
         <div className="send-center-layout">
           <main className="send-compose-panel">
             {latestApproved ? (
-              <form action={prepareReportDelivery}>
-                <input name="jobId" type="hidden" value={jobId} />
-                <section className="send-form-section">
-                  <div className="section-heading compact"><div><p className="eyebrow">Document</p><h2>Approved report version</h2></div></div>
-                  <label>
-                    PDF version
-                    <select name="versionId" defaultValue={latestApproved.id}>
-                      {approvedVersions.map((version) => <option value={version.id} key={version.id}>Version {version.version} · approved {version.approvedAt ? new Date(version.approvedAt).toLocaleDateString() : ""}</option>)}
-                    </select>
-                  </label>
-                  <Link className="text-button send-download-link" href={`/jobs/${jobId}/review/versions/${latestApproved.id}/download`}><Download size={15} /> Download selected PDF</Link>
-                </section>
-
-                <section className="send-form-section">
-                  <div className="section-heading compact"><div><p className="eyebrow">Package</p><h2>What should the recipient receive?</h2></div><span className="section-subtitle">The delivery history records this choice.</span></div>
-                  <div className="send-package-options">
-                    <label><input name="packageMode" type="radio" value="report_only" defaultChecked /><span><strong>Report only</strong><small>Send the approved inspection report PDF.</small></span></label>
-                    <label className={!supportingVersions.length ? "disabled" : ""}><input name="packageMode" type="radio" value="append_contract" disabled={!supportingVersions.length} /><span><strong>Report with contract appended</strong><small>Combine both documents into one PDF.</small></span></label>
-                    <label className={!supportingVersions.length ? "disabled" : ""}><input name="packageMode" type="radio" value="separate_attachments" disabled={!supportingVersions.length} /><span><strong>Separate attachments</strong><small>Attach the report and contract as separate PDFs.</small></span></label>
-                    <label className={!supportingVersions.length ? "disabled" : ""}><input name="packageMode" type="radio" value="contract_only" disabled={!supportingVersions.length} /><span><strong>Contract only</strong><small>Send only the selected contract or proposal.</small></span></label>
-                  </div>
-                  {supportingVersions.length ? (
-                    <label>
-                      Contract or proposal
-                      <select name="supportingVersionId" defaultValue={supportingVersions[0].id}>
-                        {supportingVersions.map((version) => <option key={version.id} value={version.id}>{version.label} · {version.filename}</option>)}
-                      </select>
-                    </label>
-                  ) : <p className="send-package-empty">Report-only delivery is available now. Contract packaging will activate when this job has a ready contract or proposal version.</p>}
-                </section>
-
-                <section className="send-form-section">
-                  <div className="section-heading compact"><div><p className="eyebrow">Recipients</p><h2>Send report to</h2></div><span className="section-subtitle">{uniqueRecipients.length} contacts with email</span></div>
-                  {uniqueRecipients.length ? <div className="send-recipient-list">
-                    {uniqueRecipients.map((recipient) => (
-                      <label className="send-recipient" key={recipient.key}>
-                        <input
-                          defaultChecked={recipient.selected}
-                          name="recipient"
-                          type="checkbox"
-                          value={JSON.stringify({ contactId: recipient.contactId, email: recipient.email, name: recipient.name, type: "to" })}
-                        />
-                        <div><strong>{recipient.name}</strong><span>{recipient.role} · {recipient.email}</span></div>
-                      </label>
-                    ))}
-                  </div> : <div className="compact-empty"><Users size={22} /><div><strong>No contacts with email</strong><span>Add an email address before preparing delivery.</span></div></div>}
-                </section>
-
-                <section className="send-form-section send-message-fields">
-                  <div className="section-heading compact"><div><p className="eyebrow">Message</p><h2>Email content</h2></div></div>
-                  <label>Subject<input name="subject" defaultValue={`Inspection Report #${job.job_number} - ${property?.street_line_1 ?? "Property"}`} required /></label>
-                  <label>Message<textarea name="message" rows={8} defaultValue={`Hello,\n\nPlease find attached the structural pest inspection report for ${reportAddress}.\n\nRegards,\n${organization.name}`} required /></label>
-                </section>
-
-                <div className="send-form-actions">
-                  <button className="secondary-button" name="intent" value="draft" type="submit"><Clock3 size={16} /> Save draft</button>
-                  <button className="primary-button" disabled={!uniqueRecipients.length} name="intent" value="send" type="submit"><Send size={16} /> Send approved report</button>
-                </div>
-              </form>
+              <SendCenterComposer
+                directoryRecipients={directoryRecipients}
+                downloadHref={`/jobs/${jobId}/review/versions/${latestApproved.id}/download`}
+                initialDraft={initialDraft}
+                jobId={jobId}
+                providerLabel={providerLabel()}
+                supportingVersions={supportingVersions}
+                versions={approvedVersions.map((version) => ({
+                  id: version.id,
+                  version: version.version,
+                  approvedLabel: version.approvedAt
+                    ? new Date(version.approvedAt).toLocaleDateString()
+                    : "",
+                }))}
+              />
             ) : (
               <div className="send-center-empty">
                 <FileCheck2 size={32} />
@@ -198,18 +251,65 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
           </main>
 
           <aside className="delivery-history-panel">
-            <div className="section-heading compact"><div><p className="eyebrow">Audit trail</p><h2>Delivery history</h2></div><Mail size={18} /></div>
-            {deliveries?.length ? <div className="delivery-history-list">
-              {deliveries.map((delivery) => {
-                const version = Array.isArray(delivery.document_versions) ? delivery.document_versions[0] : delivery.document_versions;
-                return <article className="delivery-history-item" key={delivery.id}>
-                  <div><strong>{delivery.subject}</strong><span>Version {version?.version ?? "?"} · {delivery.package_mode?.replaceAll("_", " ") ?? "report only"} · {delivery.status}</span></div>
-                  <small>{delivery.sent_at ? `Sent ${new Date(delivery.sent_at).toLocaleString()}` : `Created ${new Date(delivery.created_at).toLocaleString()}`}</small>
-                  <div className="delivery-recipient-chips">{(delivery.delivery_recipients ?? []).map((recipient) => <span key={recipient.id}>{recipient.display_name || recipient.email}</span>)}</div>
-                  {delivery.failure_message ? <p>{delivery.failure_message}</p> : null}
-                </article>;
-              })}
-            </div> : <p className="panel-empty-copy">No delivery activity yet.</p>}
+            <div className="section-heading compact">
+              <div><p className="eyebrow">Audit trail</p><h2>Delivery history</h2></div>
+              <Mail size={18} />
+            </div>
+            {deliveries?.length ? (
+              <div className="delivery-history-list">
+                {deliveries.map((delivery) => {
+                  const version = Array.isArray(delivery.document_versions)
+                    ? delivery.document_versions[0]
+                    : delivery.document_versions;
+                  const attempts = [...(delivery.delivery_attempts ?? [])].sort(
+                    (left, right) => right.attempt_number - left.attempt_number,
+                  );
+                  const editable = ["draft", "failed"].includes(delivery.status);
+                  return (
+                    <article className={`delivery-history-item status-${delivery.status}`} key={delivery.id}>
+                      <div className="delivery-history-topline">
+                        <span className={`delivery-status-badge ${delivery.status}`}>{delivery.status}</span>
+                        <small>{delivery.sent_at ? new Date(delivery.sent_at).toLocaleString() : new Date(delivery.created_at).toLocaleString()}</small>
+                      </div>
+                      <strong>{delivery.subject}</strong>
+                      <span>Report v{version?.version ?? "?"} · {delivery.package_mode?.replaceAll("_", " ") ?? "report only"}</span>
+                      <div className="delivery-recipient-chips">
+                        {(delivery.delivery_recipients ?? []).map((recipient) => (
+                          <span key={recipient.id}>{recipient.recipient_type.toUpperCase()} · {recipient.display_name || recipient.email}</span>
+                        ))}
+                      </div>
+                      {attempts.length ? (
+                        <div className="delivery-attempt-summary">
+                          <Clock3 size={12} />
+                          {attempts.length} attempt{attempts.length === 1 ? "" : "s"} · {attempts[0].provider.replaceAll("_", " ")}
+                        </div>
+                      ) : null}
+                      {delivery.status === "sent" ? (
+                        <div className={`crm-sync-state ${delivery.crm_sync_status}`}>
+                          CRM · {delivery.crm_sync_status.replaceAll("_", " ")}
+                        </div>
+                      ) : null}
+                      {delivery.failure_message ? <p>{delivery.failure_message}</p> : null}
+                      {delivery.crm_failure_message ? <p>{delivery.crm_failure_message}</p> : null}
+                      <div className="delivery-history-actions">
+                        {editable ? (
+                          <Link className="text-button" href={`/jobs/${jobId}/send?draft=${delivery.id}`}>
+                            {delivery.status === "failed" ? <RotateCw size={13} /> : null}
+                            {delivery.status === "failed" ? "Retry" : "Open draft"}
+                          </Link>
+                        ) : (
+                          <Link className="text-button" href={`/jobs/${jobId}/send?resend=${delivery.id}`}>
+                            <RotateCw size={13} /> Send again
+                          </Link>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="panel-empty-copy">No delivery activity yet.</p>
+            )}
           </aside>
         </div>
       </div>
