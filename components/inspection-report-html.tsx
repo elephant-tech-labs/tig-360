@@ -77,13 +77,11 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
 
   return (
     <article className="inspection-report">
-      <section className="report-cover">
+      <section className={`report-cover${media.coverUrl ? "" : " without-photo"}`}>
         <div className="report-cover-brand">
-          {media.companyLogoUrl ? <img src={media.companyLogoUrl} alt="" /> : <span>TI</span>}
-          <div>
-            <strong>{snapshot.organization.legalName}</strong>
-            <small>Structural Pest Inspection</small>
-          </div>
+          {media.companyLogoDarkUrl
+            ? <img src={media.companyLogoDarkUrl} alt={`${snapshot.organization.legalName} logo`} />
+            : <strong>{snapshot.organization.legalName}</strong>}
         </div>
         <div className="report-cover-copy">
           <p className="report-type-label">{snapshot.job.reportType.replaceAll("_", " ")} inspection report</p>

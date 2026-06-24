@@ -75,7 +75,13 @@ export default async function ManagementPage({ searchParams }: ManagementPagePro
               <legend>Company logo</legend>
               <div className="company-logo-control">
                 {logoUrl ? <Image src={logoUrl} alt={`${profile?.legal_name ?? organization.name} logo`} width={240} height={120} unoptimized /> : <div className="company-logo-empty">No logo uploaded</div>}
-                {canManage ? <label>Replace logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" /></label> : null}
+                {canManage ? (
+                  <label>
+                    Replace logo
+                    <input name="logo" type="file" accept="image/png,image/jpeg,image/webp" />
+                    <small>Use the white-background PNG for report headers and formal pages.</small>
+                  </label>
+                ) : null}
               </div>
             </fieldset>
             {canManage ? <PendingSubmitButton className="primary-button" pendingLabel="Saving company profile"><Upload size={16} /> Save company profile</PendingSubmitButton> : null}

@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { jobPartyRoleLabel } from "@/lib/job-parties";
+import {
+  bundledBrandAsset,
+  embeddedStorageImage,
+} from "@/lib/reports/brand-assets";
 import type {
   InspectionReportBundle,
   InspectionReportSnapshot,
@@ -311,6 +315,15 @@ export async function loadInspectionReportBundle(
       await signedUrl(supabase, photo.bucket, photo.path),
     ] as const),
   );
+  const [uploadedCompanyLogo, defaultCompanyLogo, defaultCompanyLogoDark] = await Promise.all([
+    embeddedStorageImage(
+      supabase,
+      "organization-branding",
+      snapshot.organization.logoPath,
+    ),
+    bundledBrandAsset("trident-logo-light.png"),
+    bundledBrandAsset("trident-logo-dark.png"),
+  ]);
   const media: ReportMedia = {
     coverUrl: coverPhoto ? await signedUrl(supabase, coverPhoto.bucket, coverPhoto.path) : null,
     diagramUrl: snapshot.diagram?.path
@@ -319,9 +332,8 @@ export async function loadInspectionReportBundle(
     signatureUrl: snapshot.inspector?.includeSignature
       ? await signedUrl(supabase, snapshot.inspector.signatureBucket, snapshot.inspector.signaturePath)
       : null,
-    companyLogoUrl: snapshot.organization.logoPath
-      ? await signedUrl(supabase, "organization-branding", snapshot.organization.logoPath)
-      : null,
+    companyLogoUrl: uploadedCompanyLogo ?? defaultCompanyLogo,
+    companyLogoDarkUrl: defaultCompanyLogoDark,
     photoUrls: Object.fromEntries(photoUrlEntries.filter((entry): entry is [string, string] => Boolean(entry[1]))),
   };
 
