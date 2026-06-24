@@ -2,7 +2,11 @@ import type { EmailProvider, SendEmailInput } from "./types";
 import { getZohoAccessToken } from "@/lib/zoho/oauth";
 
 type ZohoAttachmentResponse = {
-  data?: Array<{
+  data?: {
+    attachmentName?: string;
+    storeName?: string;
+    attachmentPath?: string;
+  } | Array<{
     attachmentName?: string;
     storeName?: string;
     attachmentPath?: string;
@@ -42,22 +46,21 @@ export function createZohoMailProvider(): EmailProvider {
       const attachmentData = [];
 
       for (const attachment of input.attachments) {
-        const upload = new FormData();
-        upload.append(
-          "attach",
-          new Blob([Buffer.from(attachment.bytes)], { type: attachment.contentType }),
-          attachment.filename,
-        );
         const uploadResponse = await fetch(
           `${apiUrl}/accounts/${accountId}/messages/attachments?fileName=${encodeURIComponent(attachment.filename)}`,
           {
             method: "POST",
-            headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-            body: upload,
+            headers: {
+              Authorization: `Zoho-oauthtoken ${accessToken}`,
+              "Content-Type": attachment.contentType || "application/octet-stream",
+            },
+            body: Buffer.from(attachment.bytes),
           },
         );
         const uploadResult = await uploadResponse.json() as ZohoAttachmentResponse;
-        const uploaded = uploadResult.data?.[0];
+        const uploaded = Array.isArray(uploadResult.data)
+          ? uploadResult.data[0]
+          : uploadResult.data;
         if (!uploadResponse.ok || !uploaded?.storeName || !uploaded.attachmentPath) {
           throw new Error(uploadResult.status?.description ?? "Zoho Mail could not upload an attachment.");
         }
