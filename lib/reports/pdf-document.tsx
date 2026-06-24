@@ -11,70 +11,73 @@ import {
 } from "@react-pdf/renderer";
 import type { InspectionReportSnapshot, ReportMedia, ReportParty } from "@/lib/reports/types";
 
-const green = "#167a5a";
-const ink = "#17201d";
-const line = "#aeb8b4";
+const accent = "#f7a924";
+const ink = "#1c1c1c";
+const muted = "#6b6b6b";
+const line = "#c8c8c8";
 
 const styles = StyleSheet.create({
   page: { color: ink, fontFamily: "Helvetica", fontSize: 9, padding: 34 },
   cover: { padding: 0 },
-  coverBand: { backgroundColor: ink, color: "#ffffff", height: 250, padding: 42 },
-  brand: { color: "#8ed2b8", fontSize: 11, fontWeight: 700, marginBottom: 54, textTransform: "uppercase" },
-  reportType: { color: "#8ed2b8", fontSize: 10, marginBottom: 10, textTransform: "uppercase" },
+  coverBand: { backgroundColor: ink, color: "#ffffff", height: 250, paddingBottom: 42, paddingHorizontal: 42, paddingTop: 32 },
+  coverBandNoPhoto: { height: 570 },
+  coverLogo: { height: 48, marginBottom: 46, objectFit: "contain", objectPosition: "left", width: 170 },
+  brand: { color: "#ffffff", fontSize: 11, fontWeight: 700, marginBottom: 54, textTransform: "uppercase" },
+  reportType: { color: accent, fontSize: 10, fontWeight: 700, marginBottom: 10, textTransform: "uppercase" },
   coverTitle: { fontSize: 28, fontWeight: 700, lineHeight: 1.15, marginBottom: 8 },
-  coverAddress: { color: "#c5d1cc", fontSize: 11 },
+  coverAddress: { color: "#d8d8d8", fontSize: 11 },
   coverPhoto: { height: 310, objectFit: "cover", width: "100%" },
-  coverMeta: { display: "flex", flexDirection: "row", gap: 24, padding: 30 },
+  coverMeta: { borderTopColor: accent, borderTopWidth: 3, display: "flex", flexDirection: "row", gap: 24, padding: 30 },
   metaItem: { flex: 1 },
-  label: { color: "#68736f", fontSize: 7, marginBottom: 4, textTransform: "uppercase" },
+  label: { color: muted, fontSize: 7, marginBottom: 4, textTransform: "uppercase" },
   value: { fontSize: 10, fontWeight: 700 },
-  sectionHeader: { borderBottomColor: green, borderBottomWidth: 2, display: "flex", flexDirection: "row", marginBottom: 18, paddingBottom: 8 },
-  sectionNumber: { color: green, fontSize: 9, fontWeight: 700, marginRight: 10 },
+  sectionHeader: { borderBottomColor: accent, borderBottomWidth: 2, display: "flex", flexDirection: "row", marginBottom: 18, paddingBottom: 8 },
+  sectionNumber: { color: accent, fontSize: 9, fontWeight: 700, marginRight: 10 },
   sectionTitle: { fontSize: 16, fontWeight: 700 },
   paragraph: { lineHeight: 1.5, marginBottom: 6 },
   finding: { alignItems: "flex-start", borderBottomColor: "#dce2df", borderBottomWidth: 1, display: "flex", flexDirection: "row", gap: 10, paddingBottom: 11, paddingTop: 11 },
-  reference: { alignSelf: "flex-start", backgroundColor: green, color: "#ffffff", fontSize: 9, fontWeight: 700, minWidth: 34, paddingBottom: 6, paddingLeft: 5, paddingRight: 5, paddingTop: 6, textAlign: "center" },
+  reference: { alignSelf: "flex-start", backgroundColor: ink, borderBottomColor: accent, borderBottomWidth: 3, color: "#ffffff", fontSize: 9, fontWeight: 700, minWidth: 34, paddingBottom: 5, paddingLeft: 5, paddingRight: 5, paddingTop: 6, textAlign: "center" },
   findingBody: { flex: 1 },
   findingHeading: { alignItems: "center", display: "flex", flexDirection: "row", gap: 7, marginBottom: 5 },
   findingTitle: { flex: 1, fontSize: 10, fontWeight: 700 },
-  classification: { backgroundColor: "#e7f2ed", color: green, fontSize: 6.5, fontWeight: 700, paddingBottom: 3, paddingLeft: 5, paddingRight: 5, paddingTop: 3, textTransform: "uppercase" },
+  classification: { backgroundColor: "#fff4df", color: "#7a4c00", fontSize: 6.5, fontWeight: 700, paddingBottom: 3, paddingLeft: 5, paddingRight: 5, paddingTop: 3, textTransform: "uppercase" },
   findingCondition: { fontSize: 8.5, fontWeight: 700, marginBottom: 5 },
   findingText: { fontSize: 8.5, lineHeight: 1.35, marginBottom: 4 },
-  recommendation: { backgroundColor: "#f1f4f2", fontSize: 8.3, lineHeight: 1.35, marginTop: 5, padding: 7 },
+  recommendation: { backgroundColor: "#f7f7f7", borderLeftColor: accent, borderLeftWidth: 2, fontSize: 8.3, lineHeight: 1.35, marginTop: 5, padding: 7 },
   photoGrid: { display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 12 },
   photo: { borderColor: "#dce2df", borderWidth: 1, padding: 6, width: "48%" },
   photoSingle: { alignSelf: "center", width: "76%" },
   photoImage: { height: 205, objectFit: "contain", width: "100%" },
   photoImageSingle: { height: 300 },
   photoCaption: { lineHeight: 1.35, marginTop: 6 },
-  certificationSection: { borderTopColor: green, borderTopWidth: 2, marginTop: 24, paddingTop: 12 },
+  certificationSection: { borderTopColor: accent, borderTopWidth: 2, marginTop: 24, paddingTop: 12 },
   certificationTitle: { fontSize: 14, fontWeight: 700, marginBottom: 8 },
   certification: { fontSize: 8.5, lineHeight: 1.45, marginBottom: 14 },
   certificationIdentity: { alignItems: "flex-end", display: "flex", flexDirection: "row", gap: 18 },
   signature: { height: 48, objectFit: "contain", objectPosition: "left", width: 140 },
   certificationName: { flex: 1, paddingBottom: 3 },
-  footer: { bottom: 18, color: "#68736f", fontSize: 7, left: 34, position: "absolute", right: 34, textAlign: "center" },
+  footer: { bottom: 18, color: muted, fontSize: 7, left: 34, position: "absolute", right: 34, textAlign: "center" },
 
   formalPage: { fontSize: 7, padding: 22 },
   formalTitle: { borderBottomColor: ink, borderBottomWidth: 2.5, fontSize: 15, fontWeight: 700, paddingBottom: 5, textAlign: "center", textTransform: "uppercase" },
   table: { borderBottomColor: line, borderBottomWidth: 0.7, borderLeftColor: line, borderLeftWidth: 0.7, borderRightColor: line, borderRightWidth: 0.7, display: "flex", flexDirection: "row" },
   cell: { borderLeftColor: line, borderLeftWidth: 0.7, padding: 5 },
   firstCell: { borderLeftWidth: 0 },
-  cellLabel: { color: "#5f6c67", fontSize: 5.8, fontWeight: 700, marginBottom: 2, textTransform: "uppercase" },
+  cellLabel: { color: muted, fontSize: 5.8, fontWeight: 700, marginBottom: 2, textTransform: "uppercase" },
   cellValue: { fontSize: 7.5, fontWeight: 700, lineHeight: 1.25 },
   companyRow: { minHeight: 66 },
-  companyLogoCell: { alignItems: "center", backgroundColor: ink, display: "flex", justifyContent: "center", width: "25%" },
+  companyLogoCell: { alignItems: "center", backgroundColor: "#ffffff", display: "flex", justifyContent: "center", width: "25%" },
   companyLogo: { maxHeight: 48, objectFit: "contain", width: 115 },
-  companyLogoFallback: { color: "#ffffff", fontSize: 8, fontWeight: 700, textAlign: "center" },
+  companyLogoFallback: { color: ink, fontSize: 8, fontWeight: 700, textAlign: "center" },
   companyDetails: { width: "45%" },
   companyLicenses: { width: "30%" },
   partyCell: { minHeight: 62, width: "33.333%" },
   typeRow: { borderBottomColor: line, borderBottomWidth: 0.7, borderLeftColor: line, borderLeftWidth: 0.7, borderRightColor: line, borderRightWidth: 0.7, display: "flex", flexDirection: "row", justifyContent: "space-between", padding: 4 },
   choiceWrap: { alignItems: "center", display: "flex", flexDirection: "row", gap: 3 },
   choiceBox: { alignItems: "center", borderColor: "#8a9691", borderWidth: 0.7, display: "flex", height: 8, justifyContent: "center", width: 8 },
-  choiceBoxSelected: { backgroundColor: green, borderColor: green },
-  choice: { color: "#68736f", fontSize: 5.8, fontWeight: 700, textTransform: "uppercase" },
-  choiceSelected: { color: green },
+  choiceBoxSelected: { backgroundColor: accent, borderColor: accent },
+  choice: { color: muted, fontSize: 5.8, fontWeight: 700, textTransform: "uppercase" },
+  choiceSelected: { color: ink },
   propertyDescription: { minHeight: 58, width: "64%" },
   propertyMeta: { width: "36%" },
   propertyMetaItem: { borderBottomColor: line, borderBottomWidth: 0.7, paddingBottom: 3, paddingTop: 3 },
@@ -84,7 +87,7 @@ const styles = StyleSheet.create({
   diagram: { height: 235, objectFit: "contain", width: "100%" },
   referenceList: { padding: 7, width: "28%" },
   referenceItem: { borderTopColor: "#dfe4e1", borderTopWidth: 0.5, display: "flex", flexDirection: "row", lineHeight: 1.2, paddingBottom: 3, paddingTop: 3 },
-  referenceCode: { color: green, fontWeight: 700, width: 24 },
+  referenceCode: { color: "#9b6500", fontWeight: 700, width: 24 },
   referenceTitle: { flex: 1 },
   inspectorCell: { minHeight: 42, width: "33.333%" },
   formalSignature: { height: 25, objectFit: "contain", objectPosition: "left", width: 100 },
@@ -165,7 +168,7 @@ function Choice({ label, selected }: { label: string; selected: boolean }) {
       <View style={[styles.choiceBox, selected ? styles.choiceBoxSelected : {}]}>
         {selected ? (
           <Svg height={6} viewBox="0 0 8 8" width={6}>
-            <Path d="M1 4.2 3 6.2 7 1.8" fill="none" stroke="#ffffff" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.4} />
+            <Path d="M1 4.2 3 6.2 7 1.8" fill="none" stroke={ink} strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.4} />
           </Svg>
         ) : null}
       </View>
@@ -246,8 +249,12 @@ export function InspectionReportPdf({
   return (
     <Document title={`Inspection Report ${snapshot.job.number}`} author={snapshot.organization.legalName}>
       <Page size="LETTER" style={[styles.page, styles.cover]}>
-        <View style={styles.coverBand}>
-          <Text style={styles.brand}>{snapshot.organization.legalName}</Text>
+        <View style={[styles.coverBand, !media.coverUrl ? styles.coverBandNoPhoto : {}]}>
+          {media.companyLogoDarkUrl ? (
+            <Image src={media.companyLogoDarkUrl} style={styles.coverLogo} />
+          ) : (
+            <Text style={styles.brand}>{snapshot.organization.legalName}</Text>
+          )}
           <Text style={styles.reportType}>{snapshot.job.reportType.replaceAll("_", " ")} inspection report</Text>
           <Text style={styles.coverTitle}>{snapshot.property.streetLine1}</Text>
           <Text style={styles.coverAddress}>{snapshot.property.city}, {snapshot.property.region} {snapshot.property.postalCode}</Text>
