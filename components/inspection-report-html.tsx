@@ -107,7 +107,7 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
 
         <div className="formal-company">
           <div className="formal-company-logo">
-            {media.companyLogoUrl ? <img src={media.companyLogoUrl} alt={`${snapshot.organization.legalName} logo`} /> : <strong>{snapshot.organization.legalName}</strong>}
+            {media.companyLogoLightUrl ? <img src={media.companyLogoLightUrl} alt={`${snapshot.organization.legalName} logo`} /> : <strong>{snapshot.organization.legalName}</strong>}
           </div>
           <div>
             <strong>{snapshot.organization.legalName}</strong>

@@ -333,6 +333,7 @@ export async function loadInspectionReportBundle(
       ? await signedUrl(supabase, snapshot.inspector.signatureBucket, snapshot.inspector.signaturePath)
       : null,
     companyLogoUrl: uploadedCompanyLogo ?? defaultCompanyLogo,
+    companyLogoLightUrl: defaultCompanyLogo,
     companyLogoDarkUrl: defaultCompanyLogoDark,
     photoUrls: Object.fromEntries(photoUrlEntries.filter((entry): entry is [string, string] => Boolean(entry[1]))),
   };
