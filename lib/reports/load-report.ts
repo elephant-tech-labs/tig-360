@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { jobPartyRoleLabel } from "@/lib/job-parties";
+import { parseRichDocument } from "@/lib/report-content";
 import {
   bundledBrandAsset,
   embeddedStorageImage,
@@ -137,7 +138,7 @@ export async function loadInspectionReportBundle(
 
   const { data: applicableLegalBlocks, error: legalError } = await supabase
     .from("report_content_blocks")
-    .select("id, title, body, placement, sort_order, version, is_required")
+    .select("id, title, body, body_json, placement, sort_order, version, is_required")
     .eq("organization_id", organization.id)
     .eq("is_active", true)
     .contains("report_types", [job.report_type])
@@ -261,6 +262,7 @@ export async function loadInspectionReportBundle(
       id: block.id,
       title: block.title,
       body: block.body,
+      bodyJson: parseRichDocument(block.body_json, block.body),
       placement: block.placement as "before_findings" | "after_findings" | "contract",
       sortOrder: block.sort_order,
       version: block.version,

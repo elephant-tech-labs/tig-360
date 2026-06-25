@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { ManagementNav } from "@/components/management-nav";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { ReportContentEditor } from "@/components/report-content-editor";
 import { canAccessManagement } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { deleteReportContentBlock, saveReportContentBlock } from "./actions";
@@ -49,7 +50,14 @@ export default async function ReportContentPage({ searchParams }: ReportContentP
                   <input name="currentVersion" type="hidden" value={block.version} />
                   <div className="report-content-editor-heading"><strong>Version {block.version}</strong><span>{block.placement.replaceAll("_", " ")}</span></div>
                   <label>Title<input name="title" defaultValue={block.title} disabled={!canManage} required /></label>
-                  <label>Content<textarea name="body" rows={8} defaultValue={block.body} disabled={!canManage} required /></label>
+                  <div className="report-content-field">
+                    <span>Content</span>
+                    <ReportContentEditor
+                      disabled={!canManage}
+                      initialJson={block.body_json}
+                      initialText={block.body}
+                    />
+                  </div>
                   <div className="report-content-options">
                     <label>Placement<select name="placement" defaultValue={block.placement} disabled={!canManage}><option value="before_findings">Before findings</option><option value="after_findings">After findings</option><option value="contract">Contract/disclosures</option></select></label>
                     <label>Display order<input name="sortOrder" type="number" defaultValue={block.sort_order} disabled={!canManage} /></label>
@@ -68,7 +76,10 @@ export default async function ReportContentPage({ searchParams }: ReportContentP
                   <input name="organizationId" type="hidden" value={organization.id} />
                   <div className="report-content-editor-heading"><strong>New content block</strong><span>Future reports</span></div>
                   <label>Title<input name="title" required /></label>
-                  <label>Content<textarea name="body" rows={8} required /></label>
+                  <div className="report-content-field">
+                    <span>Content</span>
+                    <ReportContentEditor initialText="" />
+                  </div>
                   <div className="report-content-options">
                     <label>Placement<select name="placement" defaultValue="before_findings"><option value="before_findings">Before findings</option><option value="after_findings">After findings</option><option value="contract">Contract/disclosures</option></select></label>
                     <label>Display order<input name="sortOrder" type="number" defaultValue={50} /></label>

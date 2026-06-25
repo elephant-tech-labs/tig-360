@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from "@react-pdf/renderer";
+import { RichReportContentPdf } from "@/lib/reports/rich-content-pdf";
 import type { InspectionReportSnapshot, ReportMedia, ReportParty } from "@/lib/reports/types";
 
 const accent = "#f7a924";
@@ -95,7 +96,6 @@ const styles = StyleSheet.create({
   pageCount: { fontSize: 6, marginTop: 3, textAlign: "right" },
   legalBlock: { borderBottomColor: "#dce2df", borderBottomWidth: 1, paddingBottom: 14, paddingTop: 14 },
   legalTitle: { fontSize: 11, fontWeight: 700, marginBottom: 6 },
-  legalBody: { fontSize: 9, lineHeight: 1.55 },
 });
 
 const reportTypes = [
@@ -204,9 +204,9 @@ function LegalPage({
     <Page size="LETTER" style={styles.page} wrap>
       <View style={styles.sectionHeader}><Text style={styles.sectionNumber}>{sectionNumber}</Text><Text style={styles.sectionTitle}>{title}</Text></View>
       {blocks.map((block) => (
-        <View key={block.id} style={styles.legalBlock} wrap={false}>
+        <View key={block.id} style={styles.legalBlock}>
           <Text style={styles.legalTitle}>{block.title}</Text>
-          <Text style={styles.legalBody}>{block.body}</Text>
+          <RichReportContentPdf document={block.bodyJson} fallbackText={block.body} />
         </View>
       ))}
       <Footer snapshot={snapshot} />

@@ -1,3 +1,5 @@
+import type { RichTextDocument } from "@/lib/report-content";
+
 export type ReportParty = {
   contactId: string | null;
   name: string;
@@ -110,6 +112,7 @@ export type InspectionReportSnapshot = {
     id: string;
     title: string;
     body: string;
+    bodyJson: RichTextDocument;
     placement: "before_findings" | "after_findings" | "contract";
     sortOrder: number;
     version: number;

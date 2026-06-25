@@ -3,6 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseRichDocument,
+  richDocumentToPlainText,
+} from "@/lib/report-content";
 
 function clean(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -16,7 +20,14 @@ export async function saveReportContentBlock(formData: FormData) {
   const organizationId = clean(formData, "organizationId");
   const blockId = clean(formData, "blockId");
   const title = clean(formData, "title");
-  const body = clean(formData, "body");
+  const bodyJsonText = clean(formData, "bodyJson");
+  let bodyJson: ReturnType<typeof parseRichDocument>;
+  try {
+    bodyJson = parseRichDocument(JSON.parse(bodyJsonText));
+  } catch {
+    redirect(contentUrl("The formatted content could not be read. Please reload and try again.", "error"));
+  }
+  const body = richDocumentToPlainText(bodyJson);
   if (!organizationId || !title || !body) {
     redirect(contentUrl("Title and content are required.", "error"));
   }
@@ -26,6 +37,8 @@ export async function saveReportContentBlock(formData: FormData) {
     organization_id: organizationId,
     title,
     body,
+    body_json: bodyJson,
+    body_format: "tiptap_json",
     placement: clean(formData, "placement") || "before_findings",
     sort_order: Number(clean(formData, "sortOrder") || 0),
     is_active: formData.get("isActive") === "on",
