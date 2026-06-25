@@ -275,7 +275,7 @@ export function InspectionReportPdf({
           <View style={[styles.cell, { width: "27%" }]}><Text style={styles.cellLabel}>Date of inspection</Text><Text style={styles.cellValue}>{date(snapshot.job.inspectionAt)}</Text><Text style={styles.pageCount} render={({ totalPages }) => `Page 2 of ${totalPages}`} /></View>
         </View>
         <View style={[styles.table, styles.companyRow]}>
-          <View style={[styles.cell, styles.firstCell, styles.companyLogoCell]}>{media.companyLogoUrl ? <Image src={media.companyLogoUrl} style={styles.companyLogo} /> : <Text style={styles.companyLogoFallback}>{snapshot.organization.legalName}</Text>}</View>
+          <View style={[styles.cell, styles.firstCell, styles.companyLogoCell]}>{media.companyLogoLightUrl ? <Image src={media.companyLogoLightUrl} style={styles.companyLogo} /> : <Text style={styles.companyLogoFallback}>{snapshot.organization.legalName}</Text>}</View>
           <View style={[styles.cell, styles.companyDetails]}><Text style={styles.cellValue}>{snapshot.organization.legalName}</Text><Text style={styles.paragraph}>{companyAddress || "Company address not recorded"}</Text><Text>{[snapshot.organization.phone, snapshot.organization.email, snapshot.organization.website].filter(Boolean).join("\n")}</Text></View>
           <View style={[styles.cell, styles.companyLicenses]}>
             {snapshot.organization.registrationNumber ? <Text style={styles.paragraph}>Registration: {snapshot.organization.registrationNumber}</Text> : null}

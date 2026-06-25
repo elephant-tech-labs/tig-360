@@ -122,6 +122,7 @@ export type ReportMedia = {
   diagramUrl: string | null;
   signatureUrl: string | null;
   companyLogoUrl: string | null;
+  companyLogoLightUrl: string | null;
   companyLogoDarkUrl: string | null;
   photoUrls: Record<string, string>;
 };
