@@ -147,7 +147,9 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
                     <input name="jobId" type="hidden" value={jobId} />
                     <input name="versionId" type="hidden" value={latestVersion.id} />
                     <label>Approval note<textarea name="approvalNote" rows={3} placeholder="Optional internal note" /></label>
-                    <button className="primary-button" type="submit"><CheckCircle2 size={17} /> Approve report</button>
+                    <PendingSubmitButton className="primary-button" pendingLabel="Approving report">
+                      <CheckCircle2 size={17} /> Approve report
+                    </PendingSubmitButton>
                   </form>
                 ) : <p className="panel-empty-copy">A manager or administrator must approve this version.</p>}
               </section>

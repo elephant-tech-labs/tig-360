@@ -4,7 +4,6 @@ import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { createClient } from "@/lib/supabase/server";
 import { getCurrentContext } from "@/lib/current-organization";
 import { loadInspectionReportBundle } from "@/lib/reports/load-report";
 import { InspectionReportPdf } from "@/lib/reports/pdf-document";
@@ -84,21 +83,46 @@ export async function approveInspectionReport(formData: FormData) {
   const note = String(formData.get("approvalNote") ?? "");
   if (!jobId || !versionId) redirect("/jobs");
 
-  const supabase = await createClient();
-  const { data: job } = await supabase
-    .from("inspection_jobs")
-    .select("organization_id")
-    .eq("id", jobId)
-    .single();
-  if (!job) redirect("/jobs");
+  const { supabase, organization, membership } = await getCurrentContext();
+  if (!["administrator", "manager"].includes(membership.role)) {
+    redirect(reviewUrl(jobId, "Only an administrator or manager can approve a report.", "error"));
+  }
+
+  const { data: version, error: versionError } = await supabase
+    .from("document_versions")
+    .select("id, status, approval_status, organization_id, documents!inner(inspection_job_id)")
+    .eq("id", versionId)
+    .eq("organization_id", organization.id)
+    .eq("documents.inspection_job_id", jobId)
+    .maybeSingle();
+  if (versionError || !version) {
+    redirect(reviewUrl(jobId, versionError?.message ?? "The selected report version was not found.", "error"));
+  }
+  if (version.status !== "ready") {
+    redirect(reviewUrl(jobId, "Only a ready PDF version can be approved.", "error"));
+  }
 
   const { error } = await supabase.rpc("approve_inspection_report_version", {
-    target_organization_id: job.organization_id,
+    target_organization_id: organization.id,
     target_job_id: jobId,
     target_version_id: versionId,
     approval_comment: note || null,
   });
   if (error) redirect(reviewUrl(jobId, error.message, "error"));
+
+  const { data: approvedVersion, error: approvalCheckError } = await supabase
+    .from("document_versions")
+    .select("approval_status")
+    .eq("id", versionId)
+    .eq("organization_id", organization.id)
+    .maybeSingle();
+  if (approvalCheckError || approvedVersion?.approval_status !== "approved") {
+    redirect(reviewUrl(
+      jobId,
+      approvalCheckError?.message ?? "The report version was not approved. Please try again.",
+      "error",
+    ));
+  }
 
   revalidatePath(`/jobs/${jobId}`);
   revalidatePath(`/jobs/${jobId}/review`);
