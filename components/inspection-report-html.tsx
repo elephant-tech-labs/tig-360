@@ -1,4 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
+import { RichReportContent } from "@/components/rich-report-content";
 import type { InspectionReportSnapshot, ReportMedia, ReportParty } from "@/lib/reports/types";
 
 type InspectionReportHtmlProps = {
@@ -179,7 +180,12 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
       {beforeFindings.length ? (
         <section className="report-section report-legal">
           <header><span>01</span><div><p>Scope and disclosures</p><h2>Important report information</h2></div></header>
-          {beforeFindings.map((block) => <article key={block.id}><h3>{block.title}</h3><p>{block.body}</p></article>)}
+          {beforeFindings.map((block) => (
+            <article key={block.id}>
+              <h3>{block.title}</h3>
+              <RichReportContent document={block.bodyJson} fallbackText={block.body} />
+            </article>
+          ))}
         </section>
       ) : null}
 
@@ -210,7 +216,12 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
       {afterFindings.length ? (
         <section className="report-section report-legal">
           <header><span>{String(sectionNumber++).padStart(2, "0")}</span><div><p>Additional disclosures</p><h2>Report notices</h2></div></header>
-          {afterFindings.map((block) => <article key={block.id}><h3>{block.title}</h3><p>{block.body}</p></article>)}
+          {afterFindings.map((block) => (
+            <article key={block.id}>
+              <h3>{block.title}</h3>
+              <RichReportContent document={block.bodyJson} fallbackText={block.body} />
+            </article>
+          ))}
         </section>
       ) : null}
 
