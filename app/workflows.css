@@ -117,6 +117,7 @@ select { font: inherit; }
 .job-workspace-title { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
 .job-workspace-title h1 { margin: 0; }
 .job-workspace-title span { background: #edf2ef; border: 1px solid #d7e0dc; border-radius: 4px; color: #52605b; font-size: 10px; font-weight: 750; padding: 5px 7px; text-transform: capitalize; }
+.job-workspace-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 9px; justify-content: flex-end; }
 .job-overview-grid { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 22px 30px; }
 .overview-tile { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 7px; display: grid; gap: 4px 10px; grid-template-columns: 28px 1fr; min-height: 84px; padding: 15px; }
 .overview-tile svg { color: var(--green); grid-row: span 2; }
