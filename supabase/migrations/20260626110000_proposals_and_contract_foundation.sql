@@ -589,7 +589,7 @@ begin
     proposal_document_id,
     next_version,
     'generating',
-    'approved',
+    'pending',
     coalesce(proposal_snapshot, '{}'::jsonb),
     auth.uid()
   )
