@@ -44,6 +44,15 @@ type ProposalLine = {
   findings?: { code: string | null; title: string | null } | { code: string | null; title: string | null }[] | null;
 };
 
+type ProposalDocumentVersion = {
+  id: string;
+  version: number;
+  status: string;
+  approval_status: string;
+  generated_at: string | null;
+  asset_id: string | null;
+};
+
 const sectionOptions = [
   ["section_i", "Section I"],
   ["section_ii", "Section II"],
@@ -97,7 +106,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
       .from("job_proposals")
       .select(`
         id, status, title, customer_note, terms, tax_rate, discount_amount,
-        subtotal_amount, tax_amount, total_amount, approved_at,
+        subtotal_amount, tax_amount, total_amount, approved_at, updated_at,
         proposal_line_items(
           id, source_type, item_code, section, title, description, quantity, unit_price,
           included, sort_order, findings(code, title)
@@ -129,11 +138,21 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
   const includedLines = lines.filter((line) => line.included);
   const canApprove = membership.role === "administrator" || membership.role === "manager";
   const hasIncludedLines = includedLines.length > 0;
-  const readyForContract = proposal.status === "approved";
+  const isReady = proposal.status === "ready";
+  const isApproved = proposal.status === "approved";
+  const readyForContract = isApproved;
+  const canMarkReady = hasIncludedLines && !isReady && !isApproved;
+  const canGenerateContract = isApproved;
   const proposalVersionsRaw = proposalDocument?.document_versions ?? [];
-  const proposalVersions = [...(Array.isArray(proposalVersionsRaw) ? proposalVersionsRaw : [proposalVersionsRaw])]
+  const proposalVersions = ([...(Array.isArray(proposalVersionsRaw) ? proposalVersionsRaw : [proposalVersionsRaw])] as ProposalDocumentVersion[])
     .sort((a, b) => b.version - a.version);
   const latestProposalVersion = proposalVersions[0] ?? null;
+  const proposalUpdatedAt = proposal.updated_at ? new Date(proposal.updated_at).getTime() : 0;
+  const isVersionOutdated = (version: ProposalDocumentVersion) => {
+    if (!version.generated_at || !proposalUpdatedAt) return false;
+    return new Date(version.generated_at).getTime() < proposalUpdatedAt;
+  };
+  const latestProposalVersionOutdated = latestProposalVersion ? isVersionOutdated(latestProposalVersion) : false;
 
   return (
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
@@ -200,9 +219,12 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                           <strong>{line.title}</strong>
                           <span>{sourceLabel}</span>
                         </div>
-                        <div className="proposal-line-price">
-                          <strong>{money(Number(line.quantity) * Number(line.unit_price))}</strong>
-                          <span>{line.included ? "Included" : "Excluded"}</span>
+                        <div className="proposal-line-right">
+                          <div className="proposal-line-price">
+                            <strong>{money(Number(line.quantity) * Number(line.unit_price))}</strong>
+                            <span>{line.included ? "Included" : "Excluded"}</span>
+                          </div>
+                          <span className="proposal-line-edit">Edit</span>
                         </div>
                       </summary>
                       <form action={saveProposalLine} className="proposal-line-form">
@@ -241,25 +263,27 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
               </div>
             )}
 
-            <form action={saveProposalLine} className="proposal-new-line-form">
-              {hiddenContext(organization.id, jobId, proposal.id)}
-              <div className="section-heading compact"><div><p className="eyebrow">Manual item</p><h2>Add custom line</h2></div></div>
-              <div className="proposal-line-form">
-                <label>Title<input name="title" placeholder="Localized treatment, repair allowance, disclosure fee..." /></label>
-                <label>Section<select name="section" defaultValue="manual">
-                  {sectionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select></label>
-                <label className="proposal-span-2">Description<textarea name="description" rows={3} placeholder="Describe what is included in this work authorization." /></label>
-                <label>Quantity<input min="0.01" name="quantity" step="0.01" type="number" defaultValue="1" /></label>
-                <label>Unit price<input min="0" name="unitPrice" step="0.01" type="number" defaultValue="0" /></label>
-                <label className="proposal-checkbox"><input name="included" type="checkbox" defaultChecked /> Include in contract total</label>
-                <div className="proposal-line-actions">
-                  <PendingSubmitButton className="secondary-button" pendingLabel="Adding">
-                    <Plus size={16} /> Add line
-                  </PendingSubmitButton>
+            <details className="proposal-new-line">
+              <summary><Plus size={16} /> Add manual item</summary>
+              <form action={saveProposalLine} className="proposal-new-line-form">
+                {hiddenContext(organization.id, jobId, proposal.id)}
+                <div className="proposal-line-form">
+                  <label>Title<input name="title" placeholder="Localized treatment, repair allowance, disclosure fee..." /></label>
+                  <label>Section<select name="section" defaultValue="manual">
+                    {sectionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select></label>
+                  <label className="proposal-span-2">Description<textarea name="description" rows={3} placeholder="Describe what is included in this work authorization." /></label>
+                  <label>Quantity<input min="0.01" name="quantity" step="0.01" type="number" defaultValue="1" /></label>
+                  <label>Unit price<input min="0" name="unitPrice" step="0.01" type="number" defaultValue="0" /></label>
+                  <label className="proposal-checkbox"><input name="included" type="checkbox" defaultChecked /> Include in contract total</label>
+                  <div className="proposal-line-actions">
+                    <PendingSubmitButton className="secondary-button" pendingLabel="Adding">
+                      <Plus size={16} /> Add line
+                    </PendingSubmitButton>
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            </details>
           </section>
 
           <aside className="proposal-side">
@@ -286,26 +310,40 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                 <form action={setProposalStatus}>
                   {hiddenContext(organization.id, jobId, proposal.id)}
                   <input name="status" type="hidden" value="ready" />
-                  <PendingSubmitButton className="secondary-button" disabled={!hasIncludedLines} pendingLabel="Marking ready">Mark ready</PendingSubmitButton>
+                  <PendingSubmitButton className="secondary-button" disabled={!canMarkReady} pendingLabel="Marking ready">
+                    {isApproved ? "Already approved" : isReady ? "Marked ready" : "Mark ready"}
+                  </PendingSubmitButton>
                 </form>
                 <form action={setProposalStatus}>
                   {hiddenContext(organization.id, jobId, proposal.id)}
                   <input name="status" type="hidden" value="approved" />
-                  <PendingSubmitButton className="primary-button" disabled={!hasIncludedLines || !canApprove} pendingLabel="Approving">Approve proposal</PendingSubmitButton>
+                  <PendingSubmitButton className="primary-button" disabled={!hasIncludedLines || !canApprove || isApproved} pendingLabel="Approving">
+                    {isApproved ? "Proposal approved" : "Approve proposal"}
+                  </PendingSubmitButton>
                 </form>
                 <form action={generateProposalContractDocument}>
                   {hiddenContext(organization.id, jobId, proposal.id)}
-                  <PendingSubmitButton className="secondary-button" disabled={!readyForContract} pendingLabel="Generating PDF">Generate contract PDF</PendingSubmitButton>
+                  <PendingSubmitButton className="secondary-button" disabled={!canGenerateContract} pendingLabel="Generating PDF">Generate contract PDF</PendingSubmitButton>
                 </form>
+                <p className="proposal-action-help">
+                  {isApproved
+                    ? latestProposalVersionOutdated
+                      ? "Pricing or scope changed after the latest contract PDF. Generate a fresh version before sending."
+                      : "Generate a contract PDF after final approval, and again whenever pricing or scope changes."
+                    : "Approve the proposal before generating a contract PDF."}
+                </p>
               </div>
             </section>
 
             <section className="proposal-panel">
               <div className="section-heading compact"><div><p className="eyebrow">Contract document</p><h2>Generated versions</h2></div></div>
               {latestProposalVersion ? (
-                <div className="proposal-document-state">
-                  <strong>Version {latestProposalVersion.version}</strong>
+                <div className={`proposal-document-state ${latestProposalVersionOutdated ? "outdated" : ""}`}>
+                  <strong>Version {latestProposalVersion.version}{latestProposalVersionOutdated ? " · Outdated" : ""}</strong>
                   <span>{latestProposalVersion.status} · {latestProposalVersion.approval_status}</span>
+                  {latestProposalVersionOutdated ? (
+                    <p className="proposal-document-warning">Proposal details changed after this PDF was generated.</p>
+                  ) : null}
                   {latestProposalVersion.asset_id ? (
                     <Link className="text-button" href={`/jobs/${jobId}/review/versions/${latestProposalVersion.id}/download`}>Download latest PDF</Link>
                   ) : null}
@@ -315,12 +353,15 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
               )}
               {proposalVersions.length > 1 ? (
                 <div className="proposal-mini-version-list">
-                  {proposalVersions.slice(1).map((version) => (
-                    <Link href={`/jobs/${jobId}/review/versions/${version.id}/download`} key={version.id}>
-                      Version {version.version}
-                      <span>{version.generated_at ? new Date(version.generated_at).toLocaleString() : version.status}</span>
-                    </Link>
-                  ))}
+                  {proposalVersions.slice(1).map((version) => {
+                    const outdated = isVersionOutdated(version);
+                    return (
+                      <Link className={outdated ? "outdated" : ""} href={`/jobs/${jobId}/review/versions/${version.id}/download`} key={version.id}>
+                        Version {version.version}{outdated ? " · Outdated" : ""}
+                        <span>{version.generated_at ? new Date(version.generated_at).toLocaleString() : version.status}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               ) : null}
             </section>
