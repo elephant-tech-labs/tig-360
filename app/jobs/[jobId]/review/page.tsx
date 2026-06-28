@@ -8,6 +8,7 @@ import {
   Download,
   Eye,
   FileCheck2,
+  FilePenLine,
   FilePlus2,
   Mail,
 } from "lucide-react";
@@ -60,6 +61,7 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         address={property?.street_line_1 ?? ""}
+        actions={<Link className="secondary-button" href={`/jobs/${jobId}/proposal`}><FilePenLine size={16} /> Proposal</Link>}
         jobId={jobId}
         jobNumber={job.job_number}
         locality={[

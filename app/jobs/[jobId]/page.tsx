@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Check,
   ClipboardCheck,
+  FilePenLine,
   ShieldCheck,
   Users,
   Tags,
@@ -99,6 +100,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
         jobId={jobId}
         jobNumber={job.job_number}
         address={property?.street_line_1 ?? ""}
+        actions={<Link className="secondary-button" href={`/jobs/${jobId}/proposal`}><FilePenLine size={16} /> Proposal</Link>}
         locality={[
           property?.city,
           [property?.region, property?.postal_code].filter(Boolean).join(" "),

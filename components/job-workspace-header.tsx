@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ArrowLeft, MapPin, Pencil } from "lucide-react";
 
 type JobWorkspaceHeaderProps = {
@@ -8,6 +9,7 @@ type JobWorkspaceHeaderProps = {
   locality: string;
   reportType: string;
   showEdit?: boolean;
+  actions?: ReactNode;
 };
 
 export function JobWorkspaceHeader({
@@ -17,6 +19,7 @@ export function JobWorkspaceHeader({
   locality,
   reportType,
   showEdit = false,
+  actions,
 }: JobWorkspaceHeaderProps) {
   return (
     <header className="job-workspace-header">
@@ -29,7 +32,12 @@ export function JobWorkspaceHeader({
         </div>
         <p><MapPin size={15} /> {locality || "Address incomplete"}</p>
       </div>
-      {showEdit ? <Link className="secondary-button" href={`/jobs/${jobId}/edit`}><Pencil size={16} /> Edit job</Link> : null}
+      {(showEdit || actions) ? (
+        <div className="job-workspace-actions">
+          {actions}
+          {showEdit ? <Link className="secondary-button" href={`/jobs/${jobId}/edit`}><Pencil size={16} /> Edit job</Link> : null}
+        </div>
+      ) : null}
     </header>
   );
 }
