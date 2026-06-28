@@ -162,6 +162,9 @@
 .signature-request-item strong { margin: 5px 0 3px; }
 .signature-request-item span { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .signature-request-item p { color: var(--red); font-size: 12px; line-height: 1.45; margin: 7px 0 0; }
+.signature-request-item.status-draft p { color: #8e4c0c; }
+.signature-request-actions { align-items: flex-end; display: flex; flex-direction: column; gap: 7px; }
+.signature-request-actions .text-button { align-items: center; display: inline-flex; gap: 4px; }
 .delivery-status-badge.sending, .delivery-status-badge.viewed, .delivery-status-badge.completed { background: var(--green-soft); color: var(--green-dark) !important; }
 .delivery-status-badge.unknown { background: #eef1f0; color: var(--muted) !important; }
 .delivery-status-badge.declined, .delivery-status-badge.expired, .delivery-status-badge.cancelled { background: var(--red-soft); color: var(--red) !important; }

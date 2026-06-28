@@ -500,7 +500,10 @@ export async function sendContractForSignature(formData: FormData) {
     });
     const nextStatus = result.submitted
       ? normalizeZohoSignStatus(result.providerStatus)
-      : "failed";
+      : "draft";
+    const draftFailure = result.submissionError
+      ? `${result.submissionError} The Zoho Sign request was created as a draft. Open Zoho Sign, find this request id, and send it manually, or upgrade the Zoho Sign license for API sending.`
+      : null;
     await supabase
       .from("signature_requests")
       .update({
@@ -509,7 +512,7 @@ export async function sendContractForSignature(formData: FormData) {
         provider_action_id: result.actionId,
         provider_document_id: result.documentId,
         provider_status: result.providerStatus,
-        failure_message: result.submissionError,
+        failure_message: draftFailure,
         sent_at: result.submitted ? new Date().toISOString() : null,
         last_status_checked_at: new Date().toISOString(),
       })
@@ -520,22 +523,22 @@ export async function sendContractForSignature(formData: FormData) {
       organizationId: organization.id,
       userId: user.id,
       signatureRequestId: signatureRequest.id,
-      eventType: result.submitted ? "zoho_sign_sent" : "zoho_sign_submission_failed",
+      eventType: result.submitted ? "zoho_sign_sent" : "zoho_sign_draft_created",
       providerStatus: result.providerStatus,
       summary: result.submitted
         ? `Contract sent for signature to ${signer.email}.`
-        : `Zoho Sign draft created, but submission failed for ${signer.email}.`,
+        : `Zoho Sign draft created for ${signer.email}.`,
       payload: result.raw,
     });
     await supabase.from("audit_events").insert({
       organization_id: organization.id,
       actor_user_id: user.id,
-      action: result.submitted ? "contract_signature_sent" : "contract_signature_failed",
+      action: result.submitted ? "contract_signature_sent" : "contract_signature_draft_created",
       entity_type: "signature_request",
       entity_id: signatureRequest.id,
       summary: result.submitted
         ? `Contract signature request sent to ${signer.email}.`
-        : `Contract signature request failed for ${signer.email}.`,
+        : `Contract signature request draft created for ${signer.email}.`,
       changes: {
         documentVersionId,
         signerEmail: signer.email,
@@ -548,7 +551,7 @@ export async function sendContractForSignature(formData: FormData) {
     if (result.submitted) {
       successMessage = "Contract sent through Zoho Sign.";
     } else {
-      submissionFailure = result.submissionError || "Zoho Sign created a draft but could not send it.";
+      submissionFailure = "Zoho Sign draft created. Open Zoho Sign to send it manually, or upgrade Zoho Sign for API sending.";
     }
   } catch (error) {
     const failure = error instanceof Error ? error.message : "Zoho Sign request failed.";
@@ -576,7 +579,7 @@ export async function sendContractForSignature(formData: FormData) {
   if (successMessage) {
     redirect(signatureUrl(jobId, successMessage, "sent"));
   }
-  redirect(signatureUrl(jobId, submissionFailure || "Zoho Sign created a draft but could not send it.", "error"));
+  redirect(signatureUrl(jobId, submissionFailure || "Zoho Sign draft created.", "saved"));
 }
 
 export async function refreshSignatureRequestStatus(formData: FormData) {

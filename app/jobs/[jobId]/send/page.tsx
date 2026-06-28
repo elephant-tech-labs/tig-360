@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Check,
   Clock3,
+  ExternalLink,
   FileCheck2,
   FileSignature,
   Mail,
@@ -65,6 +66,10 @@ function providerLabel() {
   }
   if (process.env.RESEND_API_KEY && process.env.REPORT_EMAIL_FROM) return "Resend";
   return null;
+}
+
+function zohoSignWebUrl() {
+  return process.env.ZOHO_SIGN_WEB_BASE || "https://sign.zoho.eu";
 }
 
 export default async function SendCenterPage({ params, searchParams }: SendPageProps) {
@@ -365,17 +370,27 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                         <span>
                           {document?.title ?? "Contract"} v{version?.version ?? "?"} · {request.signer_name} · {request.signer_email}
                         </span>
-                        {request.provider_request_id ? <span>Zoho request {request.provider_request_id}</span> : null}
+                        {request.provider_request_id ? (
+                          <span>
+                            Zoho request {request.provider_request_id}
+                            {request.status === "draft" ? " · draft created in Zoho Sign" : ""}
+                          </span>
+                        ) : null}
                         {request.failure_message ? <p>{request.failure_message}</p> : null}
                       </div>
                       {request.provider_request_id ? (
-                        <form action={refreshSignatureRequestStatus}>
-                          <input name="jobId" type="hidden" value={jobId} />
-                          <input name="signatureRequestId" type="hidden" value={request.id} />
-                          <button className="text-button" type="submit">
-                            <RotateCw size={13} /> Refresh
-                          </button>
-                        </form>
+                        <div className="signature-request-actions">
+                          <a className="text-button" href={zohoSignWebUrl()} rel="noreferrer" target="_blank">
+                            <ExternalLink size={13} /> Open Zoho Sign
+                          </a>
+                          <form action={refreshSignatureRequestStatus}>
+                            <input name="jobId" type="hidden" value={jobId} />
+                            <input name="signatureRequestId" type="hidden" value={request.id} />
+                            <button className="text-button" type="submit">
+                              <RotateCw size={13} /> Refresh
+                            </button>
+                          </form>
+                        </div>
                       ) : null}
                     </article>
                   );
