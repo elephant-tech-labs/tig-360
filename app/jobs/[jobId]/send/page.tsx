@@ -5,6 +5,7 @@ import {
   Check,
   Clock3,
   FileCheck2,
+  FileSignature,
   Mail,
   RotateCw,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import { getCurrentContext } from "@/lib/current-organization";
 import { jobPartyRoleLabel } from "@/lib/job-parties";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { loadReportVersions } from "@/lib/reports/load-report";
+import { refreshSignatureRequestStatus, sendContractForSignature } from "./actions";
 
 type SendPageProps = {
   params: Promise<{ jobId: string }>;
@@ -38,6 +40,14 @@ type DeliveryRecipient = {
   email: string;
   display_name: string | null;
   recipient_type: "to" | "cc" | "bcc";
+};
+
+type SignatureCandidate = {
+  contactId: string | null;
+  name: string;
+  email: string;
+  roleLabel: string;
+  score: number;
 };
 
 function providerLabel() {
@@ -63,7 +73,14 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
   const { supabase, organization, userName, membership } = await getCurrentContext();
   if (!canCreateJobs(membership.role)) redirect(`/jobs/${jobId}`);
 
-  const [{ data: job, error }, versions, workflowStates, { data: deliveries }, { data: supportingDocuments }] = await Promise.all([
+  const [
+    { data: job, error },
+    versions,
+    workflowStates,
+    { data: deliveries },
+    { data: supportingDocuments },
+    { data: signatureRequests },
+  ] = await Promise.all([
     supabase
       .from("inspection_jobs")
       .select(`
@@ -105,6 +122,17 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
       .in("kind", ["contract", "proposal"]),
+    supabase
+      .from("signature_requests")
+      .select(`
+        id, document_version_id, contact_id, signer_name, signer_email,
+        status, provider_request_id, provider_status, request_name, failure_message,
+        sent_at, completed_at, last_status_checked_at, created_at,
+        document_versions(version, documents(kind, title))
+      `)
+      .eq("inspection_job_id", jobId)
+      .eq("organization_id", organization.id)
+      .order("created_at", { ascending: false }),
   ]);
   if (error || !job) notFound();
 
@@ -122,9 +150,19 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
           id: version.id,
           label: `${document.title} · v${version.version}`,
           filename: asset?.original_filename ?? `${document.kind}.pdf`,
+          kind: document.kind,
+          version: version.version,
+          approvalStatus: version.approval_status,
+          createdAt: version.created_at,
         };
       }),
   );
+  const signatureDocuments = supportingVersions
+    .filter((version) => version.kind === "contract" || version.kind === "proposal")
+    .sort((left, right) => {
+      const kindSort = left.kind === right.kind ? 0 : left.kind === "contract" ? -1 : 1;
+      return kindSort || right.version - left.version;
+    });
 
   const sourceDeliveryId = messages.draft || messages.resend || null;
   const sourceDelivery = sourceDeliveryId
@@ -171,6 +209,31 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
   const directoryRecipients = Array.from(recipientByEmail.values()).sort((left, right) =>
     left.name.localeCompare(right.name),
   );
+  const signatureCandidateByEmail = new Map<string, SignatureCandidate>();
+  const signatureRoleScore: Record<string, number> = {
+    signer: 0,
+    report_recipient: 1,
+    ordered_by: 2,
+    property_owner: 3,
+    party_of_interest: 4,
+  };
+  for (const party of job.job_parties ?? []) {
+    const contact = Array.isArray(party.contacts) ? party.contacts[0] : party.contacts;
+    if (!contact?.email) continue;
+    const email = contact.email.trim().toLowerCase();
+    const score = signatureRoleScore[party.role] ?? 10;
+    const existing = signatureCandidateByEmail.get(email);
+    if (existing && existing.score <= score) continue;
+    signatureCandidateByEmail.set(email, {
+      contactId: contact.id,
+      name: `${contact.first_name} ${contact.last_name}`.trim() || email,
+      email,
+      roleLabel: jobPartyRoleLabel(party.role),
+      score,
+    });
+  }
+  const signatureCandidates = Array.from(signatureCandidateByEmail.values())
+    .sort((left, right) => left.score - right.score || left.name.localeCompare(right.name));
   const reportAddress = `${property?.street_line_1 ?? "Property"} · Report #${job.job_number}`;
   const defaultSubject = `Inspection Report #${job.job_number} - ${property?.street_line_1 ?? "Property"}`;
   const defaultMessage = `Hello,\n\nPlease find attached the structural pest inspection report for ${reportAddress}.\n\nRegards,\n${organization.name}`;
@@ -224,6 +287,104 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
 
         <div className="send-center-layout">
           <main className="send-compose-panel">
+            <section className="signature-send-panel">
+              <div className="section-heading compact">
+                <div>
+                  <p className="eyebrow">Zoho Sign</p>
+                  <h2>Contract signature</h2>
+                </div>
+                <FileSignature size={19} />
+              </div>
+              <p className="panel-helper">
+                Send a generated work authorization PDF for customer signature. The contract PDF includes Zoho Sign text tags for signer name, date, and signature.
+              </p>
+              {signatureDocuments.length ? (
+                <form action={sendContractForSignature} className="signature-send-form">
+                  <input name="jobId" type="hidden" value={jobId} />
+                  <label>
+                    Contract PDF
+                    <select name="documentVersionId" defaultValue={signatureDocuments[0]?.id}>
+                      {signatureDocuments.map((version) => (
+                        <option key={version.id} value={version.id}>
+                          {version.label}{version.approvalStatus === "approved" ? " · approved" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Signer
+                    <select name="signer" defaultValue={signatureCandidates[0] ? JSON.stringify(signatureCandidates[0]) : ""}>
+                      {signatureCandidates.length ? signatureCandidates.map((candidate) => (
+                        <option key={candidate.email} value={JSON.stringify(candidate)}>
+                          {candidate.name} · {candidate.email} · {candidate.roleLabel}
+                        </option>
+                      )) : <option value="">Enter signer below</option>}
+                    </select>
+                  </label>
+                  <div className="signature-override-grid">
+                    <label>
+                      Signer name override
+                      <input name="signerName" placeholder={signatureCandidates[0]?.name ?? "Customer name"} />
+                    </label>
+                    <label>
+                      Signer email override
+                      <input name="signerEmail" placeholder={signatureCandidates[0]?.email ?? "customer@example.com"} type="email" />
+                    </label>
+                  </div>
+                  <div className="signature-send-actions">
+                    <button className="primary-button" type="submit">
+                      <FileSignature size={16} /> Send for signature
+                    </button>
+                    <span>Use overrides when the signer is not already assigned to this job.</span>
+                  </div>
+                </form>
+              ) : (
+                <div className="signature-empty">
+                  <AlertTriangle size={17} />
+                  Generate a contract PDF from the Proposal page before sending for signature.
+                </div>
+              )}
+
+              <div className="signature-request-list">
+                <h3>Signature history</h3>
+                {signatureRequests?.length ? signatureRequests.map((request) => {
+                  const version = Array.isArray(request.document_versions)
+                    ? request.document_versions[0]
+                    : request.document_versions;
+                  const document = version
+                    ? Array.isArray(version.documents) ? version.documents[0] : version.documents
+                    : null;
+                  return (
+                    <article className={`signature-request-item status-${request.status}`} key={request.id}>
+                      <div>
+                        <div className="delivery-history-topline">
+                          <span className={`delivery-status-badge ${request.status}`}>{request.status}</span>
+                          <small>{new Date(request.created_at).toLocaleString()}</small>
+                        </div>
+                        <strong>{request.request_name}</strong>
+                        <span>
+                          {document?.title ?? "Contract"} v{version?.version ?? "?"} · {request.signer_name} · {request.signer_email}
+                        </span>
+                        {request.provider_request_id ? <span>Zoho request {request.provider_request_id}</span> : null}
+                        {request.failure_message ? <p>{request.failure_message}</p> : null}
+                      </div>
+                      {request.provider_request_id ? (
+                        <form action={refreshSignatureRequestStatus}>
+                          <input name="jobId" type="hidden" value={jobId} />
+                          <input name="signatureRequestId" type="hidden" value={request.id} />
+                          <button className="text-button" type="submit">
+                            <RotateCw size={13} /> Refresh
+                          </button>
+                        </form>
+                      ) : null}
+                    </article>
+                  );
+                }) : (
+                  <p className="panel-empty-copy">No signature activity yet.</p>
+                )}
+              </div>
+            </section>
+
             {latestApproved ? (
               <SendCenterComposer
                 directoryRecipients={directoryRecipients}

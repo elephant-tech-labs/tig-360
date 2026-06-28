@@ -50,6 +50,7 @@ const styles = StyleSheet.create({
   note: { backgroundColor: "#f7f8f7", borderLeftColor: accent, borderLeftWidth: 2, fontSize: 8, lineHeight: 1.45, marginBottom: 14, padding: 9 },
   signatureRow: { display: "flex", flexDirection: "row", gap: 18, marginTop: 28 },
   signatureBox: { borderTopColor: ink, borderTopWidth: 1, flex: 1, paddingTop: 6 },
+  signatureTag: { color: "#222", fontSize: 8, marginBottom: 8 },
   termsBlock: { borderTopColor: line, borderTopWidth: 1, marginTop: 12, paddingTop: 12 },
   legalBlock: { borderBottomColor: "#dce2df", borderBottomWidth: 1, paddingBottom: 11, paddingTop: 11 },
   legalTitle: { fontSize: 10, fontWeight: 700, marginBottom: 5 },
@@ -188,9 +189,18 @@ export function ProposalContractPdf({ snapshot }: { snapshot: ProposalSnapshot }
         ) : null}
 
         <View style={styles.signatureRow} wrap={false}>
-          <View style={styles.signatureBox}><Text>Owner / authorized signer</Text></View>
-          <View style={styles.signatureBox}><Text>Date</Text></View>
-          <View style={styles.signatureBox}><Text>Company representative</Text></View>
+          <View style={styles.signatureBox}>
+            <Text style={styles.signatureTag}>{"{{Signature:Recipient1*}}"}</Text>
+            <Text>Owner / authorized signer</Text>
+          </View>
+          <View style={styles.signatureBox}>
+            <Text style={styles.signatureTag}>{"{{Date:Recipient1}}"}</Text>
+            <Text>Date</Text>
+          </View>
+          <View style={styles.signatureBox}>
+            <Text style={styles.signatureTag}>{"{{Name:Recipient1}}"}</Text>
+            <Text>Signer name</Text>
+          </View>
         </View>
         <Footer snapshot={snapshot} />
       </Page>

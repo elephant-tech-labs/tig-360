@@ -3,9 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { PDFDocument } from "pdf-lib";
+import { canCreateJobs } from "@/lib/access";
 import { getEmailProvider, type EmailAttachment } from "@/lib/email";
 import { getCurrentContext } from "@/lib/current-organization";
 import { logReportDeliveryInZoho } from "@/lib/crm/zoho";
+import {
+  getZohoSignRequestStatus,
+  isZohoSignConfigured,
+  normalizeZohoSignStatus,
+  sendZohoSignDocument,
+} from "@/lib/zoho/sign";
 
 type RecipientInput = {
   contactId: string | null;
@@ -33,6 +40,30 @@ function sendUrl(
   const params = new URLSearchParams({ [kind]: message });
   if (deliveryId) params.set("draft", deliveryId);
   return `/jobs/${jobId}/send?${params.toString()}`;
+}
+
+function signatureUrl(jobId: string, message: string, kind: "saved" | "sent" | "error") {
+  return sendUrl(jobId, message, kind);
+}
+
+function parseSigner(value: FormDataEntryValue | null) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(String(value)) as {
+      contactId?: string | null;
+      name?: string | null;
+      email?: string | null;
+    };
+    const email = parsed.email?.trim().toLowerCase();
+    if (!email) return null;
+    return {
+      contactId: parsed.contactId || null,
+      name: parsed.name?.trim() || email,
+      email,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function cleanRecipient(value: FormDataEntryValue): RecipientInput | null {
@@ -69,6 +100,73 @@ async function appendPdfs(files: DeliveryFile[]) {
     pages.forEach((page) => output.addPage(page));
   }
   return output.save();
+}
+
+async function loadSignatureDocument(
+  supabase: Awaited<ReturnType<typeof getCurrentContext>>["supabase"],
+  organizationId: string,
+  jobId: string,
+  documentVersionId: string,
+) {
+  const { data: version, error } = await supabase
+    .from("document_versions")
+    .select(`
+      id, version, status, approval_status,
+      assets(provider_file_id, original_filename, content_type),
+      documents!inner(id, kind, title, inspection_job_id)
+    `)
+    .eq("id", documentVersionId)
+    .eq("organization_id", organizationId)
+    .eq("documents.inspection_job_id", jobId)
+    .single();
+  if (error || !version) {
+    throw new Error(error?.message ?? "The selected contract PDF could not be found.");
+  }
+  const document = Array.isArray(version.documents) ? version.documents[0] : version.documents;
+  if (!document || !["contract", "proposal"].includes(document.kind)) {
+    throw new Error("Select a generated contract or proposal PDF for signature.");
+  }
+  if (version.status !== "ready") {
+    throw new Error("The selected contract PDF is not ready yet.");
+  }
+  const asset = Array.isArray(version.assets) ? version.assets[0] : version.assets;
+  if (!asset?.provider_file_id) {
+    throw new Error("The selected contract PDF file is missing from storage.");
+  }
+
+  const { data: pdf, error: downloadError } = await supabase.storage
+    .from("report-pdfs")
+    .download(asset.provider_file_id);
+  if (downloadError || !pdf) {
+    throw new Error(downloadError?.message ?? "Unable to download the selected contract PDF.");
+  }
+  return {
+    bytes: new Uint8Array(await pdf.arrayBuffer()),
+    filename: asset.original_filename || `${document.kind}-v${version.version}.pdf`,
+    title: document.title,
+    version: version.version,
+  };
+}
+
+async function recordSignatureEvent(input: {
+  supabase: Awaited<ReturnType<typeof getCurrentContext>>["supabase"];
+  organizationId: string;
+  userId: string;
+  signatureRequestId: string;
+  eventType: string;
+  providerStatus: string | null;
+  summary: string;
+  payload?: unknown;
+}) {
+  await input.supabase.from("signature_request_events").insert({
+    organization_id: input.organizationId,
+    signature_request_id: input.signatureRequestId,
+    event_type: input.eventType,
+    provider_status: input.providerStatus,
+    summary: input.summary,
+    payload: input.payload ?? {},
+    created_by: input.userId,
+  });
 }
 
 async function loadAttachments(
@@ -336,4 +434,216 @@ export async function prepareReportDelivery(formData: FormData) {
   revalidatePath(`/jobs/${jobId}`);
   revalidatePath(`/jobs/${jobId}/send`);
   redirect(sendUrl(jobId, "Approved report sent and recorded in delivery history.", "sent"));
+}
+
+export async function sendContractForSignature(formData: FormData) {
+  const jobId = String(formData.get("jobId") ?? "");
+  const documentVersionId = String(formData.get("documentVersionId") ?? "");
+  const selectedSigner = parseSigner(formData.get("signer"));
+  const signerNameOverride = String(formData.get("signerName") ?? "").trim();
+  const signerEmailOverride = String(formData.get("signerEmail") ?? "").trim().toLowerCase();
+  if (!jobId || !documentVersionId) redirect("/jobs");
+  if (!isZohoSignConfigured()) {
+    redirect(signatureUrl(jobId, "Zoho Sign is not configured.", "error"));
+  }
+
+  const signer = {
+    contactId: selectedSigner?.contactId ?? null,
+    name: signerNameOverride || selectedSigner?.name || signerEmailOverride,
+    email: signerEmailOverride || selectedSigner?.email || "",
+  };
+  if (!signer.email || !signer.email.includes("@")) {
+    redirect(signatureUrl(jobId, "Select or enter a valid signer email.", "error"));
+  }
+  if (!signer.name) signer.name = signer.email;
+
+  const { supabase, organization, user, membership } = await getCurrentContext();
+  if (!canCreateJobs(membership.role)) redirect(`/jobs/${jobId}`);
+
+  let documentFile: Awaited<ReturnType<typeof loadSignatureDocument>>;
+  try {
+    documentFile = await loadSignatureDocument(supabase, organization.id, jobId, documentVersionId);
+  } catch (error) {
+    redirect(signatureUrl(jobId, error instanceof Error ? error.message : "Unable to load the contract PDF.", "error"));
+  }
+
+  const requestName = `${documentFile.title} v${documentFile.version} - ${signer.name}`;
+  const { data: signatureRequest, error: insertError } = await supabase
+    .from("signature_requests")
+    .insert({
+      organization_id: organization.id,
+      inspection_job_id: jobId,
+      document_version_id: documentVersionId,
+      contact_id: signer.contactId,
+      signer_name: signer.name,
+      signer_email: signer.email,
+      status: "sending",
+      request_name: requestName,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+  if (insertError || !signatureRequest) {
+    redirect(signatureUrl(jobId, insertError?.message ?? "Unable to record the signature request.", "error"));
+  }
+
+  let successMessage: string | null = null;
+  let submissionFailure: string | null = null;
+  try {
+    const result = await sendZohoSignDocument({
+      filename: documentFile.filename,
+      pdfBytes: documentFile.bytes,
+      requestName,
+      signerName: signer.name,
+      signerEmail: signer.email,
+      notes: "Please review and sign the attached work authorization.",
+    });
+    const nextStatus = result.submitted
+      ? normalizeZohoSignStatus(result.providerStatus)
+      : "failed";
+    await supabase
+      .from("signature_requests")
+      .update({
+        status: nextStatus,
+        provider_request_id: result.requestId,
+        provider_action_id: result.actionId,
+        provider_document_id: result.documentId,
+        provider_status: result.providerStatus,
+        failure_message: result.submissionError,
+        sent_at: result.submitted ? new Date().toISOString() : null,
+        last_status_checked_at: new Date().toISOString(),
+      })
+      .eq("id", signatureRequest.id)
+      .eq("organization_id", organization.id);
+    await recordSignatureEvent({
+      supabase,
+      organizationId: organization.id,
+      userId: user.id,
+      signatureRequestId: signatureRequest.id,
+      eventType: result.submitted ? "zoho_sign_sent" : "zoho_sign_submission_failed",
+      providerStatus: result.providerStatus,
+      summary: result.submitted
+        ? `Contract sent for signature to ${signer.email}.`
+        : `Zoho Sign draft created, but submission failed for ${signer.email}.`,
+      payload: result.raw,
+    });
+    await supabase.from("audit_events").insert({
+      organization_id: organization.id,
+      actor_user_id: user.id,
+      action: result.submitted ? "contract_signature_sent" : "contract_signature_failed",
+      entity_type: "signature_request",
+      entity_id: signatureRequest.id,
+      summary: result.submitted
+        ? `Contract signature request sent to ${signer.email}.`
+        : `Contract signature request failed for ${signer.email}.`,
+      changes: {
+        documentVersionId,
+        signerEmail: signer.email,
+        providerRequestId: result.requestId,
+        providerStatus: result.providerStatus,
+      },
+    });
+
+    revalidatePath(`/jobs/${jobId}/send`);
+    if (result.submitted) {
+      successMessage = "Contract sent through Zoho Sign.";
+    } else {
+      submissionFailure = result.submissionError || "Zoho Sign created a draft but could not send it.";
+    }
+  } catch (error) {
+    const failure = error instanceof Error ? error.message : "Zoho Sign request failed.";
+    await supabase
+      .from("signature_requests")
+      .update({
+        status: "failed",
+        failure_message: failure,
+        last_status_checked_at: new Date().toISOString(),
+      })
+      .eq("id", signatureRequest.id)
+      .eq("organization_id", organization.id);
+    await recordSignatureEvent({
+      supabase,
+      organizationId: organization.id,
+      userId: user.id,
+      signatureRequestId: signatureRequest.id,
+      eventType: "zoho_sign_failed",
+      providerStatus: null,
+      summary: failure,
+    });
+    revalidatePath(`/jobs/${jobId}/send`);
+    redirect(signatureUrl(jobId, failure, "error"));
+  }
+  if (successMessage) {
+    redirect(signatureUrl(jobId, successMessage, "sent"));
+  }
+  redirect(signatureUrl(jobId, submissionFailure || "Zoho Sign created a draft but could not send it.", "error"));
+}
+
+export async function refreshSignatureRequestStatus(formData: FormData) {
+  const jobId = String(formData.get("jobId") ?? "");
+  const signatureRequestId = String(formData.get("signatureRequestId") ?? "");
+  if (!jobId || !signatureRequestId) redirect("/jobs");
+  if (!isZohoSignConfigured()) {
+    redirect(signatureUrl(jobId, "Zoho Sign is not configured.", "error"));
+  }
+
+  const { supabase, organization, user, membership } = await getCurrentContext();
+  if (!canCreateJobs(membership.role)) redirect(`/jobs/${jobId}`);
+
+  const { data: signatureRequest, error } = await supabase
+    .from("signature_requests")
+    .select("id, provider_request_id")
+    .eq("id", signatureRequestId)
+    .eq("organization_id", organization.id)
+    .eq("inspection_job_id", jobId)
+    .single();
+  if (error || !signatureRequest?.provider_request_id) {
+    redirect(signatureUrl(jobId, error?.message ?? "Zoho Sign request id is missing.", "error"));
+  }
+
+  let refreshMessage: string | null = null;
+  try {
+    const result = await getZohoSignRequestStatus(signatureRequest.provider_request_id);
+    const nextStatus = normalizeZohoSignStatus(result.providerStatus, result.actionStatus);
+    const completedAt = nextStatus === "completed"
+      ? result.completedAt || new Date().toISOString()
+      : null;
+    await supabase
+      .from("signature_requests")
+      .update({
+        status: nextStatus,
+        provider_action_id: result.actionId,
+        provider_status: result.actionStatus || result.providerStatus,
+        completed_at: completedAt,
+        last_status_checked_at: new Date().toISOString(),
+        failure_message: null,
+      })
+      .eq("id", signatureRequestId)
+      .eq("organization_id", organization.id);
+    await recordSignatureEvent({
+      supabase,
+      organizationId: organization.id,
+      userId: user.id,
+      signatureRequestId,
+      eventType: "zoho_sign_status_refreshed",
+      providerStatus: result.actionStatus || result.providerStatus,
+      summary: `Zoho Sign status refreshed: ${nextStatus}.`,
+      payload: result.raw,
+    });
+    revalidatePath(`/jobs/${jobId}/send`);
+    refreshMessage = `Zoho Sign status refreshed: ${nextStatus}.`;
+  } catch (statusError) {
+    const failure = statusError instanceof Error ? statusError.message : "Unable to refresh Zoho Sign status.";
+    await supabase
+      .from("signature_requests")
+      .update({
+        failure_message: failure,
+        last_status_checked_at: new Date().toISOString(),
+      })
+      .eq("id", signatureRequestId)
+      .eq("organization_id", organization.id);
+    revalidatePath(`/jobs/${jobId}/send`);
+    redirect(signatureUrl(jobId, failure, "error"));
+  }
+  redirect(signatureUrl(jobId, refreshMessage || "Zoho Sign status refreshed.", "saved"));
 }
