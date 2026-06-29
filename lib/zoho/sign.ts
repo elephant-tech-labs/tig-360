@@ -304,14 +304,15 @@ async function getZohoSignEmbeddedSignUrl(input: {
   if (!input.actionId) {
     throw new Error("Zoho Sign did not return an action id for embedded signing.");
   }
-  const params = new URLSearchParams();
-  if (input.host) params.set("host", input.host);
-  const suffix = params.toString() ? `?${params.toString()}` : "";
-  const response = await fetch(`${apiBase()}/requests/${input.requestId}/actions/${input.actionId}/embedtoken${suffix}`, {
+  const form = new FormData();
+  if (input.host) form.append("host", input.host);
+  const response = await fetch(`${apiBase()}/requests/${input.requestId}/actions/${input.actionId}/embedtoken`, {
+    method: "POST",
     headers: {
       Authorization: `Zoho-oauthtoken ${input.accessToken}`,
       Accept: "application/json",
     },
+    body: form,
   });
   const result = await parseZohoSignResponse(response, "embedded signing URL creation");
   const signUrl = findStringKey(result, ["sign_url", "signUrl", "embedded_sign_url", "embeddedSignUrl"]);
