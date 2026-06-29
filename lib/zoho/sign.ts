@@ -13,6 +13,7 @@ export type ZohoSignRequestResult = {
   providerStatus: string | null;
   submitted: boolean;
   submissionError: string | null;
+  embeddedSignUrl: string | null;
   raw: ZohoSignResponse;
 };
 
@@ -141,6 +142,27 @@ function extractRequestId(request: Record<string, unknown>) {
   return firstString(request, ["request_id", "requestId", "id"]);
 }
 
+function findStringKey(value: unknown, keys: string[]): string | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  for (const key of keys) {
+    const found = firstString(record, [key]);
+    if (found) return found;
+  }
+  for (const nested of Object.values(record)) {
+    if (Array.isArray(nested)) {
+      for (const item of nested) {
+        const found = findStringKey(item, keys);
+        if (found) return found;
+      }
+    } else if (asRecord(nested)) {
+      const found = findStringKey(nested, keys);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 export function normalizeZohoSignStatus(providerStatus: string | null, actionStatus?: string | null) {
   const status = (actionStatus || providerStatus || "").toLowerCase().replace(/\s+/g, "_");
   if (["completed", "signed", "approved"].includes(status)) return "completed";
@@ -160,6 +182,8 @@ export async function sendZohoSignDocument(input: {
   signerName: string;
   signerEmail: string;
   notes?: string;
+  embedded?: boolean;
+  embeddedHost?: string;
 }) {
   const accessToken = await getZohoSignAccessToken();
   const payload = {
@@ -177,6 +201,7 @@ export async function sendZohoSignDocument(input: {
           action_type: "SIGN",
           signing_order: 1,
           verify_recipient: false,
+          is_embedded: input.embedded || undefined,
           private_notes: "",
         },
       ],
@@ -213,6 +238,7 @@ export async function sendZohoSignDocument(input: {
     providerStatus: firstString(request, ["request_status", "status"]),
     submitted: false,
     submissionError: null,
+    embeddedSignUrl: null,
     raw: createResult,
   };
 
@@ -226,6 +252,7 @@ export async function sendZohoSignDocument(input: {
             recipient_email: input.signerEmail,
             action_type: "SIGN",
             signing_order: 1,
+            is_embedded: input.embedded || undefined,
           },
         ],
       },
@@ -244,10 +271,20 @@ export async function sendZohoSignDocument(input: {
       }
     }
     const submittedRequest = extractRequestRecord(submitResult);
+    let embeddedSignUrl: string | null = null;
+    if (input.embedded) {
+      embeddedSignUrl = await getZohoSignEmbeddedSignUrl({
+        accessToken,
+        requestId,
+        actionId: created.actionId,
+        host: input.embeddedHost,
+      });
+    }
     return {
       ...created,
       providerStatus: firstString(submittedRequest, ["request_status", "status"]) || created.providerStatus,
       submitted: true,
+      embeddedSignUrl,
       raw: submitResult,
     };
   } catch (error) {
@@ -256,6 +293,32 @@ export async function sendZohoSignDocument(input: {
       submissionError: error instanceof Error ? error.message : "Zoho Sign could not submit the request.",
     };
   }
+}
+
+async function getZohoSignEmbeddedSignUrl(input: {
+  accessToken: string;
+  requestId: string;
+  actionId: string | null;
+  host?: string;
+}) {
+  if (!input.actionId) {
+    throw new Error("Zoho Sign did not return an action id for embedded signing.");
+  }
+  const params = new URLSearchParams();
+  if (input.host) params.set("host", input.host);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const response = await fetch(`${apiBase()}/requests/${input.requestId}/actions/${input.actionId}/embedtoken${suffix}`, {
+    headers: {
+      Authorization: `Zoho-oauthtoken ${input.accessToken}`,
+      Accept: "application/json",
+    },
+  });
+  const result = await parseZohoSignResponse(response, "embedded signing URL creation");
+  const signUrl = findStringKey(result, ["sign_url", "signUrl", "embedded_sign_url", "embeddedSignUrl"]);
+  if (!signUrl) {
+    throw new Error("Zoho Sign did not return an embedded signing URL.");
+  }
+  return signUrl;
 }
 
 async function submitZohoSignRequest(

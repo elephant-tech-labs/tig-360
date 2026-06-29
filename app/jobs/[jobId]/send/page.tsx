@@ -23,7 +23,7 @@ import { getCurrentContext } from "@/lib/current-organization";
 import { jobPartyRoleLabel } from "@/lib/job-parties";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { loadReportVersions } from "@/lib/reports/load-report";
-import { refreshSignatureRequestStatus, sendContractForSignature } from "./actions";
+import { refreshSignatureRequestStatus, sendContractForSignature, startEmbeddedContractSigning } from "./actions";
 
 type SendPageProps = {
   params: Promise<{ jobId: string }>;
@@ -340,7 +340,10 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                     <button className="primary-button" type="submit">
                       <FileSignature size={16} /> Send for signature
                     </button>
-                    <span>Use overrides when the signer is not already assigned to this job.</span>
+                    <button className="secondary-button" formAction={startEmbeddedContractSigning} type="submit">
+                      <ExternalLink size={16} /> Start embedded signing
+                    </button>
+                    <span>Use embedded signing when the signer is with you now. Zoho opens a short-lived signer session.</span>
                   </div>
                 </form>
               ) : (
