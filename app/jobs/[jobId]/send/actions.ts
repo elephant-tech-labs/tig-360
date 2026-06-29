@@ -7,6 +7,7 @@ import { canCreateJobs } from "@/lib/access";
 import { getEmailProvider, type EmailAttachment } from "@/lib/email";
 import { getCurrentContext } from "@/lib/current-organization";
 import { logReportDeliveryInZoho } from "@/lib/crm/zoho";
+import { createReviewToken, customerReviewUrl, hashReviewToken } from "@/lib/proposals/review-links";
 import {
   getZohoSignRequestStatus,
   isZohoSignConfigured,
@@ -440,6 +441,210 @@ export async function prepareReportDelivery(formData: FormData) {
   revalidatePath(`/jobs/${jobId}`);
   revalidatePath(`/jobs/${jobId}/send`);
   redirect(sendUrl(jobId, "Approved report sent and recorded in delivery history.", "sent"));
+}
+
+export async function sendCustomerReviewPackage(formData: FormData) {
+  const jobId = String(formData.get("jobId") ?? "");
+  const reportVersionId = String(formData.get("reportVersionId") ?? "");
+  const proposalVersionId = String(formData.get("proposalVersionId") ?? "");
+  const selectedSigner = parseSigner(formData.get("signer"));
+  const signerNameOverride = String(formData.get("signerName") ?? "").trim();
+  const signerEmailOverride = String(formData.get("signerEmail") ?? "").trim().toLowerCase();
+  if (!jobId || !reportVersionId || !proposalVersionId) redirect("/jobs");
+
+  const signer = {
+    contactId: selectedSigner?.contactId ?? null,
+    name: signerNameOverride || selectedSigner?.name || signerEmailOverride,
+    email: signerEmailOverride || selectedSigner?.email || "",
+  };
+  if (!signer.email || !signer.email.includes("@")) {
+    redirect(sendUrl(jobId, "Select or enter a valid customer email for the review package.", "error"));
+  }
+  if (!signer.name) signer.name = signer.email;
+
+  const { supabase, organization, user, membership } = await getCurrentContext();
+  if (!canCreateJobs(membership.role)) redirect(`/jobs/${jobId}`);
+
+  const [{ data: proposal }, { data: job }, { data: proposalVersion }] = await Promise.all([
+    supabase
+      .from("job_proposals")
+      .select("id, customer_summary")
+      .eq("inspection_job_id", jobId)
+      .eq("organization_id", organization.id)
+      .maybeSingle(),
+    supabase
+      .from("inspection_jobs")
+      .select("job_number, properties(street_line_1, city, region, postal_code)")
+      .eq("id", jobId)
+      .eq("organization_id", organization.id)
+      .single(),
+    supabase
+      .from("document_versions")
+      .select("id, status, documents!inner(kind, inspection_job_id)")
+      .eq("id", proposalVersionId)
+      .eq("organization_id", organization.id)
+      .eq("documents.inspection_job_id", jobId)
+      .single(),
+  ]);
+  const document = proposalVersion
+    ? Array.isArray(proposalVersion.documents) ? proposalVersion.documents[0] : proposalVersion.documents
+    : null;
+  if (!proposal?.id || !job || !proposalVersion || !document || !["proposal", "contract"].includes(document.kind)) {
+    redirect(sendUrl(jobId, "Generate a proposal/work authorization PDF before sending a customer review package.", "error"));
+  }
+  if (proposalVersion.status !== "ready") {
+    redirect(sendUrl(jobId, "The selected proposal PDF is not ready yet.", "error"));
+  }
+
+  let provider;
+  try {
+    provider = getEmailProvider();
+  } catch (providerError) {
+    redirect(sendUrl(
+      jobId,
+      providerError instanceof Error ? providerError.message : "Email delivery is not configured.",
+      "error",
+    ));
+  }
+
+  const token = createReviewToken();
+  const reviewUrl = customerReviewUrl(token);
+  const property = Array.isArray(job.properties) ? job.properties[0] : job.properties;
+  const propertyLabel = [
+    property?.street_line_1,
+    property?.city,
+    [property?.region, property?.postal_code].filter(Boolean).join(" "),
+  ].filter(Boolean).join(", ");
+  const subject = `Your termite inspection report and recommended next steps`;
+  const message = [
+    `Hello ${signer.name},`,
+    "",
+    `Thank you for choosing ${organization.name}. Your termite inspection report is attached, along with an easy-to-review proposal/work authorization document.`,
+    "",
+    proposal.customer_summary
+      ? `We also prepared a plain-English review page that summarizes the recommended next steps and lets you open the electronic authorization when you are ready:`
+      : `We also prepared a review page that lets you read the documents and open the electronic authorization when you are ready:`,
+    reviewUrl,
+    "",
+    "There is no pressure to sign before you have reviewed the documents. If anything is unclear, reply to this email and our team will help walk through it.",
+    "",
+    "Regards,",
+    organization.name,
+  ].join("\n");
+
+  const { data: savedDeliveryId, error: deliveryError } = await supabase.rpc("save_report_delivery_v3", {
+    target_organization_id: organization.id,
+    target_job_id: jobId,
+    target_version_id: reportVersionId,
+    target_delivery_id: null,
+    email_subject: subject,
+    email_message: message,
+    email_reply_to: process.env.REPORT_EMAIL_FROM ?? null,
+    recipient_items: [{
+      contactId: signer.contactId,
+      email: signer.email,
+      name: signer.name,
+      type: "to",
+    }],
+    delivery_package_mode: "separate_attachments",
+    supporting_version_ids: [proposalVersionId],
+    allow_empty_recipients: false,
+  });
+  if (deliveryError || !savedDeliveryId) {
+    redirect(sendUrl(jobId, deliveryError?.message ?? "Unable to create customer review delivery.", "error"));
+  }
+
+  const { data: reviewLink, error: linkError } = await supabase
+    .from("proposal_review_links")
+    .insert({
+      organization_id: organization.id,
+      inspection_job_id: jobId,
+      proposal_id: proposal.id,
+      report_document_version_id: reportVersionId,
+      proposal_document_version_id: proposalVersionId,
+      contact_id: signer.contactId,
+      delivery_id: savedDeliveryId,
+      signer_name: signer.name,
+      signer_email: signer.email,
+      token_hash: hashReviewToken(token),
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+  if (linkError || !reviewLink) {
+    redirect(sendUrl(jobId, linkError?.message ?? "Unable to create the customer review link.", "error", savedDeliveryId));
+  }
+
+  const { data: attemptData, error: attemptError } = await supabase.rpc("begin_report_delivery_attempt", {
+    target_organization_id: organization.id,
+    target_delivery_id: savedDeliveryId,
+    delivery_provider: provider.name,
+  });
+  if (attemptError || !attemptData) {
+    redirect(sendUrl(jobId, attemptError?.message ?? "Unable to start the customer review delivery attempt.", "error", savedDeliveryId));
+  }
+  const attempt = attemptData as DeliveryAttempt;
+
+  let result: Awaited<ReturnType<typeof provider.send>>;
+  try {
+    const packageFiles = await loadAttachments(
+      supabase,
+      reportVersionId,
+      [proposalVersionId],
+      "separate_attachments",
+      jobId,
+    );
+    result = await provider.send({
+      to: [{ email: signer.email, name: signer.name }],
+      cc: [],
+      bcc: [],
+      subject,
+      text: message,
+      replyTo: process.env.REPORT_EMAIL_FROM ?? null,
+      attachments: packageFiles.attachments,
+      idempotencyKey: attempt.idempotencyKey,
+    });
+  } catch (sendError) {
+    const failure = sendError instanceof Error ? sendError.message : "Customer review email failed.";
+    await supabase.rpc("complete_report_delivery_attempt", {
+      target_organization_id: organization.id,
+      target_delivery_id: savedDeliveryId,
+      target_attempt_id: attempt.attemptId,
+      attempt_status: "failed",
+      provider_message: null,
+      failure_text: failure,
+    });
+    revalidatePath(`/jobs/${jobId}/send`);
+    redirect(sendUrl(jobId, failure, "error", savedDeliveryId));
+  }
+
+  await supabase.rpc("complete_report_delivery_attempt", {
+    target_organization_id: organization.id,
+    target_delivery_id: savedDeliveryId,
+    target_attempt_id: attempt.attemptId,
+    attempt_status: "sent",
+    provider_message: result.messageId,
+    failure_text: null,
+  });
+  await supabase.from("audit_events").insert({
+    organization_id: organization.id,
+    actor_user_id: user.id,
+    action: "customer_review_package_sent",
+    entity_type: "proposal_review_link",
+    entity_id: reviewLink.id,
+    summary: `Customer review package sent to ${signer.email}.`,
+    changes: {
+      jobNumber: job.job_number,
+      property: propertyLabel,
+      reportVersionId,
+      proposalVersionId,
+      provider: result.provider,
+      providerMessageId: result.messageId,
+    },
+  });
+
+  revalidatePath(`/jobs/${jobId}/send`);
+  redirect(sendUrl(jobId, "Customer review package sent with report, proposal, and review link.", "sent"));
 }
 
 export async function sendContractForSignature(formData: FormData) {

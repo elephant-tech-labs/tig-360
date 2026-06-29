@@ -1,0 +1,40 @@
+.customer-proposal-shell { background: #f3f6f4; color: var(--ink); min-height: 100vh; }
+.customer-proposal-hero { background: var(--deep); color: #fff; padding: 44px 20px 52px; }
+.customer-proposal-hero-inner { margin: 0 auto; max-width: 1060px; }
+.customer-proposal-brand { color: var(--accent); font-size: 12px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+.customer-proposal-hero h1 { font-size: clamp(34px, 5vw, 58px); line-height: 1; margin: 22px 0 14px; max-width: 720px; }
+.customer-proposal-hero p { color: #c9d5d0; font-size: 18px; line-height: 1.5; margin: 0; max-width: 720px; }
+.customer-proposal-main { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) 340px; margin: -28px auto 0; max-width: 1060px; padding: 0 20px 54px; }
+.customer-proposal-panel { background: #fff; border: 1px solid var(--line); padding: 22px; }
+.customer-proposal-panel h2 { margin: 0 0 10px; }
+.customer-proposal-panel p { color: var(--muted); line-height: 1.55; }
+.customer-summary-text { color: var(--ink) !important; font-size: 16px; white-space: pre-line; }
+.customer-doc-list { display: grid; gap: 10px; margin-top: 15px; }
+.customer-doc-card { align-items: center; border: 1px solid var(--line); color: var(--ink); display: flex; justify-content: space-between; padding: 13px; text-decoration: none; }
+.customer-doc-card strong, .customer-doc-card span { display: block; }
+.customer-doc-card span { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.customer-line-list { border: 1px solid var(--line); margin-top: 14px; }
+.customer-line-item { border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) auto; padding: 14px; }
+.customer-line-item:first-child { border-top: 0; }
+.customer-line-item strong, .customer-line-item span { display: block; }
+.customer-line-item span { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.customer-line-price { color: var(--green-dark); font-weight: 850; white-space: nowrap; }
+.customer-sign-panel { position: sticky; top: 20px; }
+.customer-sign-total { border-bottom: 1px solid var(--line); color: var(--green-dark); font-size: 30px; font-weight: 900; margin-bottom: 18px; padding-bottom: 18px; }
+.customer-sign-panel form { display: grid; gap: 10px; }
+.customer-sign-panel .primary-button { justify-content: center; min-height: 46px; width: 100%; }
+.customer-sign-note { color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: 12px; }
+.customer-proposal-alert { border-left: 3px solid var(--red); margin-bottom: 14px; padding: 12px; }
+.customer-proposal-alert.error { background: var(--red-soft); color: var(--red); }
+.customer-proposal-expired { align-items: center; display: flex; min-height: 100vh; justify-content: center; padding: 30px; }
+.customer-proposal-expired > div { background: #fff; border: 1px solid var(--line); max-width: 520px; padding: 28px; }
+
+@media (max-width: 900px) {
+  .customer-proposal-main { grid-template-columns: 1fr; }
+  .customer-sign-panel { position: static; }
+}
+
+@media (max-width: 560px) {
+  .customer-proposal-hero { padding-top: 32px; }
+  .customer-line-item { grid-template-columns: 1fr; }
+}

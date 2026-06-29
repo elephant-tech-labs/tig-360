@@ -5,6 +5,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-organization";
+import { generateProposalCustomerSummary, type ProposalSummaryInput } from "@/lib/proposals/customer-summary";
 import { parseRichDocument } from "@/lib/report-content";
 import { ProposalContractPdf } from "@/lib/proposals/pdf-document";
 import type { ProposalSnapshot } from "@/lib/proposals/types";
@@ -116,6 +117,115 @@ export async function saveProposalSettings(formData: FormData) {
   redirect(proposalUrl(jobId, "Proposal settings saved."));
 }
 
+async function loadProposalSummaryInput(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organization: { id: string; name: string },
+  jobId: string,
+  proposalId: string,
+): Promise<ProposalSummaryInput> {
+  const [{ data: proposal, error: proposalError }, { data: job, error: jobError }] = await Promise.all([
+    supabase
+      .from("job_proposals")
+      .select(`
+        total_amount,
+        proposal_line_items(item_code, section, title, description, quantity, unit_price, included, sort_order)
+      `)
+      .eq("id", proposalId)
+      .eq("inspection_job_id", jobId)
+      .eq("organization_id", organization.id)
+      .single(),
+    supabase
+      .from("inspection_jobs")
+      .select(`
+        report_type,
+        properties(street_line_1, street_line_2, city, region, postal_code)
+      `)
+      .eq("id", jobId)
+      .eq("organization_id", organization.id)
+      .single(),
+  ]);
+  if (proposalError || !proposal) throw new Error(proposalError?.message ?? "Proposal not found.");
+  if (jobError || !job) throw new Error(jobError?.message ?? "Inspection job not found.");
+  const property = one(job.properties);
+  if (!property) throw new Error("Property details were not found.");
+  const address = [
+    property.street_line_1,
+    property.street_line_2,
+    property.city,
+    property.region,
+    property.postal_code,
+  ].filter(Boolean).join(", ");
+  return {
+    companyName: organization.name,
+    propertyAddress: address,
+    reportType: job.report_type,
+    total: Number(proposal.total_amount ?? 0),
+    lines: [...(proposal.proposal_line_items ?? [])]
+      .filter((line) => line.included)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((line) => ({
+        code: line.item_code,
+        section: line.section,
+        title: line.title,
+        description: line.description,
+        amount: Number(line.quantity ?? 0) * Number(line.unit_price ?? 0),
+      })),
+  };
+}
+
+export async function saveProposalSummary(formData: FormData) {
+  const jobId = String(formData.get("jobId") ?? "");
+  const proposalId = String(formData.get("proposalId") ?? "");
+  const summary = String(formData.get("customerSummary") ?? "").trim();
+  if (!jobId || !proposalId) redirect("/jobs");
+  const { supabase, organization } = await getCurrentContext();
+  const { error } = await supabase
+    .from("job_proposals")
+    .update({
+      customer_summary: summary || null,
+      customer_summary_generated_at: summary ? new Date().toISOString() : null,
+      customer_summary_source: summary ? { provider: "manual" } : {},
+    })
+    .eq("id", proposalId)
+    .eq("inspection_job_id", jobId)
+    .eq("organization_id", organization.id);
+  if (error) redirect(proposalUrl(jobId, error.message, "error"));
+  revalidatePath(`/jobs/${jobId}/proposal`);
+  revalidatePath(`/jobs/${jobId}/send`);
+  redirect(proposalUrl(jobId, "Customer summary saved."));
+}
+
+export async function generateProposalSummary(formData: FormData) {
+  const jobId = String(formData.get("jobId") ?? "");
+  const proposalId = String(formData.get("proposalId") ?? "");
+  if (!jobId || !proposalId) redirect("/jobs");
+  const { supabase, organization } = await getCurrentContext();
+
+  let summary;
+  try {
+    const input = await loadProposalSummaryInput(supabase, organization, jobId, proposalId);
+    if (!input.lines.length) throw new Error("Add included proposal lines before generating a customer summary.");
+    summary = await generateProposalCustomerSummary(input);
+  } catch (error) {
+    redirect(proposalUrl(jobId, error instanceof Error ? error.message : "Unable to generate proposal summary.", "error"));
+  }
+
+  const { error } = await supabase
+    .from("job_proposals")
+    .update({
+      customer_summary: summary.text,
+      customer_summary_generated_at: new Date().toISOString(),
+      customer_summary_source: summary.source,
+    })
+    .eq("id", proposalId)
+    .eq("inspection_job_id", jobId)
+    .eq("organization_id", organization.id);
+  if (error) redirect(proposalUrl(jobId, error.message, "error"));
+  revalidatePath(`/jobs/${jobId}/proposal`);
+  revalidatePath(`/jobs/${jobId}/send`);
+  redirect(proposalUrl(jobId, "Customer summary prepared."));
+}
+
 export async function setProposalStatus(formData: FormData) {
   const organizationId = String(formData.get("organizationId") ?? "");
   const jobId = String(formData.get("jobId") ?? "");
@@ -155,7 +265,7 @@ async function loadProposalSnapshot(
     supabase
       .from("job_proposals")
       .select(`
-        id, status, title, customer_note, terms,
+        id, status, title, customer_note, customer_summary, terms,
         subtotal_amount, discount_amount, tax_amount, total_amount,
         proposal_line_items(
           id, item_code, section, title, description, quantity, unit_price,
@@ -240,6 +350,7 @@ async function loadProposalSnapshot(
       title: proposal.title,
       status: proposal.status,
       customerNote: proposal.customer_note,
+      customerSummary: proposal.customer_summary,
       terms: proposal.terms,
       subtotal: Number(proposal.subtotal_amount ?? 0),
       discount: Number(proposal.discount_amount ?? 0),

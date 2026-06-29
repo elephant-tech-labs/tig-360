@@ -11,6 +11,7 @@ import "./photos.css";
 import "./review.css";
 import "./management.css";
 import "./proposal.css";
+import "./customer-proposal.css";
 
 const inter = Inter({
   variable: "--font-sans",

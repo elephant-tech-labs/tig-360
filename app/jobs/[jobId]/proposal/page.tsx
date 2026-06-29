@@ -18,10 +18,12 @@ import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
 import {
   deleteProposalLine,
+  generateProposalSummary,
   generateProposalContractDocument,
   importFindingProposalLines,
   saveProposalLine,
   saveProposalSettings,
+  saveProposalSummary,
   setProposalStatus,
 } from "@/app/jobs/[jobId]/proposal/actions";
 
@@ -106,7 +108,8 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
       .from("job_proposals")
       .select(`
         id, status, title, customer_note, terms, tax_rate, discount_amount,
-        subtotal_amount, tax_amount, total_amount, approved_at, updated_at,
+        customer_summary, customer_summary_generated_at, subtotal_amount, tax_amount,
+        total_amount, approved_at, updated_at,
         proposal_line_items(
           id, source_type, item_code, section, title, description, quantity, unit_price,
           included, sort_order, findings(code, title)
@@ -197,6 +200,41 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
 
         <div className="proposal-layout">
           <section className="proposal-panel proposal-lines-panel">
+            <div className="proposal-customer-summary">
+              <div className="section-heading compact">
+                <div>
+                  <p className="eyebrow">Customer clarity</p>
+                  <h2>Easy-to-understand proposal summary</h2>
+                </div>
+                <form action={generateProposalSummary}>
+                  {hiddenContext(organization.id, jobId, proposal.id)}
+                  <PendingSubmitButton className="secondary-button" disabled={!hasIncludedLines} pendingLabel="Writing">
+                    Prepare summary
+                  </PendingSubmitButton>
+                </form>
+              </div>
+              <p className="proposal-summary-help">
+                This is the plain-English explanation used in the customer review page and contract PDF before the formal work authorization.
+              </p>
+              <form action={saveProposalSummary} className="proposal-summary-form">
+                {hiddenContext(organization.id, jobId, proposal.id)}
+                <textarea
+                  name="customerSummary"
+                  placeholder="A calm, helpful explanation of what was found, what is recommended, and what the customer should review next."
+                  rows={7}
+                  defaultValue={proposal.customer_summary ?? ""}
+                />
+                <div>
+                  {proposal.customer_summary_generated_at ? (
+                    <span>Last updated {new Date(proposal.customer_summary_generated_at).toLocaleString()}</span>
+                  ) : (
+                    <span>No customer summary prepared yet.</span>
+                  )}
+                  <PendingSubmitButton className="secondary-button" pendingLabel="Saving">Save summary</PendingSubmitButton>
+                </div>
+              </form>
+            </div>
+
             <div className="section-heading">
               <div>
                 <p className="eyebrow">Scope and pricing</p>
