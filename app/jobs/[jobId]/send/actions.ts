@@ -46,6 +46,12 @@ function signatureUrl(jobId: string, message: string, kind: "saved" | "sent" | "
   return sendUrl(jobId, message, kind);
 }
 
+function appOrigin() {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
+  return "http://localhost:3000";
+}
+
 function parseSigner(value: FormDataEntryValue | null) {
   if (!value) return null;
   try {
@@ -437,6 +443,14 @@ export async function prepareReportDelivery(formData: FormData) {
 }
 
 export async function sendContractForSignature(formData: FormData) {
+  return submitContractSignatureRequest(formData, "remote");
+}
+
+export async function startEmbeddedContractSigning(formData: FormData) {
+  return submitContractSignatureRequest(formData, "embedded");
+}
+
+async function submitContractSignatureRequest(formData: FormData, mode: "remote" | "embedded") {
   const jobId = String(formData.get("jobId") ?? "");
   const documentVersionId = String(formData.get("documentVersionId") ?? "");
   const selectedSigner = parseSigner(formData.get("signer"));
@@ -489,6 +503,7 @@ export async function sendContractForSignature(formData: FormData) {
 
   let successMessage: string | null = null;
   let submissionFailure: string | null = null;
+  let embeddedRedirectUrl: string | null = null;
   try {
     const result = await sendZohoSignDocument({
       filename: documentFile.filename,
@@ -496,7 +511,11 @@ export async function sendContractForSignature(formData: FormData) {
       requestName,
       signerName: signer.name,
       signerEmail: signer.email,
-      notes: "Please review and sign the attached work authorization.",
+      notes: mode === "embedded"
+        ? "Please review and sign the work authorization."
+        : "Please review and sign the attached work authorization.",
+      embedded: mode === "embedded",
+      embeddedHost: mode === "embedded" ? appOrigin() : undefined,
     });
     const nextStatus = result.submitted
       ? normalizeZohoSignStatus(result.providerStatus)
@@ -526,29 +545,40 @@ export async function sendContractForSignature(formData: FormData) {
       eventType: result.submitted ? "zoho_sign_sent" : "zoho_sign_draft_created",
       providerStatus: result.providerStatus,
       summary: result.submitted
-        ? `Contract sent for signature to ${signer.email}.`
+        ? mode === "embedded"
+          ? `Embedded contract signing opened for ${signer.email}.`
+          : `Contract sent for signature to ${signer.email}.`
         : `Zoho Sign draft created for ${signer.email}.`,
       payload: result.raw,
     });
     await supabase.from("audit_events").insert({
       organization_id: organization.id,
       actor_user_id: user.id,
-      action: result.submitted ? "contract_signature_sent" : "contract_signature_draft_created",
+      action: result.submitted
+        ? mode === "embedded" ? "contract_signature_embedded_started" : "contract_signature_sent"
+        : "contract_signature_draft_created",
       entity_type: "signature_request",
       entity_id: signatureRequest.id,
       summary: result.submitted
-        ? `Contract signature request sent to ${signer.email}.`
+        ? mode === "embedded"
+          ? `Embedded contract signature request opened for ${signer.email}.`
+          : `Contract signature request sent to ${signer.email}.`
         : `Contract signature request draft created for ${signer.email}.`,
       changes: {
         documentVersionId,
         signerEmail: signer.email,
         providerRequestId: result.requestId,
         providerStatus: result.providerStatus,
+        mode,
       },
     });
 
     revalidatePath(`/jobs/${jobId}/send`);
-    if (result.submitted) {
+    if (mode === "embedded" && result.submitted && result.embeddedSignUrl) {
+      embeddedRedirectUrl = result.embeddedSignUrl;
+    } else if (mode === "embedded" && result.submitted) {
+      submissionFailure = "Zoho Sign created the embedded request but did not return a signing URL.";
+    } else if (result.submitted) {
       successMessage = "Contract sent through Zoho Sign.";
     } else {
       submissionFailure = "Zoho Sign draft created. Open Zoho Sign to send it manually, or upgrade Zoho Sign for API sending.";
@@ -575,6 +605,9 @@ export async function sendContractForSignature(formData: FormData) {
     });
     revalidatePath(`/jobs/${jobId}/send`);
     redirect(signatureUrl(jobId, failure, "error"));
+  }
+  if (embeddedRedirectUrl) {
+    redirect(embeddedRedirectUrl);
   }
   if (successMessage) {
     redirect(signatureUrl(jobId, successMessage, "sent"));
