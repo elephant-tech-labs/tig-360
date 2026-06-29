@@ -148,6 +148,11 @@
 .signature-send-panel { border-bottom: 1px solid var(--line); padding-bottom: 21px; }
 .panel-helper, .panel-empty-copy { color: var(--muted); line-height: 1.5; margin: 0; }
 .signature-send-form { border-top: 1px solid #edf0ef; display: grid; gap: 14px; margin-top: 16px; padding-top: 16px; }
+.customer-review-package-form { background: #fbfdfc; border: 1px solid #cfe2da; padding: 16px; }
+.direct-sign-form { background: #fff; }
+.customer-review-callout { background: var(--green-soft); border-left: 3px solid var(--green); color: var(--green-dark); display: grid; gap: 4px; padding: 11px 12px; }
+.customer-review-callout strong, .customer-review-callout span { display: block; }
+.customer-review-callout span { color: #426258; font-size: 12px; line-height: 1.45; }
 .signature-send-form label { color: var(--ink); display: grid; font-size: 12px; font-weight: 750; gap: 7px; }
 .signature-send-form input, .signature-send-form select { background: #fff; border: 1px solid #cfd7d3; border-radius: 6px; color: var(--ink); min-height: 38px; padding: 0 11px; width: 100%; }
 .signature-override-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -23,7 +23,12 @@ import { getCurrentContext } from "@/lib/current-organization";
 import { jobPartyRoleLabel } from "@/lib/job-parties";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { loadReportVersions } from "@/lib/reports/load-report";
-import { refreshSignatureRequestStatus, sendContractForSignature, startEmbeddedContractSigning } from "./actions";
+import {
+  refreshSignatureRequestStatus,
+  sendContractForSignature,
+  sendCustomerReviewPackage,
+  startEmbeddedContractSigning,
+} from "./actions";
 
 type SendPageProps = {
   params: Promise<{ jobId: string }>;
@@ -85,6 +90,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
     { data: deliveries },
     { data: supportingDocuments },
     { data: signatureRequests },
+    { data: reviewLinks },
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
@@ -135,6 +141,12 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
         sent_at, completed_at, last_status_checked_at, created_at,
         document_versions(version, documents(kind, title))
       `)
+      .eq("inspection_job_id", jobId)
+      .eq("organization_id", organization.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("proposal_review_links")
+      .select("id, signer_name, signer_email, status, expires_at, last_viewed_at, created_at")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
       .order("created_at", { ascending: false }),
@@ -304,48 +316,95 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                 Send a generated work authorization PDF for customer signature. The contract PDF includes Zoho Sign text tags for signer name, date, and signature.
               </p>
               {signatureDocuments.length ? (
-                <form action={sendContractForSignature} className="signature-send-form">
-                  <input name="jobId" type="hidden" value={jobId} />
-                  <label>
-                    Contract PDF
-                    <select name="documentVersionId" defaultValue={signatureDocuments[0]?.id}>
-                      {signatureDocuments.map((version) => (
-                        <option key={version.id} value={version.id}>
-                          {version.label}{version.approvalStatus === "approved" ? " · approved" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Signer
-                    <select name="signer" defaultValue={signatureCandidates[0] ? JSON.stringify(signatureCandidates[0]) : ""}>
-                      {signatureCandidates.length ? signatureCandidates.map((candidate) => (
-                        <option key={candidate.email} value={JSON.stringify(candidate)}>
-                          {candidate.name} · {candidate.email} · {candidate.roleLabel}
-                        </option>
-                      )) : <option value="">Enter signer below</option>}
-                    </select>
-                  </label>
-                  <div className="signature-override-grid">
+                <>
+                  <form action={sendCustomerReviewPackage} className="signature-send-form customer-review-package-form">
+                    <input name="jobId" type="hidden" value={jobId} />
+                    <input name="reportVersionId" type="hidden" value={latestApproved?.id ?? ""} />
+                    <div className="customer-review-callout">
+                      <strong>Recommended customer flow</strong>
+                      <span>Email the inspection report, proposal PDF, and a Trident review page where the customer can read first and sign only when ready.</span>
+                    </div>
                     <label>
-                      Signer name override
-                      <input name="signerName" placeholder={signatureCandidates[0]?.name ?? "Customer name"} />
+                      Proposal PDF
+                      <select name="proposalVersionId" defaultValue={signatureDocuments[0]?.id}>
+                        {signatureDocuments.map((version) => (
+                          <option key={version.id} value={version.id}>
+                            {version.label}{version.approvalStatus === "approved" ? " · approved" : ""}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                     <label>
-                      Signer email override
-                      <input name="signerEmail" placeholder={signatureCandidates[0]?.email ?? "customer@example.com"} type="email" />
+                      Customer / signer
+                      <select name="signer" defaultValue={signatureCandidates[0] ? JSON.stringify(signatureCandidates[0]) : ""}>
+                        {signatureCandidates.length ? signatureCandidates.map((candidate) => (
+                          <option key={candidate.email} value={JSON.stringify(candidate)}>
+                            {candidate.name} · {candidate.email} · {candidate.roleLabel}
+                          </option>
+                        )) : <option value="">Enter signer below</option>}
+                      </select>
                     </label>
-                  </div>
-                  <div className="signature-send-actions">
-                    <button className="primary-button" type="submit">
-                      <FileSignature size={16} /> Send for signature
-                    </button>
-                    <button className="secondary-button" formAction={startEmbeddedContractSigning} type="submit">
-                      <ExternalLink size={16} /> Start embedded signing
-                    </button>
-                    <span>Use embedded signing when the signer is with you now. Zoho opens a short-lived signer session.</span>
-                  </div>
-                </form>
+                    <div className="signature-override-grid">
+                      <label>
+                        Name override
+                        <input name="signerName" placeholder={signatureCandidates[0]?.name ?? "Customer name"} />
+                      </label>
+                      <label>
+                        Email override
+                        <input name="signerEmail" placeholder={signatureCandidates[0]?.email ?? "customer@example.com"} type="email" />
+                      </label>
+                    </div>
+                    <div className="signature-send-actions">
+                      <button className="primary-button" disabled={!latestApproved} type="submit">
+                        <Mail size={16} /> Send review package
+                      </button>
+                      <span>This is the low-friction customer email. It includes attachments and the secure review/sign link.</span>
+                    </div>
+                  </form>
+
+                  <form action={sendContractForSignature} className="signature-send-form direct-sign-form">
+                    <input name="jobId" type="hidden" value={jobId} />
+                    <label>
+                      Contract PDF
+                      <select name="documentVersionId" defaultValue={signatureDocuments[0]?.id}>
+                        {signatureDocuments.map((version) => (
+                          <option key={version.id} value={version.id}>
+                            {version.label}{version.approvalStatus === "approved" ? " · approved" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Signer
+                      <select name="signer" defaultValue={signatureCandidates[0] ? JSON.stringify(signatureCandidates[0]) : ""}>
+                        {signatureCandidates.length ? signatureCandidates.map((candidate) => (
+                          <option key={candidate.email} value={JSON.stringify(candidate)}>
+                            {candidate.name} · {candidate.email} · {candidate.roleLabel}
+                          </option>
+                        )) : <option value="">Enter signer below</option>}
+                      </select>
+                    </label>
+                    <div className="signature-override-grid">
+                      <label>
+                        Signer name override
+                        <input name="signerName" placeholder={signatureCandidates[0]?.name ?? "Customer name"} />
+                      </label>
+                      <label>
+                        Signer email override
+                        <input name="signerEmail" placeholder={signatureCandidates[0]?.email ?? "customer@example.com"} type="email" />
+                      </label>
+                    </div>
+                    <div className="signature-send-actions">
+                      <button className="secondary-button" type="submit">
+                        <FileSignature size={16} /> Send Zoho Sign only
+                      </button>
+                      <button className="secondary-button" formAction={startEmbeddedContractSigning} type="submit">
+                        <ExternalLink size={16} /> Start embedded signing
+                      </button>
+                      <span>Use direct Zoho Sign for in-office signing or when no review email is needed.</span>
+                    </div>
+                  </form>
+                </>
               ) : (
                 <div className="signature-empty">
                   <AlertTriangle size={17} />
@@ -354,6 +413,25 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
               )}
 
               <div className="signature-request-list">
+                <h3>Customer review links</h3>
+                {reviewLinks?.length ? reviewLinks.slice(0, 4).map((link) => (
+                  <article className={`signature-request-item status-${link.status}`} key={link.id}>
+                    <div>
+                      <div className="delivery-history-topline">
+                        <span className={`delivery-status-badge ${link.status}`}>{link.status}</span>
+                        <small>{new Date(link.created_at).toLocaleString()}</small>
+                      </div>
+                      <strong>{link.signer_name}</strong>
+                      <span>{link.signer_email}</span>
+                      <span>
+                        Expires {new Date(link.expires_at).toLocaleDateString()}
+                        {link.last_viewed_at ? ` · viewed ${new Date(link.last_viewed_at).toLocaleString()}` : " · not viewed yet"}
+                      </span>
+                    </div>
+                  </article>
+                )) : (
+                  <p className="panel-empty-copy">No customer review packages sent yet.</p>
+                )}
                 <h3>Signature history</h3>
                 {signatureRequests?.length ? signatureRequests.map((request) => {
                   const version = Array.isArray(request.document_versions)

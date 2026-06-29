@@ -61,6 +61,7 @@ export type ProposalSnapshot = {
     title: string;
     status: string;
     customerNote: string | null;
+    customerSummary: string | null;
     terms: string | null;
     subtotal: number;
     discount: number;

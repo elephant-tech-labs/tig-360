@@ -48,6 +48,8 @@ const styles = StyleSheet.create({
   grandTotal: { backgroundColor: "#fff7e8" },
   grandTotalText: { color: ink, fontSize: 11, fontWeight: 700 },
   note: { backgroundColor: "#f7f8f7", borderLeftColor: accent, borderLeftWidth: 2, fontSize: 8, lineHeight: 1.45, marginBottom: 14, padding: 9 },
+  customerSummary: { backgroundColor: "#fffaf0", borderColor: "#ecd6a7", borderWidth: 1, fontSize: 9, lineHeight: 1.45, marginBottom: 16, padding: 10 },
+  customerSummaryTitle: { color: ink, fontSize: 11, fontWeight: 700, marginBottom: 6 },
   signatureRow: { display: "flex", flexDirection: "row", gap: 18, marginTop: 28 },
   signatureBox: { borderTopColor: ink, borderTopWidth: 1, flex: 1, paddingTop: 6 },
   signatureTag: { color: "#222", fontSize: 8, marginBottom: 8 },
@@ -138,6 +140,12 @@ export function ProposalContractPdf({ snapshot }: { snapshot: ProposalSnapshot }
         </View>
 
         {snapshot.proposal.customerNote ? <Text style={styles.note}>{snapshot.proposal.customerNote}</Text> : null}
+        {snapshot.proposal.customerSummary ? (
+          <View style={styles.customerSummary}>
+            <Text style={styles.customerSummaryTitle}>Proposal review summary</Text>
+            <Text>{snapshot.proposal.customerSummary}</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Authorized scope</Text>
         <View style={styles.table}>
