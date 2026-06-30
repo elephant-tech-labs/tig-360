@@ -44,22 +44,22 @@ create policy proposal_review_links_select_org_members
   on public.proposal_review_links
   for select
   to authenticated
-  using (public.is_org_member(organization_id));
+  using (public.is_organization_member(organization_id));
 
 drop policy if exists proposal_review_links_insert_org_members on public.proposal_review_links;
 create policy proposal_review_links_insert_org_members
   on public.proposal_review_links
   for insert
   to authenticated
-  with check (public.is_org_member(organization_id));
+  with check (public.is_organization_member(organization_id));
 
 drop policy if exists proposal_review_links_update_org_members on public.proposal_review_links;
 create policy proposal_review_links_update_org_members
   on public.proposal_review_links
   for update
   to authenticated
-  using (public.is_org_member(organization_id))
-  with check (public.is_org_member(organization_id));
+  using (public.is_organization_member(organization_id))
+  with check (public.is_organization_member(organization_id));
 
 grant select, insert, update on public.proposal_review_links to authenticated;
 
