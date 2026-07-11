@@ -55,6 +55,15 @@ type ProposalDocumentVersion = {
   asset_id: string | null;
 };
 
+function summarySourceLabel(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const source = value as { provider?: string; model?: string; reason?: string };
+  if (source.provider === "openai") return `AI summary${source.model ? ` via ${source.model}` : ""}`;
+  if (source.provider === "manual") return "Manual summary";
+  if (source.provider === "fallback") return `Fallback summary${source.reason ? `: ${source.reason}` : ""}`;
+  return source.provider ? `${source.provider} summary` : null;
+}
+
 const sectionOptions = [
   ["section_i", "Section I"],
   ["section_ii", "Section II"],
@@ -108,7 +117,8 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
       .from("job_proposals")
       .select(`
         id, status, title, customer_note, terms, tax_rate, discount_amount,
-        customer_summary, customer_summary_generated_at, subtotal_amount, tax_amount,
+        customer_summary, customer_summary_generated_at, customer_summary_source,
+        subtotal_amount, tax_amount,
         total_amount, approved_at, updated_at,
         proposal_line_items(
           id, source_type, item_code, section, title, description, quantity, unit_price,
@@ -156,6 +166,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
     return new Date(version.generated_at).getTime() < proposalUpdatedAt;
   };
   const latestProposalVersionOutdated = latestProposalVersion ? isVersionOutdated(latestProposalVersion) : false;
+  const customerSummarySource = summarySourceLabel(proposal.customer_summary_source);
 
   return (
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
@@ -230,6 +241,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                   ) : (
                     <span>No customer summary prepared yet.</span>
                   )}
+                  {customerSummarySource ? <span>{customerSummarySource}</span> : null}
                   <PendingSubmitButton className="secondary-button" pendingLabel="Saving">Save summary</PendingSubmitButton>
                 </div>
               </form>

@@ -201,13 +201,21 @@ export async function generateProposalSummary(formData: FormData) {
   if (!jobId || !proposalId) redirect("/jobs");
   const { supabase, organization } = await getCurrentContext();
 
-  let summary;
+  let summary: Awaited<ReturnType<typeof generateProposalCustomerSummary>>;
   try {
     const input = await loadProposalSummaryInput(supabase, organization, jobId, proposalId);
     if (!input.lines.length) throw new Error("Add included proposal lines before generating a customer summary.");
     summary = await generateProposalCustomerSummary(input);
   } catch (error) {
     redirect(proposalUrl(jobId, error instanceof Error ? error.message : "Unable to generate proposal summary.", "error"));
+  }
+  if (summary.source.provider !== "openai") {
+    const reason = "reason" in summary.source ? summary.source.reason : "OpenAI did not return a summary.";
+    redirect(proposalUrl(
+      jobId,
+      `AI summary was not generated. ${reason} Check OPENAI_API_KEY, OPENAI_MODEL, and redeploy Vercel.`,
+      "error",
+    ));
   }
 
   const { error } = await supabase
