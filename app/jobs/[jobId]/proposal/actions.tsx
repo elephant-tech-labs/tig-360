@@ -17,6 +17,23 @@ function proposalUrl(jobId: string, message?: string, type: "saved" | "error" = 
   return `/jobs/${jobId}/proposal${params.toString() ? `?${params.toString()}` : ""}`;
 }
 
+function proposalSummaryErrorMessage(reason: string) {
+  const normalized = reason.toLowerCase();
+  if (normalized.includes("model_not_found") || normalized.includes("invalid_request_error") || normalized.includes("openai_http_400")) {
+    return "AI summary could not be generated because the configured OpenAI model was rejected. Update OPENAI_MODEL in Vercel to a valid model ID, redeploy, then prepare the summary again. The current summary was left unchanged.";
+  }
+  if (normalized.includes("openai_not_configured")) {
+    return "AI summary is not configured yet. Add OPENAI_API_KEY and OPENAI_MODEL in Vercel, redeploy, or write the customer summary manually.";
+  }
+  if (normalized.includes("openai_http_401") || normalized.includes("openai_http_403")) {
+    return "AI summary could not be generated because OpenAI credentials were rejected. Check OPENAI_API_KEY in Vercel and redeploy.";
+  }
+  if (normalized.includes("openai_http_429")) {
+    return "AI summary could not be generated because the OpenAI account is rate limited or out of quota. Try again later or write the summary manually.";
+  }
+  return "AI summary could not be generated. The current summary was left unchanged, so you can retry or write it manually.";
+}
+
 function parseMoney(value: FormDataEntryValue | null) {
   const parsed = Number(String(value ?? "0").replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
@@ -210,12 +227,8 @@ export async function generateProposalSummary(formData: FormData) {
     redirect(proposalUrl(jobId, error instanceof Error ? error.message : "Unable to generate proposal summary.", "error"));
   }
   if (summary.source.provider !== "openai") {
-    const reason = "reason" in summary.source ? summary.source.reason : "OpenAI did not return a summary.";
-    redirect(proposalUrl(
-      jobId,
-      `AI summary was not generated. ${reason} Check OPENAI_API_KEY, OPENAI_MODEL, and redeploy Vercel.`,
-      "error",
-    ));
+    const reason = ("reason" in summary.source ? summary.source.reason : null) ?? "OpenAI did not return a summary.";
+    redirect(proposalUrl(jobId, proposalSummaryErrorMessage(reason), "error"));
   }
 
   const { error } = await supabase

@@ -14,7 +14,7 @@ export type ProposalSummaryInput = {
   lines: SummaryLine[];
 };
 
-const DEFAULT_SUMMARY_MODEL = "gpt-5.5";
+const DEFAULT_SUMMARY_MODEL = "gpt-4.1";
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value);
@@ -120,7 +120,7 @@ export async function generateProposalCustomerSummary(input: ProposalSummaryInpu
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
-      throw new Error(`OpenAI summary failed with HTTP ${response.status}${errorText ? `: ${errorText.slice(0, 240)}` : ""}.`);
+      throw new Error(`openai_http_${response.status}${errorText ? `:${errorText.slice(0, 240)}` : ""}`);
     }
     const payload = await response.json();
     const directText = typeof payload.output_text === "string" ? payload.output_text.trim() : "";

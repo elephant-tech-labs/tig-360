@@ -147,6 +147,12 @@
 .send-compose-panel { display: flex; flex-direction: column; gap: 18px; padding: 21px; }
 .signature-send-panel { border-bottom: 1px solid var(--line); padding-bottom: 21px; }
 .panel-helper, .panel-empty-copy { color: var(--muted); line-height: 1.5; margin: 0; }
+.send-preflight { border: 1px solid var(--line); display: grid; gap: 0; margin-top: 14px; }
+.send-preflight > div { align-items: center; border-top: 1px solid var(--line); display: flex; gap: 8px; min-height: 38px; padding: 8px 10px; }
+.send-preflight > div:first-child { border-top: 0; }
+.send-preflight .ready { background: #fbfdfc; color: var(--green-dark); }
+.send-preflight .attention { background: var(--amber-soft); color: #8e4c0c; }
+.send-preflight span { color: inherit; font-size: 11px; font-weight: 750; }
 .signature-send-form { border-top: 1px solid #edf0ef; display: grid; gap: 14px; margin-top: 16px; padding-top: 16px; }
 .customer-review-package-form { background: #fbfdfc; border: 1px solid #cfe2da; padding: 16px; }
 .direct-sign-form { background: #fff; }

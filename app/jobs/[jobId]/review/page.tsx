@@ -61,7 +61,7 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         address={property?.street_line_1 ?? ""}
-        actions={<Link className="secondary-button" href={`/jobs/${jobId}/proposal`}><FilePenLine size={16} /> Proposal</Link>}
+        actions={<Link className="secondary-button" href={`/jobs/${jobId}/proposal`}><FilePenLine size={16} /> Open proposal</Link>}
         jobId={jobId}
         jobNumber={job.job_number}
         locality={[
@@ -80,8 +80,8 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
         <header className="review-heading">
           <div>
             <p className="eyebrow">Final quality control</p>
-            <h1>Review and generate report</h1>
-            <p>Resolve blockers, inspect the live report, then create an immutable PDF version.</p>
+            <h1>Final report review</h1>
+            <p>Check the live report, generate a fixed PDF version, approve it, then move to proposal and delivery.</p>
           </div>
           <div className="review-actions">
             {approvedVersion ? <Link className="secondary-button" href={`/jobs/${jobId}/send`}><Mail size={17} /> Send Center</Link> : null}
@@ -89,7 +89,7 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
               <form action={generateInspectionReport}>
                 <input name="jobId" type="hidden" value={jobId} />
                 <PendingSubmitButton className="primary-button" pendingLabel="Generating PDF">
-                  <FilePlus2 size={17} /> Generate new PDF
+                  <FilePlus2 size={17} /> Generate report PDF
                 </PendingSubmitButton>
               </form>
             ) : (

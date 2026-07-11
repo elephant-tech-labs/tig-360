@@ -13,9 +13,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { JobAuthoringNav } from "@/components/job-authoring-nav";
 import { JobWorkspaceHeader } from "@/components/job-workspace-header";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
+import { getJobWorkflowStates } from "@/lib/job-workflow";
 import {
   deleteProposalLine,
   generateProposalSummary,
@@ -60,8 +62,13 @@ function summarySourceLabel(value: unknown) {
   const source = value as { provider?: string; model?: string; reason?: string };
   if (source.provider === "openai") return `AI summary${source.model ? ` via ${source.model}` : ""}`;
   if (source.provider === "manual") return "Manual summary";
-  if (source.provider === "fallback") return `Fallback summary${source.reason ? `: ${source.reason}` : ""}`;
+  if (source.provider === "fallback") return "Draft fallback summary";
   return source.provider ? `${source.provider} summary` : null;
+}
+
+function summarySourceProvider(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  return (value as { provider?: string }).provider ?? null;
 }
 
 const sectionOptions = [
@@ -112,7 +119,12 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
   if (jobError || !job) notFound();
   if (ensureError || !proposalId) throw new Error(ensureError?.message ?? "Unable to prepare proposal.");
 
-  const [{ data: proposal, error: proposalError }, { count: findingRecommendationCount }, { data: proposalDocument }] = await Promise.all([
+  const [
+    { data: proposal, error: proposalError },
+    { count: findingRecommendationCount },
+    { data: proposalDocument },
+    workflowStates,
+  ] = await Promise.all([
     supabase
       .from("job_proposals")
       .select(`
@@ -142,6 +154,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
       .eq("organization_id", organization.id)
       .eq("kind", "proposal")
       .maybeSingle(),
+    getJobWorkflowStates(supabase, organization.id, jobId),
   ]);
 
   if (proposalError || !proposal) throw new Error(proposalError?.message ?? "Proposal not found.");
@@ -167,6 +180,42 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
   };
   const latestProposalVersionOutdated = latestProposalVersion ? isVersionOutdated(latestProposalVersion) : false;
   const customerSummarySource = summarySourceLabel(proposal.customer_summary_source);
+  const customerSummaryProvider = summarySourceProvider(proposal.customer_summary_source);
+  const nextAction = !hasIncludedLines
+    ? {
+        title: "Import recommended work",
+        detail: "Bring in recommendations from Findings, then price the scope before approval.",
+        cta: "Import recommended work",
+      }
+    : !proposal.customer_summary
+      ? {
+          title: "Prepare customer summary",
+          detail: "Add a plain-English explanation before sending the proposal to a customer.",
+          cta: "Prepare summary",
+        }
+      : !isApproved
+        ? {
+            title: isReady ? "Approve final pricing" : "Mark ready for approval",
+            detail: "Once scope, pricing, and the customer summary are final, approve the proposal.",
+            cta: isReady ? "Approve proposal" : "Mark ready",
+          }
+        : !latestProposalVersion
+          ? {
+              title: "Generate contract PDF",
+              detail: "Create the signature-ready work authorization from the approved proposal.",
+              cta: "Generate contract PDF",
+            }
+          : latestProposalVersionOutdated
+            ? {
+                title: "Regenerate contract PDF",
+                detail: "Proposal details changed after the latest PDF. Generate a fresh version before sending.",
+                cta: "Generate contract PDF",
+              }
+            : {
+                title: "Ready for Send Center",
+                detail: "The proposal is approved and the contract PDF is current. Send the review package or start signing.",
+                cta: "Open Send Center",
+              };
 
   return (
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
@@ -181,6 +230,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
         ].filter(Boolean).join(", ")}
         reportType={job.report_type}
       />
+      <JobAuthoringNav jobId={jobId} current="proposal" states={workflowStates} />
 
       <main className="proposal-page">
         {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
@@ -189,14 +239,14 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
         <header className="proposal-heading">
           <div>
             <p className="eyebrow">Proposal and contract</p>
-            <h1>Build the work authorization</h1>
-            <p>Turn recommendations into priced work lines, approve the proposal, then use it for contract delivery.</p>
+            <h1>Proposal and Work Authorization</h1>
+            <p>Price the recommended work, prepare the customer explanation, approve the proposal, then generate the signature-ready contract.</p>
           </div>
           <div className="proposal-heading-actions">
             <form action={importFindingProposalLines}>
               {hiddenContext(organization.id, jobId, proposal.id)}
               <PendingSubmitButton className="secondary-button" pendingLabel="Importing">
-                <Import size={16} /> Import findings
+                <Import size={16} /> Import recommended work
               </PendingSubmitButton>
             </form>
             <Link className="secondary-button" href={`/jobs/${jobId}/review`}><FileText size={16} /> Review report</Link>
@@ -225,8 +275,17 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                 </form>
               </div>
               <p className="proposal-summary-help">
-                This is the plain-English explanation used in the customer review page and contract PDF before the formal work authorization.
+                This plain-English explanation appears on the customer review page, in the proposal email context, and before the formal work authorization.
               </p>
+              {customerSummaryProvider === "fallback" ? (
+                <div className="proposal-summary-notice">
+                  <AlertTriangle size={16} />
+                  <div>
+                    <strong>Fallback draft</strong>
+                    <span>This was generated without AI. Review and save it manually before sending it to a customer.</span>
+                  </div>
+                </div>
+              ) : null}
               <form action={saveProposalSummary} className="proposal-summary-form">
                 {hiddenContext(organization.id, jobId, proposal.id)}
                 <textarea
@@ -337,6 +396,52 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
           </section>
 
           <aside className="proposal-side">
+            <section className="proposal-panel proposal-next-action">
+              <p className="eyebrow">Next action</p>
+              <h2>{nextAction.title}</h2>
+              <p>{nextAction.detail}</p>
+              {nextAction.cta === "Import recommended work" ? (
+                <form action={importFindingProposalLines}>
+                  {hiddenContext(organization.id, jobId, proposal.id)}
+                  <PendingSubmitButton className="primary-button" pendingLabel="Importing">
+                    <Import size={16} /> {nextAction.cta}
+                  </PendingSubmitButton>
+                </form>
+              ) : nextAction.cta === "Prepare summary" ? (
+                <form action={generateProposalSummary}>
+                  {hiddenContext(organization.id, jobId, proposal.id)}
+                  <PendingSubmitButton className="primary-button" pendingLabel="Writing">
+                    {nextAction.cta}
+                  </PendingSubmitButton>
+                </form>
+              ) : nextAction.cta === "Mark ready" ? (
+                <form action={setProposalStatus}>
+                  {hiddenContext(organization.id, jobId, proposal.id)}
+                  <input name="status" type="hidden" value="ready" />
+                  <PendingSubmitButton className="primary-button" disabled={!canMarkReady} pendingLabel="Marking ready">
+                    {nextAction.cta}
+                  </PendingSubmitButton>
+                </form>
+              ) : nextAction.cta === "Approve proposal" ? (
+                <form action={setProposalStatus}>
+                  {hiddenContext(organization.id, jobId, proposal.id)}
+                  <input name="status" type="hidden" value="approved" />
+                  <PendingSubmitButton className="primary-button" disabled={!hasIncludedLines || !canApprove || isApproved} pendingLabel="Approving">
+                    {nextAction.cta}
+                  </PendingSubmitButton>
+                </form>
+              ) : nextAction.cta === "Generate contract PDF" ? (
+                <form action={generateProposalContractDocument}>
+                  {hiddenContext(organization.id, jobId, proposal.id)}
+                  <PendingSubmitButton className="primary-button" disabled={!canGenerateContract} pendingLabel="Generating PDF">
+                    {nextAction.cta}
+                  </PendingSubmitButton>
+                </form>
+              ) : (
+                <Link className="primary-button" href={`/jobs/${jobId}/send`}><Send size={16} /> {nextAction.cta}</Link>
+              )}
+            </section>
+
             <section className="proposal-panel totals-panel">
               <p className="eyebrow">Totals</p>
               <dl>
@@ -352,8 +457,8 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
               <div className={`proposal-readiness ${readyForContract ? "ready" : ""}`}>
                 {readyForContract ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
                 <div>
-                  <strong>{readyForContract ? "Approved for contract" : hasIncludedLines ? "Ready for manager approval" : "Add priced scope first"}</strong>
-                  <span>{readyForContract ? "This proposal can be used as the contract package source." : "Approve once pricing and scope are final."}</span>
+                  <strong>{readyForContract ? "Approved proposal" : hasIncludedLines ? "Needs approval" : "Add priced scope first"}</strong>
+                  <span>{readyForContract ? "This proposal is the contract source. If scope or pricing changes, generate a fresh contract PDF before sending." : "Approve once scope, pricing, and the customer summary are final."}</span>
                 </div>
               </div>
               <div className="proposal-status-actions">
@@ -361,14 +466,14 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                   {hiddenContext(organization.id, jobId, proposal.id)}
                   <input name="status" type="hidden" value="ready" />
                   <PendingSubmitButton className="secondary-button" disabled={!canMarkReady} pendingLabel="Marking ready">
-                    {isApproved ? "Already approved" : isReady ? "Marked ready" : "Mark ready"}
+                    {isApproved ? "Approved" : isReady ? "Ready for approval" : "Mark ready"}
                   </PendingSubmitButton>
                 </form>
                 <form action={setProposalStatus}>
                   {hiddenContext(organization.id, jobId, proposal.id)}
                   <input name="status" type="hidden" value="approved" />
                   <PendingSubmitButton className="primary-button" disabled={!hasIncludedLines || !canApprove || isApproved} pendingLabel="Approving">
-                    {isApproved ? "Proposal approved" : "Approve proposal"}
+                    {isApproved ? "Approved" : "Approve proposal"}
                   </PendingSubmitButton>
                 </form>
                 <form action={generateProposalContractDocument}>

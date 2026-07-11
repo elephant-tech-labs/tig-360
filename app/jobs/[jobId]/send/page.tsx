@@ -251,6 +251,8 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
   }
   const signatureCandidates = Array.from(signatureCandidateByEmail.values())
     .sort((left, right) => left.score - right.score || left.name.localeCompare(right.name));
+  const hasContractPdf = signatureDocuments.length > 0;
+  const hasSuggestedSigner = signatureCandidates.length > 0;
   const reportAddress = `${property?.street_line_1 ?? "Property"} · Report #${job.job_number}`;
   const defaultSubject = `Inspection Report #${job.job_number} - ${property?.street_line_1 ?? "Property"}`;
   const defaultMessage = `Hello,\n\nPlease find attached the structural pest inspection report for ${reportAddress}.\n\nRegards,\n${organization.name}`;
@@ -284,7 +286,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
         ].filter(Boolean).join(", ")}
         reportType={job.report_type}
       />
-      <JobAuthoringNav jobId={jobId} current="review" states={workflowStates} />
+      <JobAuthoringNav jobId={jobId} current="send" states={workflowStates} />
 
       <div className="send-center-page">
         {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
@@ -294,8 +296,8 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
         <header className="send-center-heading">
           <div>
             <p className="eyebrow">Approved document delivery</p>
-            <h1>Send Center</h1>
-            <p>Compose, send, retry, and audit every report delivery from one workspace.</p>
+            <h1>Delivery and Signature Center</h1>
+            <p>Send the approved report, share the customer review page, and route the work authorization for signature.</p>
           </div>
           <Link className="secondary-button" href={`/jobs/${jobId}/review`}>
             <FileCheck2 size={17} /> Back to Review
@@ -313,8 +315,22 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                 <FileSignature size={19} />
               </div>
               <p className="panel-helper">
-                Send a generated work authorization PDF for customer signature. The contract PDF includes Zoho Sign text tags for signer name, date, and signature.
+                Recommended path: send a review package so the customer can read the report and proposal first, then open the Zoho Sign document when ready.
               </p>
+              <div className="send-preflight">
+                <div className={latestApproved ? "ready" : "attention"}>
+                  {latestApproved ? <Check size={14} /> : <AlertTriangle size={14} />}
+                  <span>{latestApproved ? "Approved report ready" : "Approve a report before sending"}</span>
+                </div>
+                <div className={hasContractPdf ? "ready" : "attention"}>
+                  {hasContractPdf ? <Check size={14} /> : <AlertTriangle size={14} />}
+                  <span>{hasContractPdf ? "Contract PDF ready" : "Generate a contract PDF from Proposal"}</span>
+                </div>
+                <div className={hasSuggestedSigner ? "ready" : "attention"}>
+                  {hasSuggestedSigner ? <Check size={14} /> : <AlertTriangle size={14} />}
+                  <span>{hasSuggestedSigner ? "Signer suggested from job contacts" : "Enter signer manually before sending"}</span>
+                </div>
+              </div>
               {signatureDocuments.length ? (
                 <>
                   <form action={sendCustomerReviewPackage} className="signature-send-form customer-review-package-form">
@@ -322,7 +338,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                     <input name="reportVersionId" type="hidden" value={latestApproved?.id ?? ""} />
                     <div className="customer-review-callout">
                       <strong>Recommended customer flow</strong>
-                      <span>Email the inspection report, proposal PDF, and a Trident review page where the customer can read first and sign only when ready.</span>
+                      <span>Email the inspection report, proposal PDF, and a secure review page where the customer can understand the work before choosing to sign.</span>
                     </div>
                     <label>
                       Proposal PDF
@@ -358,7 +374,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                       <button className="primary-button" disabled={!latestApproved} type="submit">
                         <Mail size={16} /> Send review package
                       </button>
-                      <span>This is the low-friction customer email. It includes attachments and the secure review/sign link.</span>
+                      <span>Best for remote customers. The email includes the report, proposal, and the review/sign link.</span>
                     </div>
                   </form>
 
