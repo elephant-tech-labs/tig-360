@@ -5,7 +5,12 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-organization";
-import { generateProposalCustomerSummaryBundle, type ProposalSummaryBundle, type ProposalSummaryInput } from "@/lib/proposals/customer-summary";
+import {
+  buildProposalSummaryInputHash,
+  generateProposalCustomerSummaryBundle,
+  type ProposalSummaryBundle,
+  type ProposalSummaryInput,
+} from "@/lib/proposals/customer-summary";
 import { parseRichDocument } from "@/lib/report-content";
 import { ProposalContractPdf } from "@/lib/proposals/pdf-document";
 import type { ProposalSnapshot } from "@/lib/proposals/types";
@@ -52,6 +57,7 @@ async function persistProposalSummaryBundle(
   jobId: string,
   proposalId: string,
   bundle: ProposalSummaryBundle,
+  inputHash: string,
 ) {
   const generatedAt = new Date().toISOString();
   const { error: proposalError } = await supabase
@@ -59,6 +65,7 @@ async function persistProposalSummaryBundle(
     .update({
       customer_summary: bundle.summary.text,
       customer_summary_generated_at: generatedAt,
+      customer_summary_input_hash: inputHash,
       customer_summary_source: bundle.summary.source,
     })
     .eq("id", proposalId)
@@ -103,7 +110,14 @@ export async function importFindingProposalLines(formData: FormData) {
     const input = await loadProposalSummaryInput(supabase, organization, jobId, proposalId);
     if (input.lines.length) {
       const bundle = await generateProposalCustomerSummaryBundle(input);
-      const { error: persistError } = await persistProposalSummaryBundle(supabase, organization.id, jobId, proposalId, bundle);
+      const { error: persistError } = await persistProposalSummaryBundle(
+        supabase,
+        organization.id,
+        jobId,
+        proposalId,
+        bundle,
+        buildProposalSummaryInputHash(input),
+      );
       if (persistError) throw persistError;
       summaryMessage = ` ${proposalSummarySavedMessage(bundle)}`;
     }
@@ -270,11 +284,21 @@ export async function saveProposalSummary(formData: FormData) {
   const summary = String(formData.get("customerSummary") ?? "").trim();
   if (!jobId || !proposalId) redirect("/jobs");
   const { supabase, organization } = await getCurrentContext();
+  let inputHash: string | null = null;
+  if (summary) {
+    try {
+      const input = await loadProposalSummaryInput(supabase, organization, jobId, proposalId);
+      inputHash = input.lines.length ? buildProposalSummaryInputHash(input) : null;
+    } catch {
+      inputHash = null;
+    }
+  }
   const { error } = await supabase
     .from("job_proposals")
     .update({
       customer_summary: summary || null,
       customer_summary_generated_at: summary ? new Date().toISOString() : null,
+      customer_summary_input_hash: summary ? inputHash : null,
       customer_summary_source: summary ? { provider: "manual" } : {},
     })
     .eq("id", proposalId)
@@ -293,15 +317,17 @@ export async function generateProposalSummary(formData: FormData) {
   const { supabase, organization } = await getCurrentContext();
 
   let bundle: ProposalSummaryBundle;
+  let inputHash = "";
   try {
     const input = await loadProposalSummaryInput(supabase, organization, jobId, proposalId);
     if (!input.lines.length) throw new Error("Add included proposal lines before generating a customer summary.");
     bundle = await generateProposalCustomerSummaryBundle(input);
+    inputHash = buildProposalSummaryInputHash(input);
   } catch (error) {
     redirect(proposalUrl(jobId, error instanceof Error ? error.message : "Unable to generate proposal summary.", "error"));
   }
 
-  const { error } = await persistProposalSummaryBundle(supabase, organization.id, jobId, proposalId, bundle);
+  const { error } = await persistProposalSummaryBundle(supabase, organization.id, jobId, proposalId, bundle, inputHash);
   if (error) redirect(proposalUrl(jobId, error.message, "error"));
   revalidatePath(`/jobs/${jobId}/proposal`);
   revalidatePath(`/jobs/${jobId}/send`);

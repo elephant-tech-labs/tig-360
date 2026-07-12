@@ -18,6 +18,7 @@ import { JobWorkspaceHeader } from "@/components/job-workspace-header";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
+import { buildProposalSummaryInputHash } from "@/lib/proposals/customer-summary";
 import {
   approveAndGenerateProposalContractDocument,
   deleteProposalLine,
@@ -109,7 +110,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
   const [{ data: job, error: jobError }, { data: proposalId, error: ensureError }] = await Promise.all([
     supabase
       .from("inspection_jobs")
-      .select("id, job_number, report_type, properties(street_line_1, city, region, postal_code)")
+      .select("id, job_number, report_type, properties(street_line_1, street_line_2, city, region, postal_code)")
       .eq("id", jobId)
       .eq("organization_id", organization.id)
       .single(),
@@ -132,7 +133,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
       .from("job_proposals")
       .select(`
         id, status, title, customer_note, terms, tax_rate, discount_amount,
-        customer_summary, customer_summary_generated_at, customer_summary_source,
+        customer_summary, customer_summary_generated_at, customer_summary_input_hash, customer_summary_source,
         subtotal_amount, tax_amount,
         total_amount, approved_at, updated_at,
         proposal_line_items(
@@ -174,15 +175,40 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
     .sort((a, b) => b.version - a.version);
   const latestProposalVersion = proposalVersions[0] ?? null;
   const proposalUpdatedAt = proposal.updated_at ? new Date(proposal.updated_at).getTime() : 0;
-  const summaryGeneratedAt = proposal.customer_summary_generated_at ? new Date(proposal.customer_summary_generated_at).getTime() : 0;
   const lineScopeIsOutdated = (line: ProposalLine) => {
     if (!line.contract_scope?.trim() || !line.contract_scope_generated_at) return true;
     const lineUpdatedAt = line.updated_at ? new Date(line.updated_at).getTime() : 0;
     return lineUpdatedAt - new Date(line.contract_scope_generated_at).getTime() > 5000;
   };
   const staleLineScopeCount = includedLines.filter(lineScopeIsOutdated).length;
-  const summaryOutdated = Boolean(summaryGeneratedAt && proposalUpdatedAt - summaryGeneratedAt > 5000);
-  const needsSummaryRefresh = hasIncludedLines && (!proposal.customer_summary || summaryOutdated || staleLineScopeCount > 0);
+  const summaryInputHash = hasIncludedLines
+    ? buildProposalSummaryInputHash({
+        companyName: organization.name,
+        propertyAddress: [
+          property?.street_line_1,
+          property?.street_line_2,
+          property?.city,
+          property?.region,
+          property?.postal_code,
+        ].filter(Boolean).join(", "),
+        reportType: job.report_type,
+        total: Number(proposal.total_amount ?? 0),
+        lines: includedLines.map((line) => ({
+          id: line.id,
+          code: line.item_code,
+          section: line.section,
+          title: line.title,
+          description: line.description,
+          amount: Number(line.quantity ?? 0) * Number(line.unit_price ?? 0),
+        })),
+      })
+    : null;
+  const summaryHashOutdated = Boolean(
+    proposal.customer_summary &&
+    summaryInputHash &&
+    proposal.customer_summary_input_hash !== summaryInputHash,
+  );
+  const needsSummaryRefresh = hasIncludedLines && (!proposal.customer_summary || summaryHashOutdated || staleLineScopeCount > 0);
   const isVersionOutdated = (version: ProposalDocumentVersion) => {
     if (!version.generated_at || !proposalUpdatedAt) return false;
     return new Date(version.generated_at).getTime() < proposalUpdatedAt;

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 type SummaryLine = {
   id: string;
   code: string | null;
@@ -36,6 +38,34 @@ export type ProposalSummaryBundle = {
 };
 
 const DEFAULT_SUMMARY_MODEL = "gpt-4.1";
+
+function normalizeText(value: string | null | undefined) {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeMoney(value: number) {
+  return Number(Number(value ?? 0).toFixed(2));
+}
+
+export function buildProposalSummaryInputHash(input: ProposalSummaryInput) {
+  const normalized = {
+    companyName: normalizeText(input.companyName),
+    propertyAddress: normalizeText(input.propertyAddress),
+    reportType: normalizeText(input.reportType),
+    total: normalizeMoney(input.total),
+    lines: input.lines
+      .map((line) => ({
+        id: line.id,
+        code: normalizeText(line.code),
+        section: normalizeText(line.section),
+        title: normalizeText(line.title),
+        description: normalizeText(line.description),
+        amount: normalizeMoney(line.amount),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  };
+  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+}
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value);
