@@ -23,6 +23,7 @@
   margin: 0 0 12px;
   padding: 11px 12px;
 }
+.proposal-summary-notice.warning { background: #fff8e9; }
 .proposal-summary-notice strong,
 .proposal-summary-notice span { display: block; }
 .proposal-summary-notice strong { color: var(--ink); font-size: 12px; }
@@ -120,6 +121,15 @@
 .proposal-document-state span { color: var(--muted); font-size: 11px; text-transform: capitalize; }
 .proposal-document-state .text-button { justify-self: start; margin-top: 5px; }
 .proposal-document-warning { color: #8e4c0c; font-size: 11px; line-height: 1.45; margin: 0; }
+.proposal-history { margin-top: 10px; }
+.proposal-history > summary {
+  color: var(--green-dark);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+  list-style: none;
+}
+.proposal-history > summary::-webkit-details-marker { display: none; }
 .proposal-mini-version-list { border-top: 1px solid var(--line); display: grid; gap: 0; margin-top: 12px; padding-top: 8px; }
 .proposal-mini-version-list a { align-items: center; color: var(--ink); display: flex; justify-content: space-between; padding: 8px 0; text-decoration: none; }
 .proposal-mini-version-list a.outdated { color: #8e4c0c; }

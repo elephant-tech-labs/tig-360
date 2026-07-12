@@ -66,7 +66,7 @@ export default async function CustomerProposalPage({ params, searchParams }: Cus
       .from("job_proposals")
       .select(`
         id, title, customer_summary, customer_note, subtotal_amount, discount_amount, tax_amount, total_amount,
-        proposal_line_items(id, item_code, section, title, description, quantity, unit_price, included, sort_order)
+        proposal_line_items(id, item_code, section, title, description, contract_scope, quantity, unit_price, included, sort_order)
       `)
       .eq("id", link.proposal_id)
       .eq("organization_id", link.organization_id)
@@ -147,7 +147,7 @@ export default async function CustomerProposalPage({ params, searchParams }: Cus
                   <article className="customer-line-item" key={line.id}>
                     <div>
                       <strong>{[line.item_code, line.title].filter(Boolean).join(" - ")}</strong>
-                      {line.description ? <span>{line.description}</span> : null}
+                      {line.contract_scope || line.description ? <span>{line.contract_scope || line.description}</span> : null}
                     </div>
                     <div className="customer-line-price">{money(amount)}</div>
                   </article>

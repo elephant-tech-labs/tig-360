@@ -5,7 +5,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentContext } from "@/lib/current-organization";
-import { generateProposalCustomerSummary, type ProposalSummaryInput } from "@/lib/proposals/customer-summary";
+import { generateProposalCustomerSummaryBundle, type ProposalSummaryBundle, type ProposalSummaryInput } from "@/lib/proposals/customer-summary";
 import { parseRichDocument } from "@/lib/report-content";
 import { ProposalContractPdf } from "@/lib/proposals/pdf-document";
 import type { ProposalSnapshot } from "@/lib/proposals/types";
@@ -34,9 +34,53 @@ function proposalSummaryErrorMessage(reason: string) {
   return "AI summary could not be generated. The current summary was left unchanged, so you can retry or write it manually.";
 }
 
+function proposalSummarySavedMessage(bundle: ProposalSummaryBundle) {
+  if (bundle.summary.source.provider === "openai") return "Proposal wording prepared.";
+  const reason = bundle.summary.source.reason ?? "";
+  if (reason) return `Proposal wording prepared with fallback text. ${proposalSummaryErrorMessage(reason)}`;
+  return "Proposal wording prepared with fallback text.";
+}
+
 function parseMoney(value: FormDataEntryValue | null) {
   const parsed = Number(String(value ?? "0").replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function persistProposalSummaryBundle(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string,
+  jobId: string,
+  proposalId: string,
+  bundle: ProposalSummaryBundle,
+) {
+  const generatedAt = new Date().toISOString();
+  const { error: proposalError } = await supabase
+    .from("job_proposals")
+    .update({
+      customer_summary: bundle.summary.text,
+      customer_summary_generated_at: generatedAt,
+      customer_summary_source: bundle.summary.source,
+    })
+    .eq("id", proposalId)
+    .eq("inspection_job_id", jobId)
+    .eq("organization_id", organizationId);
+  if (proposalError) return { error: proposalError };
+
+  for (const scope of bundle.lineScopes) {
+    const { error: scopeError } = await supabase
+      .from("proposal_line_items")
+      .update({
+        contract_scope: scope.text,
+        contract_scope_generated_at: generatedAt,
+        contract_scope_source: scope.source,
+      })
+      .eq("id", scope.lineId)
+      .eq("proposal_id", proposalId)
+      .eq("organization_id", organizationId);
+    if (scopeError) return { error: scopeError };
+  }
+
+  return { error: null };
 }
 
 export async function importFindingProposalLines(formData: FormData) {
@@ -52,8 +96,23 @@ export async function importFindingProposalLines(formData: FormData) {
   });
 
   if (error) redirect(proposalUrl(jobId, error.message, "error"));
+
+  let summaryMessage = "";
+  try {
+    const { organization } = await getCurrentContext();
+    const input = await loadProposalSummaryInput(supabase, organization, jobId, proposalId);
+    if (input.lines.length) {
+      const bundle = await generateProposalCustomerSummaryBundle(input);
+      const { error: persistError } = await persistProposalSummaryBundle(supabase, organization.id, jobId, proposalId, bundle);
+      if (persistError) throw persistError;
+      summaryMessage = ` ${proposalSummarySavedMessage(bundle)}`;
+    }
+  } catch (summaryError) {
+    summaryMessage = ` Proposal wording could not be refreshed: ${summaryError instanceof Error ? summaryError.message : "unknown error"}`;
+  }
+
   revalidatePath(`/jobs/${jobId}/proposal`);
-  redirect(proposalUrl(jobId, data ? `Imported ${data} recommendation${data === 1 ? "" : "s"}.` : "No new recommendations to import."));
+  redirect(proposalUrl(jobId, data ? `Imported ${data} recommendation${data === 1 ? "" : "s"}.${summaryMessage}` : `No new recommendations to import.${summaryMessage}`));
 }
 
 export async function saveProposalLine(formData: FormData) {
@@ -63,13 +122,14 @@ export async function saveProposalLine(formData: FormData) {
   const lineId = String(formData.get("lineId") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const contractScope = String(formData.get("contractScope") ?? "").trim();
   const section = String(formData.get("section") ?? "manual");
   const quantity = parseMoney(formData.get("quantity"));
   const unitPrice = parseMoney(formData.get("unitPrice"));
   const included = formData.get("included") === "on";
   const supabase = await createClient();
 
-  const { error } = await supabase.rpc("save_proposal_line_item", {
+  const { data: savedLineId, error } = await supabase.rpc("save_proposal_line_item", {
     target_organization_id: organizationId,
     target_job_id: jobId,
     target_proposal_id: proposalId,
@@ -83,6 +143,19 @@ export async function saveProposalLine(formData: FormData) {
   });
 
   if (error) redirect(proposalUrl(jobId, error.message, "error"));
+  if (savedLineId) {
+    const { error: scopeError } = await supabase
+      .from("proposal_line_items")
+      .update({
+        contract_scope: contractScope || null,
+        contract_scope_generated_at: contractScope ? new Date().toISOString() : null,
+        contract_scope_source: contractScope ? { provider: "manual" } : {},
+      })
+      .eq("id", savedLineId)
+      .eq("proposal_id", proposalId)
+      .eq("organization_id", organizationId);
+    if (scopeError) redirect(proposalUrl(jobId, scopeError.message, "error"));
+  }
   revalidatePath(`/jobs/${jobId}/proposal`);
   revalidatePath(`/jobs/${jobId}/review`);
   redirect(proposalUrl(jobId, lineId ? "Line item updated." : "Line item added."));
@@ -145,7 +218,7 @@ async function loadProposalSummaryInput(
       .from("job_proposals")
       .select(`
         total_amount,
-        proposal_line_items(item_code, section, title, description, quantity, unit_price, included, sort_order)
+        proposal_line_items(id, item_code, section, title, description, quantity, unit_price, included, sort_order)
       `)
       .eq("id", proposalId)
       .eq("inspection_job_id", jobId)
@@ -181,6 +254,7 @@ async function loadProposalSummaryInput(
       .filter((line) => line.included)
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((line) => ({
+        id: line.id,
         code: line.item_code,
         section: line.section,
         title: line.title,
@@ -218,33 +292,20 @@ export async function generateProposalSummary(formData: FormData) {
   if (!jobId || !proposalId) redirect("/jobs");
   const { supabase, organization } = await getCurrentContext();
 
-  let summary: Awaited<ReturnType<typeof generateProposalCustomerSummary>>;
+  let bundle: ProposalSummaryBundle;
   try {
     const input = await loadProposalSummaryInput(supabase, organization, jobId, proposalId);
     if (!input.lines.length) throw new Error("Add included proposal lines before generating a customer summary.");
-    summary = await generateProposalCustomerSummary(input);
+    bundle = await generateProposalCustomerSummaryBundle(input);
   } catch (error) {
     redirect(proposalUrl(jobId, error instanceof Error ? error.message : "Unable to generate proposal summary.", "error"));
   }
-  if (summary.source.provider !== "openai") {
-    const reason = ("reason" in summary.source ? summary.source.reason : null) ?? "OpenAI did not return a summary.";
-    redirect(proposalUrl(jobId, proposalSummaryErrorMessage(reason), "error"));
-  }
 
-  const { error } = await supabase
-    .from("job_proposals")
-    .update({
-      customer_summary: summary.text,
-      customer_summary_generated_at: new Date().toISOString(),
-      customer_summary_source: summary.source,
-    })
-    .eq("id", proposalId)
-    .eq("inspection_job_id", jobId)
-    .eq("organization_id", organization.id);
+  const { error } = await persistProposalSummaryBundle(supabase, organization.id, jobId, proposalId, bundle);
   if (error) redirect(proposalUrl(jobId, error.message, "error"));
   revalidatePath(`/jobs/${jobId}/proposal`);
   revalidatePath(`/jobs/${jobId}/send`);
-  redirect(proposalUrl(jobId, "Customer summary prepared."));
+  redirect(proposalUrl(jobId, proposalSummarySavedMessage(bundle), bundle.summary.source.provider === "openai" ? "saved" : "error"));
 }
 
 export async function setProposalStatus(formData: FormData) {
@@ -289,7 +350,7 @@ async function loadProposalSnapshot(
         id, status, title, customer_note, customer_summary, terms,
         subtotal_amount, discount_amount, tax_amount, total_amount,
         proposal_line_items(
-          id, item_code, section, title, description, quantity, unit_price,
+          id, item_code, section, title, description, contract_scope, quantity, unit_price,
           included, sort_order
         )
       `)
@@ -394,7 +455,7 @@ async function loadProposalSnapshot(
       code: line.item_code,
       section: line.section,
       title: line.title,
-      description: line.description,
+      description: line.contract_scope || line.description,
       quantity: Number(line.quantity ?? 0),
       unitPrice: Number(line.unit_price ?? 0),
       amount: Number(line.quantity ?? 0) * Number(line.unit_price ?? 0),
@@ -475,4 +536,33 @@ export async function generateProposalContractDocument(formData: FormData) {
   revalidatePath(`/jobs/${jobId}/proposal`);
   revalidatePath(`/jobs/${jobId}/send`);
   redirect(proposalUrl(jobId, `Proposal contract version ${version} generated.`));
+}
+
+export async function approveAndGenerateProposalContractDocument(formData: FormData) {
+  const organizationId = String(formData.get("organizationId") ?? "");
+  const jobId = String(formData.get("jobId") ?? "");
+  const proposalId = String(formData.get("proposalId") ?? "");
+  if (!jobId || !proposalId) redirect("/jobs");
+  const supabase = await createClient();
+
+  const { data: proposal, error: proposalError } = await supabase
+    .from("job_proposals")
+    .select("status")
+    .eq("id", proposalId)
+    .eq("inspection_job_id", jobId)
+    .eq("organization_id", organizationId)
+    .single();
+  if (proposalError || !proposal) redirect(proposalUrl(jobId, proposalError?.message ?? "Proposal not found.", "error"));
+
+  if (proposal.status !== "approved") {
+    const { error } = await supabase.rpc("set_job_proposal_status", {
+      target_organization_id: organizationId,
+      target_job_id: jobId,
+      target_proposal_id: proposalId,
+      next_status: "approved",
+    });
+    if (error) redirect(proposalUrl(jobId, error.message, "error"));
+  }
+
+  await generateProposalContractDocument(formData);
 }
