@@ -31,6 +31,35 @@
 .version-state { background: #edf0ef; color: var(--muted); font-size: 9px; font-weight: 750; padding: 4px 6px; text-transform: capitalize; }
 .version-state.approved { background: var(--green-soft); color: var(--green-dark); }
 .version-state.failed { background: var(--red-soft); color: var(--red); }
+.current-report-panel { border-left: 3px solid var(--green); }
+.current-report-panel.state-blocked { border-left-color: var(--red); }
+.current-report-panel.state-attention { border-left-color: var(--amber); }
+.current-report-panel.state-complete { border-left-color: var(--green); }
+.current-report-state { background: #f7faf8; display: grid; gap: 5px; margin-top: 12px; padding: 12px; }
+.current-report-panel.state-blocked .current-report-state { background: var(--red-soft); }
+.current-report-panel.state-attention .current-report-state { background: var(--amber-soft); }
+.current-report-panel.state-complete .current-report-state { background: var(--green-soft); }
+.current-report-state span { color: var(--green-dark); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.current-report-panel.state-blocked .current-report-state span { color: var(--red); }
+.current-report-panel.state-attention .current-report-state span { color: #8e4c0c; }
+.current-report-state p { color: #52605b; font-size: 11px; line-height: 1.45; margin: 0; }
+.current-report-meta { border: 1px solid var(--line); display: grid; gap: 0; margin: 12px 0 0; }
+.current-report-meta > div { border-top: 1px solid var(--line); padding: 9px 10px; }
+.current-report-meta > div:first-child { border-top: 0; }
+.current-report-meta dt { color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.current-report-meta dd { font-size: 12px; font-weight: 750; margin: 3px 0 0; }
+.current-report-actions { display: grid; gap: 10px; margin-top: 13px; }
+.current-report-actions form { display: grid; gap: 12px; }
+.current-report-actions .primary-button, .current-report-actions .secondary-button { justify-content: center; width: 100%; }
+.current-report-actions label { color: #35413d; display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
+.current-report-actions textarea { background: #fff; border: 1px solid #cbd4d0; border-radius: 5px; color: var(--ink); min-height: 78px; padding: 9px 10px; resize: vertical; width: 100%; }
+.report-history-summary { background: #f7faf8; display: grid; gap: 5px; margin: 12px 0; padding: 12px; }
+.report-history-summary span { color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.report-history-summary strong { color: var(--green-dark); font-size: 13px; }
+.report-history-summary .text-button { align-items: center; display: inline-flex; gap: 5px; justify-self: start; margin-top: 3px; }
+.report-history-details { margin-top: 12px; }
+.report-history-details summary { color: #35413d; cursor: pointer; font-size: 11px; font-weight: 800; list-style-position: outside; padding: 8px 0; }
+.report-history-details[open] summary { border-bottom: 1px solid var(--line); margin-bottom: 8px; }
 .approval-panel form, .send-compose-panel form { display: grid; gap: 13px; }
 .approval-panel label, .send-form-section label { color: #35413d; display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
 .approval-panel textarea, .send-form-section input, .send-form-section select, .send-form-section textarea { background: #fff; border: 1px solid #cbd4d0; border-radius: 5px; color: var(--ink); min-height: 39px; padding: 9px 10px; resize: vertical; width: 100%; }
