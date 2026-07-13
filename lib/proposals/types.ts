@@ -29,6 +29,7 @@ export type ProposalContentBlock = {
 export type ProposalSnapshot = {
   schemaVersion: 1;
   capturedAt: string;
+  contentHash?: string;
   organization: {
     id: string;
     name: string;

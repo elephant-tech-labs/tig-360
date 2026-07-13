@@ -19,6 +19,7 @@ import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { buildProposalSummaryInputHash } from "@/lib/proposals/customer-summary";
+import { loadProposalSnapshot } from "@/lib/proposals/load-proposal-snapshot";
 import {
   approveAndGenerateProposalContractDocument,
   deleteProposalLine,
@@ -59,6 +60,7 @@ type ProposalDocumentVersion = {
   approval_status: string;
   generated_at: string | null;
   asset_id: string | null;
+  snapshot: unknown;
 };
 
 function summarySourceLabel(value: unknown) {
@@ -73,6 +75,12 @@ function summarySourceLabel(value: unknown) {
 function summarySourceProvider(value: unknown) {
   if (!value || typeof value !== "object") return null;
   return (value as { provider?: string }).provider ?? null;
+}
+
+function proposalSnapshotHash(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const hash = (value as { contentHash?: unknown }).contentHash;
+  return typeof hash === "string" && hash ? hash : null;
 }
 
 const sectionOptions = [
@@ -154,7 +162,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
       .is("findings.archived_at", null),
     supabase
       .from("documents")
-      .select("document_versions(id, version, status, approval_status, generated_at, asset_id)")
+      .select("document_versions(id, version, status, approval_status, generated_at, asset_id, snapshot)")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
       .eq("kind", "proposal")
@@ -174,7 +182,6 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
   const proposalVersions = ([...(Array.isArray(proposalVersionsRaw) ? proposalVersionsRaw : [proposalVersionsRaw])] as ProposalDocumentVersion[])
     .sort((a, b) => b.version - a.version);
   const latestProposalVersion = proposalVersions[0] ?? null;
-  const proposalUpdatedAt = proposal.updated_at ? new Date(proposal.updated_at).getTime() : 0;
   const lineScopeIsOutdated = (line: ProposalLine) => {
     if (!line.contract_scope?.trim() || !line.contract_scope_generated_at) return true;
     const lineUpdatedAt = line.updated_at ? new Date(line.updated_at).getTime() : 0;
@@ -209,9 +216,22 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
     proposal.customer_summary_input_hash !== summaryInputHash,
   );
   const needsSummaryRefresh = hasIncludedLines && (!proposal.customer_summary || summaryHashOutdated || staleLineScopeCount > 0);
+  const currentProposalSnapshot = isApproved && hasIncludedLines && !needsSummaryRefresh
+    ? await loadProposalSnapshot(supabase, organization, jobId, proposal.id).catch(() => null)
+    : null;
+  const currentProposalSnapshotHash = currentProposalSnapshot?.contentHash ?? null;
+  const proposalContentUpdatedAt = Math.max(
+    0,
+    ...includedLines.map((line) => line.updated_at ? new Date(line.updated_at).getTime() : 0),
+    proposal.customer_summary_generated_at ? new Date(proposal.customer_summary_generated_at).getTime() : 0,
+  );
   const isVersionOutdated = (version: ProposalDocumentVersion) => {
-    if (!version.generated_at || !proposalUpdatedAt) return false;
-    return new Date(version.generated_at).getTime() < proposalUpdatedAt;
+    const versionSnapshotHash = proposalSnapshotHash(version.snapshot);
+    if (versionSnapshotHash && currentProposalSnapshotHash) {
+      return versionSnapshotHash !== currentProposalSnapshotHash;
+    }
+    if (!version.generated_at || !proposalContentUpdatedAt) return false;
+    return new Date(version.generated_at).getTime() + 5000 < proposalContentUpdatedAt;
   };
   const latestProposalVersionOutdated = latestProposalVersion ? isVersionOutdated(latestProposalVersion) : false;
   const hasCurrentContractPdf = Boolean(latestProposalVersion && latestProposalVersion.status === "ready" && !latestProposalVersionOutdated);
