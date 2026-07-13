@@ -22,6 +22,7 @@ import { canCreateJobs } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { jobPartyRoleLabel } from "@/lib/job-parties";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
+import { loadProposalSnapshot } from "@/lib/proposals/load-proposal-snapshot";
 import { loadReportVersions } from "@/lib/reports/load-report";
 import {
   refreshSignatureRequestStatus,
@@ -77,6 +78,12 @@ function zohoSignWebUrl() {
   return process.env.ZOHO_SIGN_WEB_BASE || "https://sign.zoho.eu";
 }
 
+function proposalSnapshotHash(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const hash = (value as { contentHash?: unknown }).contentHash;
+  return typeof hash === "string" && hash ? hash : null;
+}
+
 export default async function SendCenterPage({ params, searchParams }: SendPageProps) {
   const { jobId } = await params;
   const messages = await searchParams;
@@ -91,6 +98,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
     { data: supportingDocuments },
     { data: signatureRequests },
     { data: reviewLinks },
+    { data: proposal },
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
@@ -126,7 +134,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
       .select(`
         id, kind, title,
         document_versions(
-          id, version, status, approval_status, created_at,
+          id, version, status, approval_status, created_at, generated_at, snapshot,
           assets(provider_file_id, original_filename)
         )
       `)
@@ -150,6 +158,12 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("job_proposals")
+      .select("id, status")
+      .eq("inspection_job_id", jobId)
+      .eq("organization_id", organization.id)
+      .maybeSingle(),
   ]);
   if (error || !job) notFound();
 
@@ -158,9 +172,22 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
     (version) => version.approvalStatus === "approved" && version.status === "ready",
   );
   const latestApproved = approvedVersions[0] ?? null;
+  let currentProposalSnapshotHash: string | null = null;
+  if (proposal?.id && proposal.status === "approved") {
+    try {
+      currentProposalSnapshotHash = (await loadProposalSnapshot(
+        supabase,
+        organization,
+        jobId,
+        proposal.id,
+      )).contentHash ?? null;
+    } catch {
+      currentProposalSnapshotHash = null;
+    }
+  }
   const supportingVersions = (supportingDocuments ?? []).flatMap((document) =>
     (document.document_versions ?? [])
-      .filter((version) => version.status === "ready")
+      .filter((version) => version.status === "ready" && version.approval_status === "approved")
       .map((version) => {
         const asset = Array.isArray(version.assets) ? version.assets[0] : version.assets;
         return {
@@ -171,6 +198,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
           version: version.version,
           approvalStatus: version.approval_status,
           createdAt: version.created_at,
+          snapshotHash: proposalSnapshotHash(version.snapshot),
         };
       }),
   );
@@ -180,6 +208,9 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
       const kindSort = left.kind === right.kind ? 0 : left.kind === "contract" ? -1 : 1;
       return kindSort || right.version - left.version;
     });
+  const currentSignatureDocument = currentProposalSnapshotHash
+    ? signatureDocuments.find((version) => version.snapshotHash === currentProposalSnapshotHash) ?? null
+    : signatureDocuments[0] ?? null;
 
   const sourceDeliveryId = messages.draft || messages.resend || null;
   const sourceDelivery = sourceDeliveryId
@@ -251,7 +282,6 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
   }
   const signatureCandidates = Array.from(signatureCandidateByEmail.values())
     .sort((left, right) => left.score - right.score || left.name.localeCompare(right.name));
-  const hasContractPdf = signatureDocuments.length > 0;
   const hasSuggestedSigner = signatureCandidates.length > 0;
   const reportAddress = `${property?.street_line_1 ?? "Property"} · Report #${job.job_number}`;
   const defaultSubject = `Inspection Report #${job.job_number} - ${property?.street_line_1 ?? "Property"}`;
@@ -262,7 +292,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
       : null,
     versionId: sourceDelivery?.document_version_id ?? latestApproved?.id ?? "",
     packageMode: sourceDelivery?.package_mode ?? "report_only",
-    supportingVersionId: sourceDelivery?.attachment_version_ids?.[0] ?? supportingVersions[0]?.id ?? "",
+    supportingVersionId: sourceDelivery?.attachment_version_ids?.[0] ?? currentSignatureDocument?.id ?? "",
     subject: sourceDelivery?.subject ?? defaultSubject,
     message: sourceDelivery?.message_body ?? defaultMessage,
     replyTo: sourceDelivery?.reply_to ?? process.env.REPORT_EMAIL_FROM ?? "",
@@ -273,6 +303,23 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
       type: recipient.recipient_type,
     })),
   };
+  const activityItems = [
+    ...(deliveries ?? []).map((item) => ({
+      kind: "delivery" as const,
+      occurredAt: item.sent_at ?? item.created_at,
+      item,
+    })),
+    ...(reviewLinks ?? []).map((item) => ({
+      kind: "review" as const,
+      occurredAt: item.created_at,
+      item,
+    })),
+    ...(signatureRequests ?? []).map((item) => ({
+      kind: "signature" as const,
+      occurredAt: item.completed_at ?? item.sent_at ?? item.created_at,
+      item,
+    })),
+  ].sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
 
   return (
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
@@ -309,228 +356,256 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
             <section className="signature-send-panel">
               <div className="section-heading compact">
                 <div>
-                  <p className="eyebrow">Zoho Sign</p>
-                  <h2>Contract signature</h2>
+                  <p className="eyebrow">Recommended delivery</p>
+                  <h2>Send customer review package</h2>
                 </div>
-                <FileSignature size={19} />
+                <Mail size={19} />
               </div>
               <p className="panel-helper">
-                Recommended path: send a review package so the customer can read the report and proposal first, then open the Zoho Sign document when ready.
+                The customer receives the approved inspection report, current work authorization, and a secure page to review everything before signing.
               </p>
+
               <div className="send-preflight">
                 <div className={latestApproved ? "ready" : "attention"}>
                   {latestApproved ? <Check size={14} /> : <AlertTriangle size={14} />}
-                  <span>{latestApproved ? "Approved report ready" : "Approve a report before sending"}</span>
+                  <span>{latestApproved ? `Approved report v${latestApproved.version}` : "Approve the report in Review"}</span>
                 </div>
-                <div className={hasContractPdf ? "ready" : "attention"}>
-                  {hasContractPdf ? <Check size={14} /> : <AlertTriangle size={14} />}
-                  <span>{hasContractPdf ? "Contract PDF ready" : "Generate a contract PDF from Proposal"}</span>
+                <div className={currentSignatureDocument ? "ready" : "attention"}>
+                  {currentSignatureDocument ? <Check size={14} /> : <AlertTriangle size={14} />}
+                  <span>
+                    {currentSignatureDocument
+                      ? `Current work authorization v${currentSignatureDocument.version}`
+                      : "Approve and generate a current work authorization"}
+                  </span>
                 </div>
                 <div className={hasSuggestedSigner ? "ready" : "attention"}>
                   {hasSuggestedSigner ? <Check size={14} /> : <AlertTriangle size={14} />}
-                  <span>{hasSuggestedSigner ? "Signer suggested from job contacts" : "Enter signer manually before sending"}</span>
+                  <span>{hasSuggestedSigner ? "Customer selected from job contacts" : "Enter a customer before sending"}</span>
                 </div>
               </div>
-              {signatureDocuments.length ? (
-                <>
-                  <form action={sendCustomerReviewPackage} className="signature-send-form customer-review-package-form">
-                    <input name="jobId" type="hidden" value={jobId} />
-                    <input name="reportVersionId" type="hidden" value={latestApproved?.id ?? ""} />
-                    <div className="customer-review-callout">
-                      <strong>Recommended customer flow</strong>
-                      <span>Email the inspection report, proposal PDF, and a secure review page where the customer can understand the work before choosing to sign.</span>
-                    </div>
-                    <label>
-                      Proposal PDF
-                      <select name="proposalVersionId" defaultValue={signatureDocuments[0]?.id}>
-                        {signatureDocuments.map((version) => (
-                          <option key={version.id} value={version.id}>
-                            {version.label}{version.approvalStatus === "approved" ? " · approved" : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Customer / signer
-                      <select name="signer" defaultValue={signatureCandidates[0] ? JSON.stringify(signatureCandidates[0]) : ""}>
-                        {signatureCandidates.length ? signatureCandidates.map((candidate) => (
-                          <option key={candidate.email} value={JSON.stringify(candidate)}>
-                            {candidate.name} · {candidate.email} · {candidate.roleLabel}
-                          </option>
-                        )) : <option value="">Enter signer below</option>}
-                      </select>
-                    </label>
-                    <div className="signature-override-grid">
-                      <label>
-                        Name override
-                        <input name="signerName" placeholder={signatureCandidates[0]?.name ?? "Customer name"} />
-                      </label>
-                      <label>
-                        Email override
-                        <input name="signerEmail" placeholder={signatureCandidates[0]?.email ?? "customer@example.com"} type="email" />
-                      </label>
-                    </div>
-                    <div className="signature-send-actions">
-                      <button className="primary-button" disabled={!latestApproved} type="submit">
-                        <Mail size={16} /> Send review package
-                      </button>
-                      <span>Best for remote customers. The email includes the report, proposal, and the review/sign link.</span>
-                    </div>
-                  </form>
 
-                  <form action={sendContractForSignature} className="signature-send-form direct-sign-form">
-                    <input name="jobId" type="hidden" value={jobId} />
-                    <label>
-                      Contract PDF
-                      <select name="documentVersionId" defaultValue={signatureDocuments[0]?.id}>
-                        {signatureDocuments.map((version) => (
-                          <option key={version.id} value={version.id}>
-                            {version.label}{version.approvalStatus === "approved" ? " · approved" : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Signer
-                      <select name="signer" defaultValue={signatureCandidates[0] ? JSON.stringify(signatureCandidates[0]) : ""}>
-                        {signatureCandidates.length ? signatureCandidates.map((candidate) => (
-                          <option key={candidate.email} value={JSON.stringify(candidate)}>
-                            {candidate.name} · {candidate.email} · {candidate.roleLabel}
-                          </option>
-                        )) : <option value="">Enter signer below</option>}
-                      </select>
-                    </label>
+              {latestApproved && currentSignatureDocument ? (
+                <form action={sendCustomerReviewPackage} className="signature-send-form customer-review-package-form">
+                  <input name="jobId" type="hidden" value={jobId} />
+                  <input name="reportVersionId" type="hidden" value={latestApproved.id} />
+                  <input name="proposalVersionId" type="hidden" value={currentSignatureDocument.id} />
+
+                  <div className="customer-review-callout">
+                    <strong>One clear customer email</strong>
+                    <span>Includes both PDFs and a private review link. Electronic signing starts only when the customer chooses to continue.</span>
+                  </div>
+
+                  <div className="send-package-summary">
+                    <div>
+                      <span>Inspection report</span>
+                      <strong>Version {latestApproved.version} · approved</strong>
+                    </div>
+                    <div>
+                      <span>Work authorization</span>
+                      <strong>Version {currentSignatureDocument.version} · current</strong>
+                    </div>
+                  </div>
+
+                  <label>
+                    Customer
+                    <select name="signer" defaultValue={signatureCandidates[0] ? JSON.stringify(signatureCandidates[0]) : ""}>
+                      {signatureCandidates.length ? signatureCandidates.map((candidate) => (
+                        <option key={candidate.email} value={JSON.stringify(candidate)}>
+                          {candidate.name} · {candidate.email} · {candidate.roleLabel}
+                        </option>
+                      )) : <option value="">Use a different recipient below</option>}
+                    </select>
+                  </label>
+
+                  <details className="send-disclosure">
+                    <summary>Use a different recipient</summary>
                     <div className="signature-override-grid">
                       <label>
-                        Signer name override
+                        Customer name
                         <input name="signerName" placeholder={signatureCandidates[0]?.name ?? "Customer name"} />
                       </label>
                       <label>
-                        Signer email override
+                        Customer email
                         <input name="signerEmail" placeholder={signatureCandidates[0]?.email ?? "customer@example.com"} type="email" />
                       </label>
                     </div>
-                    <div className="signature-send-actions">
-                      <button className="secondary-button" type="submit">
-                        <FileSignature size={16} /> Send Zoho Sign only
-                      </button>
-                      <button className="secondary-button" formAction={startEmbeddedContractSigning} type="submit">
-                        <ExternalLink size={16} /> Start embedded signing
-                      </button>
-                      <span>Use direct Zoho Sign for in-office signing or when no review email is needed.</span>
-                    </div>
-                  </form>
-                </>
+                  </details>
+
+                  <div className="signature-send-actions">
+                    <button className="primary-button" type="submit">
+                      <Mail size={16} /> Send review package
+                    </button>
+                    <span>Recommended for remote customers.</span>
+                  </div>
+                </form>
               ) : (
-                <div className="signature-empty">
+                <div className="signature-empty send-blocker">
                   <AlertTriangle size={17} />
-                  Generate a contract PDF from the Proposal page before sending for signature.
+                  <div>
+                    <strong>Package is not ready</strong>
+                    <span>Finish the missing approved document before sending.</span>
+                  </div>
+                  <Link className="secondary-button" href={latestApproved ? `/jobs/${jobId}/proposal` : `/jobs/${jobId}/review`}>
+                    {latestApproved ? "Open Proposal" : "Open Review"}
+                  </Link>
                 </div>
               )}
-
-              <div className="signature-request-list">
-                <h3>Customer review links</h3>
-                {reviewLinks?.length ? reviewLinks.slice(0, 4).map((link) => (
-                  <article className={`signature-request-item status-${link.status}`} key={link.id}>
-                    <div>
-                      <div className="delivery-history-topline">
-                        <span className={`delivery-status-badge ${link.status}`}>{link.status}</span>
-                        <small>{new Date(link.created_at).toLocaleString()}</small>
-                      </div>
-                      <strong>{link.signer_name}</strong>
-                      <span>{link.signer_email}</span>
-                      <span>
-                        Expires {new Date(link.expires_at).toLocaleDateString()}
-                        {link.last_viewed_at ? ` · viewed ${new Date(link.last_viewed_at).toLocaleString()}` : " · not viewed yet"}
-                      </span>
-                    </div>
-                  </article>
-                )) : (
-                  <p className="panel-empty-copy">No customer review packages sent yet.</p>
-                )}
-                <h3>Signature history</h3>
-                {signatureRequests?.length ? signatureRequests.map((request) => {
-                  const version = Array.isArray(request.document_versions)
-                    ? request.document_versions[0]
-                    : request.document_versions;
-                  const document = version
-                    ? Array.isArray(version.documents) ? version.documents[0] : version.documents
-                    : null;
-                  return (
-                    <article className={`signature-request-item status-${request.status}`} key={request.id}>
-                      <div>
-                        <div className="delivery-history-topline">
-                          <span className={`delivery-status-badge ${request.status}`}>{request.status}</span>
-                          <small>{new Date(request.created_at).toLocaleString()}</small>
-                        </div>
-                        <strong>{request.request_name}</strong>
-                        <span>
-                          {document?.title ?? "Contract"} v{version?.version ?? "?"} · {request.signer_name} · {request.signer_email}
-                        </span>
-                        {request.provider_request_id ? (
-                          <span>
-                            Zoho request {request.provider_request_id}
-                            {request.status === "draft" ? " · draft created in Zoho Sign" : ""}
-                          </span>
-                        ) : null}
-                        {request.failure_message ? <p>{request.failure_message}</p> : null}
-                      </div>
-                      {request.provider_request_id ? (
-                        <div className="signature-request-actions">
-                          <a className="text-button" href={zohoSignWebUrl()} rel="noreferrer" target="_blank">
-                            <ExternalLink size={13} /> Open Zoho Sign
-                          </a>
-                          <form action={refreshSignatureRequestStatus}>
-                            <input name="jobId" type="hidden" value={jobId} />
-                            <input name="signatureRequestId" type="hidden" value={request.id} />
-                            <button className="text-button" type="submit">
-                              <RotateCw size={13} /> Refresh
-                            </button>
-                          </form>
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                }) : (
-                  <p className="panel-empty-copy">No signature activity yet.</p>
-                )}
-              </div>
             </section>
 
-            {latestApproved ? (
-              <SendCenterComposer
-                directoryRecipients={directoryRecipients}
-                downloadHref={`/jobs/${jobId}/review/versions/${latestApproved.id}/download`}
-                initialDraft={initialDraft}
-                jobId={jobId}
-                providerLabel={providerLabel()}
-                supportingVersions={supportingVersions}
-                versions={approvedVersions.map((version) => ({
-                  id: version.id,
-                  version: version.version,
-                  approvedLabel: version.approvedAt
-                    ? new Date(version.approvedAt).toLocaleDateString()
-                    : "",
-                }))}
-              />
-            ) : (
-              <div className="send-center-empty">
-                <FileCheck2 size={32} />
-                <h2>No approved report version</h2>
-                <p>Generate and approve a PDF in Review before preparing delivery.</p>
-                <Link className="primary-button" href={`/jobs/${jobId}/review`}>Open Review</Link>
+            <details className="send-other-options">
+              <summary>
+                <span>
+                  <strong>Other delivery options</strong>
+                  <small>Direct Zoho Sign, in-person signing, or a custom report email</small>
+                </span>
+              </summary>
+
+              <div className="send-other-options-body">
+                {currentSignatureDocument ? (
+                  <section className="send-secondary-path">
+                    <div>
+                      <h3>Direct signature</h3>
+                      <p>Use this when the customer does not need the review email, or is signing with you in person.</p>
+                    </div>
+                    <form action={sendContractForSignature} className="signature-send-form direct-sign-form">
+                      <input name="jobId" type="hidden" value={jobId} />
+                      <input name="documentVersionId" type="hidden" value={currentSignatureDocument.id} />
+                      <label>
+                        Signer
+                        <select name="signer" defaultValue={signatureCandidates[0] ? JSON.stringify(signatureCandidates[0]) : ""}>
+                          {signatureCandidates.length ? signatureCandidates.map((candidate) => (
+                            <option key={candidate.email} value={JSON.stringify(candidate)}>
+                              {candidate.name} · {candidate.email} · {candidate.roleLabel}
+                            </option>
+                          )) : <option value="">Enter signer below</option>}
+                        </select>
+                      </label>
+                      <details className="send-disclosure">
+                        <summary>Use a different signer</summary>
+                        <div className="signature-override-grid">
+                          <label>
+                            Signer name
+                            <input name="signerName" placeholder={signatureCandidates[0]?.name ?? "Signer name"} />
+                          </label>
+                          <label>
+                            Signer email
+                            <input name="signerEmail" placeholder={signatureCandidates[0]?.email ?? "signer@example.com"} type="email" />
+                          </label>
+                        </div>
+                      </details>
+                      <div className="signature-send-actions secondary-path-actions">
+                        <button className="secondary-button" type="submit">
+                          <FileSignature size={16} /> Send Zoho Sign only
+                        </button>
+                        <button className="secondary-button" formAction={startEmbeddedContractSigning} type="submit">
+                          <ExternalLink size={16} /> Start in-person signing
+                        </button>
+                      </div>
+                    </form>
+                  </section>
+                ) : null}
+
+                <details className="send-custom-email">
+                  <summary>
+                    <strong>Custom email or document package</strong>
+                    <span>Send only the report, change recipients, or choose a different attachment arrangement.</span>
+                  </summary>
+                  <div className="send-custom-email-body">
+                    {latestApproved ? (
+                      <SendCenterComposer
+                        directoryRecipients={directoryRecipients}
+                        downloadHref={`/jobs/${jobId}/review/versions/${latestApproved.id}/download`}
+                        initialDraft={initialDraft}
+                        jobId={jobId}
+                        providerLabel={providerLabel()}
+                        supportingVersions={currentSignatureDocument ? [currentSignatureDocument] : []}
+                        versions={[{
+                          id: latestApproved.id,
+                          version: latestApproved.version,
+                          approvedLabel: latestApproved.approvedAt
+                            ? new Date(latestApproved.approvedAt).toLocaleDateString()
+                            : "",
+                        }]}
+                      />
+                    ) : (
+                      <p className="panel-empty-copy">Approve a report before preparing a custom delivery.</p>
+                    )}
+                  </div>
+                </details>
               </div>
-            )}
+            </details>
           </main>
 
-          <aside className="delivery-history-panel">
+          <aside className="delivery-history-panel customer-activity-panel">
             <div className="section-heading compact">
-              <div><p className="eyebrow">Audit trail</p><h2>Delivery history</h2></div>
-              <Mail size={18} />
+              <div><p className="eyebrow">Customer activity</p><h2>Delivery timeline</h2></div>
+              <Clock3 size={18} />
             </div>
-            {deliveries?.length ? (
-              <div className="delivery-history-list">
-                {deliveries.map((delivery) => {
+            {activityItems.length ? (
+              <div className="customer-activity-list">
+                {activityItems.map((activity) => {
+                  if (activity.kind === "review") {
+                    const link = activity.item;
+                    const reviewState = link.last_viewed_at ? "viewed" : link.status;
+                    return (
+                      <article className="customer-activity-item" key={`review-${link.id}`}>
+                        <div className="customer-activity-marker" />
+                        <div>
+                          <div className="delivery-history-topline">
+                            <span className={`delivery-status-badge ${reviewState}`}>{reviewState}</span>
+                            <small>{new Date(activity.occurredAt).toLocaleString()}</small>
+                          </div>
+                          <strong>Review package for {link.signer_name}</strong>
+                          <span>{link.signer_email}</span>
+                          <span>
+                            {link.last_viewed_at
+                              ? `Viewed ${new Date(link.last_viewed_at).toLocaleString()}`
+                              : `Expires ${new Date(link.expires_at).toLocaleDateString()}`}
+                          </span>
+                        </div>
+                      </article>
+                    );
+                  }
+
+                  if (activity.kind === "signature") {
+                    const request = activity.item;
+                    const version = Array.isArray(request.document_versions)
+                      ? request.document_versions[0]
+                      : request.document_versions;
+                    const document = version
+                      ? Array.isArray(version.documents) ? version.documents[0] : version.documents
+                      : null;
+                    return (
+                      <article className="customer-activity-item" key={`signature-${request.id}`}>
+                        <div className="customer-activity-marker" />
+                        <div>
+                          <div className="delivery-history-topline">
+                            <span className={`delivery-status-badge ${request.status}`}>{request.status}</span>
+                            <small>{new Date(activity.occurredAt).toLocaleString()}</small>
+                          </div>
+                          <strong>Signature request for {request.signer_name}</strong>
+                          <span>{document?.title ?? "Work authorization"} v{version?.version ?? "?"}</span>
+                          {request.failure_message ? <p>{request.failure_message}</p> : null}
+                          {request.provider_request_id ? (
+                            <div className="customer-activity-actions">
+                              <a className="text-button" href={zohoSignWebUrl()} rel="noreferrer" target="_blank">
+                                <ExternalLink size={13} /> Open Zoho Sign
+                              </a>
+                              <form action={refreshSignatureRequestStatus}>
+                                <input name="jobId" type="hidden" value={jobId} />
+                                <input name="signatureRequestId" type="hidden" value={request.id} />
+                                <button className="text-button" type="submit">
+                                  <RotateCw size={13} /> Refresh
+                                </button>
+                              </form>
+                            </div>
+                          ) : null}
+                        </div>
+                      </article>
+                    );
+                  }
+
+                  const delivery = activity.item;
                   const version = Array.isArray(delivery.document_versions)
                     ? delivery.document_versions[0]
                     : delivery.document_versions;
@@ -539,49 +614,46 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                   );
                   const editable = ["draft", "failed"].includes(delivery.status);
                   return (
-                    <article className={`delivery-history-item status-${delivery.status}`} key={delivery.id}>
-                      <div className="delivery-history-topline">
-                        <span className={`delivery-status-badge ${delivery.status}`}>{delivery.status}</span>
-                        <small>{delivery.sent_at ? new Date(delivery.sent_at).toLocaleString() : new Date(delivery.created_at).toLocaleString()}</small>
-                      </div>
-                      <strong>{delivery.subject}</strong>
-                      <span>Report v{version?.version ?? "?"} · {delivery.package_mode?.replaceAll("_", " ") ?? "report only"}</span>
-                      <div className="delivery-recipient-chips">
-                        {(delivery.delivery_recipients ?? []).map((recipient) => (
-                          <span key={recipient.id}>{recipient.recipient_type.toUpperCase()} · {recipient.display_name || recipient.email}</span>
-                        ))}
-                      </div>
-                      {attempts.length ? (
-                        <div className="delivery-attempt-summary">
-                          <Clock3 size={12} />
-                          {attempts.length} attempt{attempts.length === 1 ? "" : "s"} · {attempts[0].provider.replaceAll("_", " ")}
+                    <article className="customer-activity-item" key={`delivery-${delivery.id}`}>
+                      <div className="customer-activity-marker" />
+                      <div>
+                        <div className="delivery-history-topline">
+                          <span className={`delivery-status-badge ${delivery.status}`}>{delivery.status}</span>
+                          <small>{new Date(activity.occurredAt).toLocaleString()}</small>
                         </div>
-                      ) : null}
-                      {delivery.status === "sent" ? (
-                        <div className={`crm-sync-state ${delivery.crm_sync_status}`}>
-                          CRM · {delivery.crm_sync_status.replaceAll("_", " ")}
+                        <strong>{delivery.subject}</strong>
+                        <span>
+                          {(delivery.delivery_recipients ?? []).map((recipient) =>
+                            recipient.display_name || recipient.email
+                          ).join(", ")}
+                        </span>
+                        {delivery.failure_message ? <p>{delivery.failure_message}</p> : null}
+                        <details className="activity-details">
+                          <summary>Details</summary>
+                          <span>Report v{version?.version ?? "?"} · {delivery.package_mode?.replaceAll("_", " ") ?? "report only"}</span>
+                          {attempts.length ? (
+                            <span>{attempts.length} attempt{attempts.length === 1 ? "" : "s"} · {attempts[0].provider.replaceAll("_", " ")}</span>
+                          ) : null}
+                          {delivery.status === "sent" ? (
+                            <span>CRM · {delivery.crm_sync_status.replaceAll("_", " ")}</span>
+                          ) : null}
+                          {delivery.crm_failure_message ? <p>{delivery.crm_failure_message}</p> : null}
+                        </details>
+                        <div className="customer-activity-actions">
+                          <Link className="text-button" href={editable
+                            ? `/jobs/${jobId}/send?draft=${delivery.id}`
+                            : `/jobs/${jobId}/send?resend=${delivery.id}`}>
+                            <RotateCw size={13} />
+                            {editable ? (delivery.status === "failed" ? "Retry" : "Open draft") : "Send again"}
+                          </Link>
                         </div>
-                      ) : null}
-                      {delivery.failure_message ? <p>{delivery.failure_message}</p> : null}
-                      {delivery.crm_failure_message ? <p>{delivery.crm_failure_message}</p> : null}
-                      <div className="delivery-history-actions">
-                        {editable ? (
-                          <Link className="text-button" href={`/jobs/${jobId}/send?draft=${delivery.id}`}>
-                            {delivery.status === "failed" ? <RotateCw size={13} /> : null}
-                            {delivery.status === "failed" ? "Retry" : "Open draft"}
-                          </Link>
-                        ) : (
-                          <Link className="text-button" href={`/jobs/${jobId}/send?resend=${delivery.id}`}>
-                            <RotateCw size={13} /> Send again
-                          </Link>
-                        )}
                       </div>
                     </article>
                   );
                 })}
               </div>
             ) : (
-              <p className="panel-empty-copy">No delivery activity yet.</p>
+              <p className="panel-empty-copy">No customer activity yet.</p>
             )}
           </aside>
         </div>

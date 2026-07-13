@@ -8,6 +8,7 @@ import { getEmailProvider, type EmailAttachment } from "@/lib/email";
 import { getCurrentContext } from "@/lib/current-organization";
 import { logReportDeliveryInZoho } from "@/lib/crm/zoho";
 import { createReviewToken, customerReviewUrl, hashReviewToken } from "@/lib/proposals/review-links";
+import { loadProposalSnapshot } from "@/lib/proposals/load-proposal-snapshot";
 import {
   getZohoSignRequestStatus,
   isZohoSignConfigured,
@@ -51,6 +52,40 @@ function appOrigin() {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
   return "http://localhost:3000";
+}
+
+function proposalSnapshotHash(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const hash = (value as { contentHash?: unknown }).contentHash;
+  return typeof hash === "string" && hash ? hash : null;
+}
+
+async function assertCurrentProposalSnapshot(
+  supabase: Awaited<ReturnType<typeof getCurrentContext>>["supabase"],
+  organization: { id: string; name: string },
+  jobId: string,
+  versionSnapshot: unknown,
+) {
+  const { data: proposal, error } = await supabase
+    .from("job_proposals")
+    .select("id, status")
+    .eq("inspection_job_id", jobId)
+    .eq("organization_id", organization.id)
+    .maybeSingle();
+  if (error || !proposal) {
+    throw new Error(error?.message ?? "The work authorization could not be found.");
+  }
+  if (proposal.status !== "approved") {
+    throw new Error("Approve the current work authorization before delivering it.");
+  }
+
+  const currentSnapshot = await loadProposalSnapshot(supabase, organization, jobId, proposal.id);
+  const versionHash = proposalSnapshotHash(versionSnapshot);
+  if (!versionHash || versionHash !== currentSnapshot.contentHash) {
+    throw new Error(
+      "The work authorization changed after this PDF was generated. Approve and generate a current PDF before delivering it.",
+    );
+  }
 }
 
 function parseSigner(value: FormDataEntryValue | null) {
@@ -118,7 +153,7 @@ async function loadSignatureDocument(
   const { data: version, error } = await supabase
     .from("document_versions")
     .select(`
-      id, version, status, approval_status,
+      id, version, status, approval_status, snapshot,
       assets(provider_file_id, original_filename, content_type),
       documents!inner(id, kind, title, inspection_job_id)
     `)
@@ -136,6 +171,9 @@ async function loadSignatureDocument(
   if (version.status !== "ready") {
     throw new Error("The selected contract PDF is not ready yet.");
   }
+  if (version.approval_status !== "approved") {
+    throw new Error("Approve the current work authorization before sending it for signature.");
+  }
   const asset = Array.isArray(version.assets) ? version.assets[0] : version.assets;
   if (!asset?.provider_file_id) {
     throw new Error("The selected contract PDF file is missing from storage.");
@@ -152,6 +190,7 @@ async function loadSignatureDocument(
     filename: asset.original_filename || `${document.kind}-v${version.version}.pdf`,
     title: document.title,
     version: version.version,
+    snapshot: version.snapshot,
   };
 }
 
@@ -182,27 +221,67 @@ async function loadAttachments(
   supportingVersionIds: string[],
   packageMode: string,
   jobId: string,
+  organization: { id: string; name: string },
 ) {
   const versionIds = [versionId, ...supportingVersionIds];
   const { data: deliveryVersions, error } = await supabase
     .from("document_versions")
-    .select("id, version, assets(provider_file_id, original_filename, content_type)")
-    .in("id", versionIds);
+    .select(`
+      id, version, status, approval_status, snapshot,
+      assets(provider_file_id, original_filename, content_type),
+      documents!inner(kind, inspection_job_id)
+    `)
+    .in("id", versionIds)
+    .eq("documents.inspection_job_id", jobId);
   if (error || !deliveryVersions?.length) {
     throw new Error(error?.message ?? "The selected PDF files could not be found.");
   }
 
   const versionFiles = new Map(deliveryVersions.map((version) => {
     const asset = Array.isArray(version.assets) ? version.assets[0] : version.assets;
+    const document = Array.isArray(version.documents) ? version.documents[0] : version.documents;
     return [version.id, {
       path: asset?.provider_file_id ?? "",
       filename: asset?.original_filename ?? `document-v${version.version}.pdf`,
       contentType: asset?.content_type ?? "application/pdf",
       version: version.version,
+      status: version.status,
+      approvalStatus: version.approval_status,
+      kind: document?.kind ?? "",
+      snapshot: version.snapshot,
     }];
   }));
   const reportFile = versionFiles.get(versionId);
   if (!reportFile?.path) throw new Error("The approved PDF file could not be found.");
+  if (reportFile.status !== "ready" || reportFile.approvalStatus !== "approved" || reportFile.kind !== "inspection_report") {
+    throw new Error("Only the current approved inspection report can be delivered.");
+  }
+
+  for (const supportingVersionId of supportingVersionIds) {
+    const supportingFile = versionFiles.get(supportingVersionId);
+    if (!supportingFile || supportingFile.status !== "ready" || supportingFile.approvalStatus !== "approved") {
+      throw new Error("Only an approved supporting document can be delivered.");
+    }
+    if (!["contract", "proposal"].includes(supportingFile.kind)) {
+      throw new Error("The selected supporting document is not a work authorization.");
+    }
+    await assertCurrentProposalSnapshot(supabase, organization, jobId, supportingFile.snapshot);
+  }
+
+  const { data: currentReportVersion, error: currentReportError } = await supabase
+    .from("document_versions")
+    .select("id, documents!inner(kind, inspection_job_id)")
+    .eq("organization_id", organization.id)
+    .eq("status", "ready")
+    .eq("approval_status", "approved")
+    .eq("documents.kind", "inspection_report")
+    .eq("documents.inspection_job_id", jobId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (currentReportError || !currentReportVersion || currentReportVersion.id !== versionId) {
+    throw new Error("The inspection report has a newer approved version. Use the current report before delivering it.");
+  }
 
   const files: DeliveryFile[] = [];
   for (const selectedVersionId of versionIds) {
@@ -331,6 +410,7 @@ export async function prepareReportDelivery(formData: FormData) {
       supportingVersionIds,
       packageMode,
       jobId,
+      organization,
     );
     reportVersion = packageFiles.reportVersion;
     const { attachments } = packageFiles;
@@ -468,7 +548,7 @@ export async function sendCustomerReviewPackage(formData: FormData) {
   const [{ data: proposal }, { data: job }, { data: proposalVersion }] = await Promise.all([
     supabase
       .from("job_proposals")
-      .select("id, customer_summary")
+      .select("id, status, customer_summary")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
       .maybeSingle(),
@@ -480,7 +560,7 @@ export async function sendCustomerReviewPackage(formData: FormData) {
       .single(),
     supabase
       .from("document_versions")
-      .select("id, status, documents!inner(kind, inspection_job_id)")
+      .select("id, status, approval_status, snapshot, documents!inner(kind, inspection_job_id)")
       .eq("id", proposalVersionId)
       .eq("organization_id", organization.id)
       .eq("documents.inspection_job_id", jobId)
@@ -494,6 +574,18 @@ export async function sendCustomerReviewPackage(formData: FormData) {
   }
   if (proposalVersion.status !== "ready") {
     redirect(sendUrl(jobId, "The selected proposal PDF is not ready yet.", "error"));
+  }
+  if (proposal.status !== "approved" || proposalVersion.approval_status !== "approved") {
+    redirect(sendUrl(jobId, "Approve the current work authorization before sending the review package.", "error"));
+  }
+  try {
+    await assertCurrentProposalSnapshot(supabase, organization, jobId, proposalVersion.snapshot);
+  } catch (snapshotError) {
+    redirect(sendUrl(
+      jobId,
+      snapshotError instanceof Error ? snapshotError.message : "Unable to verify the current work authorization.",
+      "error",
+    ));
   }
 
   let provider;
@@ -593,6 +685,7 @@ export async function sendCustomerReviewPackage(formData: FormData) {
       [proposalVersionId],
       "separate_attachments",
       jobId,
+      organization,
     );
     result = await provider.send({
       to: [{ email: signer.email, name: signer.name }],
@@ -682,6 +775,7 @@ async function submitContractSignatureRequest(formData: FormData, mode: "remote"
   let documentFile: Awaited<ReturnType<typeof loadSignatureDocument>>;
   try {
     documentFile = await loadSignatureDocument(supabase, organization.id, jobId, documentVersionId);
+    await assertCurrentProposalSnapshot(supabase, organization, jobId, documentFile.snapshot);
   } catch (error) {
     redirect(signatureUrl(jobId, error instanceof Error ? error.message : "Unable to load the contract PDF.", "error"));
   }
