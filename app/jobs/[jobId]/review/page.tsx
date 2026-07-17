@@ -56,12 +56,64 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
   const canApprove = membership.role === "administrator" || membership.role === "manager";
   const blockingIssues = bundle.readiness.issues.filter((issue) => issue.severity === "blocking");
   const advisoryIssues = bundle.readiness.issues.filter((issue) => issue.severity === "advisory");
+  const currentVersionReady = latestVersion?.status === "ready";
+  const currentVersionApproved = latestVersion?.approvalStatus === "approved";
+  const currentVersionNeedsApproval = Boolean(currentVersionReady && !currentVersionApproved);
+  const approvedVersionIsCurrent = Boolean(latestVersion && approvedVersion?.id === latestVersion.id);
+  const currentReportState = blockingIssues.length
+    ? {
+        tone: "blocked",
+        label: "Needs attention",
+        title: "Resolve report checks first",
+        detail: "Fix the blocking checks before creating a customer-ready PDF snapshot.",
+      }
+    : !latestVersion
+      ? {
+          tone: "ready",
+          label: "Ready",
+          title: "Generate the first report PDF",
+          detail: "The preview is live. Generate a fixed PDF when the report looks correct.",
+        }
+      : latestVersion.status === "failed"
+        ? {
+            tone: "blocked",
+            label: "Generation failed",
+            title: `Version ${latestVersion.version} did not generate`,
+            detail: latestVersion.failureMessage ?? "Try generating the report PDF again.",
+          }
+        : currentVersionNeedsApproval
+          ? {
+              tone: "attention",
+              label: "Approval needed",
+              title: `Approve current PDF version ${latestVersion.version}`,
+              detail: "This PDF is ready, but it will not be available in Send Center until it is approved.",
+            }
+          : approvedVersionIsCurrent
+            ? {
+                tone: "complete",
+                label: "Approved",
+                title: `Version ${latestVersion.version} is ready to send`,
+                detail: "This approved PDF is the report customers will receive from Send Center.",
+              }
+            : approvedVersion
+              ? {
+                  tone: "attention",
+                  label: "Newer PDF available",
+                  title: `Version ${approvedVersion.version} is approved`,
+                  detail: `Version ${latestVersion.version} exists but has not been approved. Send Center will use the approved version.`,
+                }
+              : {
+                  tone: "attention",
+                  label: "In progress",
+                  title: `Version ${latestVersion.version} is ${latestVersion.status}`,
+                  detail: "Wait for generation to finish, then approve the ready PDF.",
+                };
 
   return (
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         address={property?.street_line_1 ?? ""}
-        actions={<Link className="secondary-button" href={`/jobs/${jobId}/proposal`}><FilePenLine size={16} /> Proposal</Link>}
+        actions={<Link className="secondary-button" href={`/jobs/${jobId}/proposal`}><FilePenLine size={16} /> Open proposal</Link>}
         jobId={jobId}
         jobNumber={job.job_number}
         locality={[
@@ -80,8 +132,8 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
         <header className="review-heading">
           <div>
             <p className="eyebrow">Final quality control</p>
-            <h1>Review and generate report</h1>
-            <p>Resolve blockers, inspect the live report, then create an immutable PDF version.</p>
+            <h1>Final report review</h1>
+            <p>Check the live preview, lock the report as a PDF, approve it, then move to proposal and delivery.</p>
           </div>
           <div className="review-actions">
             {approvedVersion ? <Link className="secondary-button" href={`/jobs/${jobId}/send`}><Mail size={17} /> Send Center</Link> : null}
@@ -89,7 +141,7 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
               <form action={generateInspectionReport}>
                 <input name="jobId" type="hidden" value={jobId} />
                 <PendingSubmitButton className="primary-button" pendingLabel="Generating PDF">
-                  <FilePlus2 size={17} /> Generate new PDF
+                  <FilePlus2 size={17} /> Generate report PDF
                 </PendingSubmitButton>
               </form>
             ) : (
@@ -105,9 +157,9 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
         </header>
 
         <section className="review-status-grid">
-          <div><CheckCircle2 size={20} /><span>Readiness</span><strong>{blockingIssues.length ? `${blockingIssues.length} blockers` : "Ready to generate"}</strong></div>
-          <div><FileCheck2 size={20} /><span>Latest PDF</span><strong>{latestVersion ? `Version ${latestVersion.version}` : "Not generated"}</strong></div>
-          <div><Clock3 size={20} /><span>Approval</span><strong>{approvedVersion ? `Version ${approvedVersion.version} approved` : "Pending"}</strong></div>
+          <div><CheckCircle2 size={20} /><span>Checks</span><strong>{blockingIssues.length ? `${blockingIssues.length} blockers` : "All clear"}</strong></div>
+          <div><FileCheck2 size={20} /><span>Current PDF</span><strong>{latestVersion ? `Version ${latestVersion.version}` : "Not generated"}</strong></div>
+          <div><Clock3 size={20} /><span>Approved report</span><strong>{approvedVersion ? `Version ${approvedVersion.version}` : "Not approved"}</strong></div>
         </section>
 
         <div className="review-layout">
@@ -125,26 +177,32 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
               </div>
             </section>
 
-            <section className="review-panel">
-              <div className="section-heading compact"><div><p className="eyebrow">Immutable history</p><h2>PDF versions</h2></div></div>
-              {versions.length ? <div className="report-version-list">
-                {versions.map((version) => (
-                  <article className="report-version" key={version.id}>
-                    <div>
-                      <strong>Version {version.version}</strong>
-                      <span>{version.generatedAt ? new Date(version.generatedAt).toLocaleString() : version.status}</span>
-                    </div>
-                    <span className={`version-state ${version.approvalStatus === "approved" ? "approved" : version.status}`}>{version.approvalStatus === "approved" ? "Approved" : version.status}</span>
-                    {version.assetPath ? <Link className="icon-button small" href={`/jobs/${jobId}/review/versions/${version.id}/download`} title={`Download version ${version.version}`}><Download size={15} /></Link> : null}
-                  </article>
-                ))}
-              </div> : <p className="panel-empty-copy">No PDF versions have been generated.</p>}
-            </section>
-
-            {latestVersion?.status === "ready" && latestVersion.approvalStatus !== "approved" ? (
-              <section className="review-panel approval-panel">
-                <div className="section-heading compact"><div><p className="eyebrow">Manager control</p><h2>Approve version {latestVersion.version}</h2></div></div>
-                {canApprove ? (
+            <section className={`review-panel current-report-panel state-${currentReportState.tone}`}>
+              <div className="section-heading compact"><div><p className="eyebrow">Current report</p><h2>{currentReportState.title}</h2></div></div>
+              <div className="current-report-state">
+                <span>{currentReportState.label}</span>
+                <p>{currentReportState.detail}</p>
+              </div>
+              {latestVersion ? (
+                <dl className="current-report-meta">
+                  <div><dt>Latest generated</dt><dd>Version {latestVersion.version}</dd></div>
+                  <div><dt>Approved for sending</dt><dd>{approvedVersion ? `Version ${approvedVersion.version}` : "None yet"}</dd></div>
+                </dl>
+              ) : null}
+              <div className="current-report-actions">
+                {blockingIssues.length ? (
+                  <Link className="secondary-button" href={blockingIssues[0]?.href ?? "#report-checks"}>
+                    <AlertTriangle size={16} /> Resolve first check
+                  </Link>
+                ) : !latestVersion || latestVersion.status === "failed" ? (
+                  <form action={generateInspectionReport}>
+                    <input name="jobId" type="hidden" value={jobId} />
+                    <PendingSubmitButton className="primary-button" pendingLabel="Generating PDF">
+                      <FilePlus2 size={16} /> Generate report PDF
+                    </PendingSubmitButton>
+                  </form>
+                ) : currentVersionNeedsApproval ? (
+                  canApprove ? (
                   <form action={approveInspectionReport}>
                     <input name="jobId" type="hidden" value={jobId} />
                     <input name="versionId" type="hidden" value={latestVersion.id} />
@@ -153,15 +211,48 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
                       <CheckCircle2 size={17} /> Approve report
                     </PendingSubmitButton>
                   </form>
-                ) : <p className="panel-empty-copy">A manager or administrator must approve this version.</p>}
-              </section>
-            ) : null}
+                  ) : <p className="panel-empty-copy">A manager or administrator must approve this PDF before sending.</p>
+                ) : approvedVersion ? (
+                  <Link className="primary-button" href={`/jobs/${jobId}/send`}><Mail size={16} /> Open Send Center</Link>
+                ) : <p className="panel-empty-copy">PDF generation is still in progress.</p>}
+              </div>
+            </section>
+
+            <section className="review-panel report-history-panel">
+              <div className="section-heading compact"><div><p className="eyebrow">Saved snapshots</p><h2>Report history</h2></div></div>
+              {approvedVersion ? (
+                <div className="report-history-summary">
+                  <span>Customer-ready report</span>
+                  <strong>Approved version {approvedVersion.version}</strong>
+                  {approvedVersion.assetPath ? <Link className="text-button" href={`/jobs/${jobId}/review/versions/${approvedVersion.id}/download`}><Download size={14} /> Download approved PDF</Link> : null}
+                </div>
+              ) : (
+                <p className="panel-empty-copy">No approved report yet. Approve the current PDF before using Send Center.</p>
+              )}
+              {versions.length ? (
+                <details className="report-history-details">
+                  <summary>Show generated PDFs ({versions.length})</summary>
+                  <div className="report-version-list">
+                    {versions.map((version) => (
+                      <article className="report-version" key={version.id}>
+                        <div>
+                          <strong>Version {version.version}</strong>
+                          <span>{version.generatedAt ? new Date(version.generatedAt).toLocaleString() : version.status}</span>
+                        </div>
+                        <span className={`version-state ${version.approvalStatus === "approved" ? "approved" : version.status}`}>{version.approvalStatus === "approved" ? "Approved" : version.status}</span>
+                        {version.assetPath ? <Link className="icon-button small" href={`/jobs/${jobId}/review/versions/${version.id}/download`} title={`Download version ${version.version}`}><Download size={15} /></Link> : null}
+                      </article>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+            </section>
           </aside>
 
           <main className="report-preview-panel">
             <div className="report-preview-toolbar">
-              <div><p className="eyebrow">Live HTML template</p><h2>Report preview</h2></div>
-              <span>Preview reflects current job data. Generated PDFs preserve a snapshot.</span>
+              <div><p className="eyebrow">Live preview</p><h2>Report preview</h2></div>
+              <span>This updates with current job data. Approved PDFs are saved snapshots.</span>
             </div>
             <div className="report-preview-canvas">
               <InspectionReportHtml snapshot={bundle.snapshot} media={bundle.media} />

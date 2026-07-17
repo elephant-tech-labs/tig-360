@@ -4,6 +4,8 @@ import {
   CheckCircle2,
   ClipboardList,
   FileCheck2,
+  FilePenLine,
+  Send,
   AlertTriangle,
   Check,
   CircleDot,
@@ -14,7 +16,7 @@ import type { JobWorkflowStates, WorkflowStepState } from "@/lib/job-workflow";
 
 type JobAuthoringNavProps = {
   jobId: string;
-  current: "setup" | "drawing" | "findings" | "photos" | "review";
+  current: "setup" | "drawing" | "findings" | "photos" | "review" | "proposal" | "send";
   states: JobWorkflowStates;
 };
 
@@ -24,6 +26,8 @@ const steps = [
   { id: "findings", label: "Findings", icon: CheckCircle2, href: (jobId: string) => `/jobs/${jobId}/findings` },
   { id: "photos", label: "Photos", icon: Camera, href: (jobId: string) => `/jobs/${jobId}/photos` },
   { id: "review", label: "Review", icon: FileCheck2, href: (jobId: string) => `/jobs/${jobId}/review` },
+  { id: "proposal", label: "Proposal", icon: FilePenLine, href: (jobId: string) => `/jobs/${jobId}/proposal` },
+  { id: "send", label: "Send", icon: Send, href: (jobId: string) => `/jobs/${jobId}/send` },
 ] as const;
 
 function StepIndicator({ index, state }: { index: number; state: WorkflowStepState }) {

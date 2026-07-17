@@ -44,6 +44,9 @@ async function loadPublicSignatureDocument(
     throw new Error("The selected document is not available for signature.");
   }
   if (version.status !== "ready") throw new Error("The signing document is not ready yet.");
+  if (version.approval_status !== "approved") {
+    throw new Error("The work authorization is no longer approved for signature.");
+  }
   const asset = Array.isArray(version.assets) ? version.assets[0] : version.assets;
   if (!asset?.provider_file_id) throw new Error("The signing document file is missing.");
 

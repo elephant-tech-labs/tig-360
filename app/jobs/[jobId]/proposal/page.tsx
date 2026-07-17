@@ -13,18 +13,21 @@ import {
   Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { JobAuthoringNav } from "@/components/job-authoring-nav";
 import { JobWorkspaceHeader } from "@/components/job-workspace-header";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
+import { getJobWorkflowStates } from "@/lib/job-workflow";
+import { buildProposalSummaryInputHash } from "@/lib/proposals/customer-summary";
+import { loadProposalSnapshot } from "@/lib/proposals/load-proposal-snapshot";
 import {
+  approveAndGenerateProposalContractDocument,
   deleteProposalLine,
   generateProposalSummary,
-  generateProposalContractDocument,
   importFindingProposalLines,
   saveProposalLine,
   saveProposalSettings,
   saveProposalSummary,
-  setProposalStatus,
 } from "@/app/jobs/[jobId]/proposal/actions";
 
 type ProposalPageProps = {
@@ -39,10 +42,14 @@ type ProposalLine = {
   section: string | null;
   title: string;
   description: string | null;
+  contract_scope: string | null;
+  contract_scope_source: unknown;
+  contract_scope_generated_at: string | null;
   quantity: number;
   unit_price: number;
   included: boolean;
   sort_order: number;
+  updated_at: string | null;
   findings?: { code: string | null; title: string | null } | { code: string | null; title: string | null }[] | null;
 };
 
@@ -53,6 +60,7 @@ type ProposalDocumentVersion = {
   approval_status: string;
   generated_at: string | null;
   asset_id: string | null;
+  snapshot: unknown;
 };
 
 function summarySourceLabel(value: unknown) {
@@ -60,8 +68,19 @@ function summarySourceLabel(value: unknown) {
   const source = value as { provider?: string; model?: string; reason?: string };
   if (source.provider === "openai") return `AI summary${source.model ? ` via ${source.model}` : ""}`;
   if (source.provider === "manual") return "Manual summary";
-  if (source.provider === "fallback") return `Fallback summary${source.reason ? `: ${source.reason}` : ""}`;
+  if (source.provider === "fallback") return "Draft fallback summary";
   return source.provider ? `${source.provider} summary` : null;
+}
+
+function summarySourceProvider(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  return (value as { provider?: string }).provider ?? null;
+}
+
+function proposalSnapshotHash(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const hash = (value as { contentHash?: unknown }).contentHash;
+  return typeof hash === "string" && hash ? hash : null;
 }
 
 const sectionOptions = [
@@ -99,7 +118,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
   const [{ data: job, error: jobError }, { data: proposalId, error: ensureError }] = await Promise.all([
     supabase
       .from("inspection_jobs")
-      .select("id, job_number, report_type, properties(street_line_1, city, region, postal_code)")
+      .select("id, job_number, report_type, properties(street_line_1, street_line_2, city, region, postal_code)")
       .eq("id", jobId)
       .eq("organization_id", organization.id)
       .single(),
@@ -112,17 +131,23 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
   if (jobError || !job) notFound();
   if (ensureError || !proposalId) throw new Error(ensureError?.message ?? "Unable to prepare proposal.");
 
-  const [{ data: proposal, error: proposalError }, { count: findingRecommendationCount }, { data: proposalDocument }] = await Promise.all([
+  const [
+    { data: proposal, error: proposalError },
+    { count: findingRecommendationCount },
+    { data: proposalDocument },
+    workflowStates,
+  ] = await Promise.all([
     supabase
       .from("job_proposals")
       .select(`
         id, status, title, customer_note, terms, tax_rate, discount_amount,
-        customer_summary, customer_summary_generated_at, customer_summary_source,
+        customer_summary, customer_summary_generated_at, customer_summary_input_hash, customer_summary_source,
         subtotal_amount, tax_amount,
         total_amount, approved_at, updated_at,
         proposal_line_items(
           id, source_type, item_code, section, title, description, quantity, unit_price,
-          included, sort_order, findings(code, title)
+          included, sort_order, contract_scope, contract_scope_source, contract_scope_generated_at,
+          updated_at, findings(code, title)
         )
       `)
       .eq("id", proposalId)
@@ -137,11 +162,12 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
       .is("findings.archived_at", null),
     supabase
       .from("documents")
-      .select("document_versions(id, version, status, approval_status, generated_at, asset_id)")
+      .select("document_versions(id, version, status, approval_status, generated_at, asset_id, snapshot)")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
       .eq("kind", "proposal")
       .maybeSingle(),
+    getJobWorkflowStates(supabase, organization.id, jobId),
   ]);
 
   if (proposalError || !proposal) throw new Error(proposalError?.message ?? "Proposal not found.");
@@ -151,22 +177,95 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
   const includedLines = lines.filter((line) => line.included);
   const canApprove = membership.role === "administrator" || membership.role === "manager";
   const hasIncludedLines = includedLines.length > 0;
-  const isReady = proposal.status === "ready";
   const isApproved = proposal.status === "approved";
-  const readyForContract = isApproved;
-  const canMarkReady = hasIncludedLines && !isReady && !isApproved;
-  const canGenerateContract = isApproved;
   const proposalVersionsRaw = proposalDocument?.document_versions ?? [];
   const proposalVersions = ([...(Array.isArray(proposalVersionsRaw) ? proposalVersionsRaw : [proposalVersionsRaw])] as ProposalDocumentVersion[])
     .sort((a, b) => b.version - a.version);
   const latestProposalVersion = proposalVersions[0] ?? null;
-  const proposalUpdatedAt = proposal.updated_at ? new Date(proposal.updated_at).getTime() : 0;
+  const lineScopeIsOutdated = (line: ProposalLine) => {
+    if (!line.contract_scope?.trim() || !line.contract_scope_generated_at) return true;
+    const lineUpdatedAt = line.updated_at ? new Date(line.updated_at).getTime() : 0;
+    return lineUpdatedAt - new Date(line.contract_scope_generated_at).getTime() > 5000;
+  };
+  const staleLineScopeCount = includedLines.filter(lineScopeIsOutdated).length;
+  const summaryInputHash = hasIncludedLines
+    ? buildProposalSummaryInputHash({
+        companyName: organization.name,
+        propertyAddress: [
+          property?.street_line_1,
+          property?.street_line_2,
+          property?.city,
+          property?.region,
+          property?.postal_code,
+        ].filter(Boolean).join(", "),
+        reportType: job.report_type,
+        total: Number(proposal.total_amount ?? 0),
+        lines: includedLines.map((line) => ({
+          id: line.id,
+          code: line.item_code,
+          section: line.section,
+          title: line.title,
+          description: line.description,
+          amount: Number(line.quantity ?? 0) * Number(line.unit_price ?? 0),
+        })),
+      })
+    : null;
+  const summaryHashOutdated = Boolean(
+    proposal.customer_summary &&
+    summaryInputHash &&
+    proposal.customer_summary_input_hash !== summaryInputHash,
+  );
+  const needsSummaryRefresh = hasIncludedLines && (!proposal.customer_summary || summaryHashOutdated || staleLineScopeCount > 0);
+  const currentProposalSnapshot = isApproved && hasIncludedLines && !needsSummaryRefresh
+    ? await loadProposalSnapshot(supabase, organization, jobId, proposal.id).catch(() => null)
+    : null;
+  const currentProposalSnapshotHash = currentProposalSnapshot?.contentHash ?? null;
+  const proposalContentUpdatedAt = Math.max(
+    0,
+    ...includedLines.map((line) => line.updated_at ? new Date(line.updated_at).getTime() : 0),
+    proposal.customer_summary_generated_at ? new Date(proposal.customer_summary_generated_at).getTime() : 0,
+  );
   const isVersionOutdated = (version: ProposalDocumentVersion) => {
-    if (!version.generated_at || !proposalUpdatedAt) return false;
-    return new Date(version.generated_at).getTime() < proposalUpdatedAt;
+    const versionSnapshotHash = proposalSnapshotHash(version.snapshot);
+    if (versionSnapshotHash && currentProposalSnapshotHash) {
+      return versionSnapshotHash !== currentProposalSnapshotHash;
+    }
+    if (!version.generated_at || !proposalContentUpdatedAt) return false;
+    return new Date(version.generated_at).getTime() + 5000 < proposalContentUpdatedAt;
   };
   const latestProposalVersionOutdated = latestProposalVersion ? isVersionOutdated(latestProposalVersion) : false;
+  const hasCurrentContractPdf = Boolean(latestProposalVersion && latestProposalVersion.status === "ready" && !latestProposalVersionOutdated);
   const customerSummarySource = summarySourceLabel(proposal.customer_summary_source);
+  const customerSummaryProvider = summarySourceProvider(proposal.customer_summary_source);
+  const nextAction = !hasIncludedLines
+    ? {
+        title: "Import recommended work",
+        detail: "Bring in recommendations from Findings. TIG-360 will also prepare the customer summary and concise line-item scopes.",
+        cta: "Import recommended work",
+      }
+    : needsSummaryRefresh
+      ? {
+          title: proposal.customer_summary ? "Refresh proposal wording" : "Prepare proposal wording",
+          detail: "The customer summary or line-item scopes need to match the latest proposal details before generating the contract.",
+          cta: "Refresh wording",
+        }
+      : !hasCurrentContractPdf
+        ? !latestProposalVersion
+          ? {
+              title: isApproved ? "Generate contract PDF" : "Approve and generate contract PDF",
+              detail: "Create the signature-ready work authorization snapshot from the current proposal.",
+              cta: "Approve and generate",
+            }
+          : {
+              title: "Regenerate contract PDF",
+              detail: "Proposal details changed after the latest PDF. Generate a fresh contract before using Send Center.",
+              cta: "Approve and generate",
+            }
+        : {
+            title: "Ready for Send Center",
+            detail: "The proposal is approved and the contract PDF is current. Send the review package or start signing.",
+            cta: "Open Send Center",
+          };
 
   return (
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
@@ -181,6 +280,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
         ].filter(Boolean).join(", ")}
         reportType={job.report_type}
       />
+      <JobAuthoringNav jobId={jobId} current="proposal" states={workflowStates} />
 
       <main className="proposal-page">
         {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
@@ -189,14 +289,14 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
         <header className="proposal-heading">
           <div>
             <p className="eyebrow">Proposal and contract</p>
-            <h1>Build the work authorization</h1>
-            <p>Turn recommendations into priced work lines, approve the proposal, then use it for contract delivery.</p>
+            <h1>Proposal and Work Authorization</h1>
+            <p>Price the recommended work, prepare the customer explanation, approve the proposal, then generate the signature-ready contract.</p>
           </div>
           <div className="proposal-heading-actions">
             <form action={importFindingProposalLines}>
               {hiddenContext(organization.id, jobId, proposal.id)}
               <PendingSubmitButton className="secondary-button" pendingLabel="Importing">
-                <Import size={16} /> Import findings
+                <Import size={16} /> Import recommended work
               </PendingSubmitButton>
             </form>
             <Link className="secondary-button" href={`/jobs/${jobId}/review`}><FileText size={16} /> Review report</Link>
@@ -219,14 +319,36 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                 </div>
                 <form action={generateProposalSummary}>
                   {hiddenContext(organization.id, jobId, proposal.id)}
-                  <PendingSubmitButton className="secondary-button" disabled={!hasIncludedLines} pendingLabel="Writing">
-                    Prepare summary
+                  <PendingSubmitButton className="secondary-button" disabled={!hasIncludedLines} pendingLabel="Refreshing wording">
+                    {proposal.customer_summary ? "Refresh wording" : "Prepare wording"}
                   </PendingSubmitButton>
                 </form>
               </div>
               <p className="proposal-summary-help">
-                This is the plain-English explanation used in the customer review page and contract PDF before the formal work authorization.
+                This plain-English explanation appears on the customer review page, in the proposal email context, and before the formal work authorization.
               </p>
+              {customerSummaryProvider === "fallback" ? (
+                <div className="proposal-summary-notice">
+                  <AlertTriangle size={16} />
+                  <div>
+                    <strong>Fallback draft</strong>
+                    <span>This was generated without AI. Review and save it manually before sending it to a customer.</span>
+                  </div>
+                </div>
+              ) : null}
+              {needsSummaryRefresh ? (
+                <div className="proposal-summary-notice warning">
+                  <AlertTriangle size={16} />
+                  <div>
+                    <strong>{proposal.customer_summary ? "Proposal wording may be outdated" : "Proposal wording needed"}</strong>
+                    <span>
+                      {proposal.customer_summary
+                        ? "Refresh the customer summary and line-item scopes before generating a fresh contract PDF."
+                        : "Prepare the summary and line-item scopes before approving the contract PDF."}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
               <form action={saveProposalSummary} className="proposal-summary-form">
                 {hiddenContext(organization.id, jobId, proposal.id)}
                 <textarea
@@ -242,7 +364,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                     <span>No customer summary prepared yet.</span>
                   )}
                   {customerSummarySource ? <span>{customerSummarySource}</span> : null}
-                  <PendingSubmitButton className="secondary-button" pendingLabel="Saving">Save summary</PendingSubmitButton>
+                  <PendingSubmitButton className="secondary-button" pendingLabel="Saving">Save manual edits</PendingSubmitButton>
                 </div>
               </form>
             </div>
@@ -281,7 +403,8 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                         {hiddenContext(organization.id, jobId, proposal.id)}
                         <input name="lineId" type="hidden" value={line.id} />
                         <label>Title<input name="title" defaultValue={line.title} /></label>
-                        <label className="proposal-span-2">Description<textarea name="description" defaultValue={line.description ?? ""} rows={4} /></label>
+                        <label className="proposal-span-2">Customer-facing scope<textarea name="contractScope" defaultValue={line.contract_scope ?? ""} rows={3} /></label>
+                        <label className="proposal-span-2">Source recommendation<textarea name="description" defaultValue={line.description ?? ""} rows={4} /></label>
                         <label>Section<select name="section" defaultValue={line.section ?? "manual"}>
                           {sectionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                         </select></label>
@@ -322,7 +445,8 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                   <label>Section<select name="section" defaultValue="manual">
                     {sectionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select></label>
-                  <label className="proposal-span-2">Description<textarea name="description" rows={3} placeholder="Describe what is included in this work authorization." /></label>
+                  <label className="proposal-span-2">Customer-facing scope<textarea name="contractScope" rows={3} placeholder="Concise scope shown in the work authorization." /></label>
+                  <label className="proposal-span-2">Source / internal detail<textarea name="description" rows={3} placeholder="Optional internal source text or detail." /></label>
                   <label>Quantity<input min="0.01" name="quantity" step="0.01" type="number" defaultValue="1" /></label>
                   <label>Unit price<input min="0" name="unitPrice" step="0.01" type="number" defaultValue="0" /></label>
                   <label className="proposal-checkbox"><input name="included" type="checkbox" defaultChecked /> Include in contract total</label>
@@ -337,6 +461,36 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
           </section>
 
           <aside className="proposal-side">
+            <section className="proposal-panel proposal-next-action">
+              <p className="eyebrow">Next action</p>
+              <h2>{nextAction.title}</h2>
+              <p>{nextAction.detail}</p>
+              {nextAction.cta === "Import recommended work" ? (
+                <form action={importFindingProposalLines}>
+                  {hiddenContext(organization.id, jobId, proposal.id)}
+                  <PendingSubmitButton className="primary-button" pendingLabel="Importing recommendations">
+                    <Import size={16} /> {nextAction.cta}
+                  </PendingSubmitButton>
+                </form>
+              ) : nextAction.cta === "Refresh wording" ? (
+                <form action={generateProposalSummary}>
+                  {hiddenContext(organization.id, jobId, proposal.id)}
+                  <PendingSubmitButton className="primary-button" pendingLabel="Refreshing wording">
+                    {nextAction.cta}
+                  </PendingSubmitButton>
+                </form>
+              ) : nextAction.cta === "Approve and generate" ? (
+                <form action={approveAndGenerateProposalContractDocument}>
+                  {hiddenContext(organization.id, jobId, proposal.id)}
+                  <PendingSubmitButton className="primary-button" disabled={!hasIncludedLines || needsSummaryRefresh || (!canApprove && !isApproved)} pendingLabel="Generating contract PDF">
+                    {nextAction.cta}
+                  </PendingSubmitButton>
+                </form>
+              ) : (
+                <Link className="primary-button" href={`/jobs/${jobId}/send`}><Send size={16} /> {nextAction.cta}</Link>
+              )}
+            </section>
+
             <section className="proposal-panel totals-panel">
               <p className="eyebrow">Totals</p>
               <dl>
@@ -349,48 +503,40 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
 
             <section className="proposal-panel">
               <div className="section-heading compact"><div><p className="eyebrow">Approval flow</p><h2>Contract readiness</h2></div></div>
-              <div className={`proposal-readiness ${readyForContract ? "ready" : ""}`}>
-                {readyForContract ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+              <div className={`proposal-readiness ${hasCurrentContractPdf ? "ready" : ""}`}>
+                {hasCurrentContractPdf ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
                 <div>
-                  <strong>{readyForContract ? "Approved for contract" : hasIncludedLines ? "Ready for manager approval" : "Add priced scope first"}</strong>
-                  <span>{readyForContract ? "This proposal can be used as the contract package source." : "Approve once pricing and scope are final."}</span>
+                  <strong>
+                    {!hasIncludedLines
+                      ? "Add priced scope first"
+                      : needsSummaryRefresh
+                        ? "Refresh proposal wording"
+                        : hasCurrentContractPdf
+                          ? "Current contract ready"
+                          : "Contract PDF needed"}
+                  </strong>
+                  <span>
+                    {!hasIncludedLines
+                      ? "Import or add at least one included proposal line."
+                      : needsSummaryRefresh
+                        ? "Summary and line scopes should match the latest pricing and scope."
+                        : hasCurrentContractPdf
+                          ? "Use Send Center to email the report package or send the contract for signature."
+                          : "Generate the signature-ready PDF before using it with Zoho Sign."}
+                  </span>
                 </div>
               </div>
-              <div className="proposal-status-actions">
-                <form action={setProposalStatus}>
-                  {hiddenContext(organization.id, jobId, proposal.id)}
-                  <input name="status" type="hidden" value="ready" />
-                  <PendingSubmitButton className="secondary-button" disabled={!canMarkReady} pendingLabel="Marking ready">
-                    {isApproved ? "Already approved" : isReady ? "Marked ready" : "Mark ready"}
-                  </PendingSubmitButton>
-                </form>
-                <form action={setProposalStatus}>
-                  {hiddenContext(organization.id, jobId, proposal.id)}
-                  <input name="status" type="hidden" value="approved" />
-                  <PendingSubmitButton className="primary-button" disabled={!hasIncludedLines || !canApprove || isApproved} pendingLabel="Approving">
-                    {isApproved ? "Proposal approved" : "Approve proposal"}
-                  </PendingSubmitButton>
-                </form>
-                <form action={generateProposalContractDocument}>
-                  {hiddenContext(organization.id, jobId, proposal.id)}
-                  <PendingSubmitButton className="secondary-button" disabled={!canGenerateContract} pendingLabel="Generating PDF">Generate contract PDF</PendingSubmitButton>
-                </form>
-                <p className="proposal-action-help">
-                  {isApproved
-                    ? latestProposalVersionOutdated
-                      ? "Pricing or scope changed after the latest contract PDF. Generate a fresh version before sending."
-                      : "Generate a contract PDF after final approval, and again whenever pricing or scope changes."
-                    : "Approve the proposal before generating a contract PDF."}
-                </p>
-              </div>
+              {!canApprove && !isApproved ? (
+                <p className="proposal-action-help">A manager or administrator must approve and generate the contract PDF.</p>
+              ) : null}
             </section>
 
             <section className="proposal-panel">
-              <div className="section-heading compact"><div><p className="eyebrow">Contract document</p><h2>Generated versions</h2></div></div>
+              <div className="section-heading compact"><div><p className="eyebrow">Contract document</p><h2>Current PDF</h2></div></div>
               {latestProposalVersion ? (
                 <div className={`proposal-document-state ${latestProposalVersionOutdated ? "outdated" : ""}`}>
-                  <strong>Version {latestProposalVersion.version}{latestProposalVersionOutdated ? " · Outdated" : ""}</strong>
-                  <span>{latestProposalVersion.status} · {latestProposalVersion.approval_status}</span>
+                  <strong>{latestProposalVersionOutdated ? "Outdated contract PDF" : "Contract PDF ready"}</strong>
+                  <span>Latest generated snapshot: version {latestProposalVersion.version}</span>
                   {latestProposalVersionOutdated ? (
                     <p className="proposal-document-warning">Proposal details changed after this PDF was generated.</p>
                   ) : null}
@@ -401,9 +547,11 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
               ) : (
                 <p className="panel-empty-copy">No proposal or contract PDF generated yet.</p>
               )}
-              {proposalVersions.length > 1 ? (
-                <div className="proposal-mini-version-list">
-                  {proposalVersions.slice(1).map((version) => {
+              {proposalVersions.length ? (
+                <details className="proposal-history">
+                  <summary>View PDF history</summary>
+                  <div className="proposal-mini-version-list">
+                  {proposalVersions.map((version) => {
                     const outdated = isVersionOutdated(version);
                     return (
                       <Link className={outdated ? "outdated" : ""} href={`/jobs/${jobId}/review/versions/${version.id}/download`} key={version.id}>
@@ -412,7 +560,8 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                       </Link>
                     );
                   })}
-                </div>
+                  </div>
+                </details>
               ) : null}
             </section>
 

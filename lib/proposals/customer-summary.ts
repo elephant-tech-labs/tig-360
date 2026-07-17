@@ -1,4 +1,7 @@
+import { createHash } from "node:crypto";
+
 type SummaryLine = {
+  id: string;
   code: string | null;
   section: string | null;
   title: string;
@@ -14,7 +17,55 @@ export type ProposalSummaryInput = {
   lines: SummaryLine[];
 };
 
-const DEFAULT_SUMMARY_MODEL = "gpt-5.5";
+type SummarySource = {
+  provider: string;
+  model?: string;
+  reason?: string;
+};
+
+type GeneratedLineScope = {
+  lineId: string;
+  text: string;
+  source: SummarySource;
+};
+
+export type ProposalSummaryBundle = {
+  summary: {
+    text: string;
+    source: SummarySource;
+  };
+  lineScopes: GeneratedLineScope[];
+};
+
+const DEFAULT_SUMMARY_MODEL = "gpt-4.1";
+
+function normalizeText(value: string | null | undefined) {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeMoney(value: number) {
+  return Number(Number(value ?? 0).toFixed(2));
+}
+
+export function buildProposalSummaryInputHash(input: ProposalSummaryInput) {
+  const normalized = {
+    companyName: normalizeText(input.companyName),
+    propertyAddress: normalizeText(input.propertyAddress),
+    reportType: normalizeText(input.reportType),
+    total: normalizeMoney(input.total),
+    lines: input.lines
+      .map((line) => ({
+        id: line.id,
+        code: normalizeText(line.code),
+        section: normalizeText(line.section),
+        title: normalizeText(line.title),
+        description: normalizeText(line.description),
+        amount: normalizeMoney(line.amount),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  };
+  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+}
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value);
@@ -35,14 +86,87 @@ function fallbackSummary(input: ProposalSummaryInput) {
   ].join("\n\n");
 }
 
-export async function generateProposalCustomerSummary(input: ProposalSummaryInput) {
+function fallbackLineScope(line: SummaryLine) {
+  const reference = line.code ? `Finding ${line.code}` : "the inspection report";
+  const body = line.description?.trim();
+  if (!body) return `Complete the recommended work for ${line.title}, as referenced in ${reference}.`;
+  const compact = body
+    .replace(/\s+/g, " ")
+    .replace(/^recommendation:\s*/i, "")
+    .trim();
+  const limited = compact.length > 360 ? `${compact.slice(0, 340).replace(/\s+\S*$/, "")}...` : compact;
+  return `${limited} See ${reference} in the inspection report for full details.`;
+}
+
+function extractResponseText(payload: { output_text?: unknown; output?: unknown }) {
+  const directText = typeof payload.output_text === "string" ? payload.output_text.trim() : "";
+  const nestedText = Array.isArray(payload.output)
+    ? payload.output
+        .flatMap((item: { content?: Array<{ text?: string }> }) => item.content ?? [])
+        .map((content: { text?: string }) => content.text ?? "")
+        .join("\n")
+        .trim()
+    : "";
+  return directText || nestedText;
+}
+
+function fallbackBundle(input: ProposalSummaryInput, source: SummarySource): ProposalSummaryBundle {
+  return {
+    summary: {
+      text: fallbackSummary(input),
+      source,
+    },
+    lineScopes: input.lines.map((line) => ({
+      lineId: line.id,
+      text: fallbackLineScope(line),
+      source,
+    })),
+  };
+}
+
+function coerceGeneratedBundle(input: ProposalSummaryInput, rawText: string, source: SummarySource): ProposalSummaryBundle {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  const parsed = JSON.parse(cleaned) as {
+    proposal_summary?: unknown;
+    line_item_scopes?: Array<{ line_item_id?: unknown; contract_scope?: unknown }>;
+  };
+  const summaryText = typeof parsed.proposal_summary === "string" ? parsed.proposal_summary.trim() : "";
+  if (!summaryText) throw new Error("AI response did not include proposal_summary.");
+  const scopesById = new Map(
+    (parsed.line_item_scopes ?? [])
+      .map((item) => [
+        typeof item.line_item_id === "string" ? item.line_item_id : "",
+        typeof item.contract_scope === "string" ? item.contract_scope.trim() : "",
+      ] as const)
+      .filter(([lineId, text]) => lineId && text),
+  );
+  return {
+    summary: {
+      text: summaryText,
+      source,
+    },
+    lineScopes: input.lines.map((line) => ({
+      lineId: line.id,
+      text: scopesById.get(line.id) || fallbackLineScope(line),
+      source,
+    })),
+  };
+}
+
+export async function generateProposalCustomerSummaryBundle(input: ProposalSummaryInput): Promise<ProposalSummaryBundle> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return { text: fallbackSummary(input), source: { provider: "fallback", reason: "openai_not_configured" } };
+    return fallbackBundle(input, { provider: "fallback", reason: "openai_not_configured" });
   }
 
   const model = process.env.OPENAI_MODEL || DEFAULT_SUMMARY_MODEL;
   const rawFindings = input.lines.map((line, index) => ({
+    line_item_id: line.id,
     reference: line.code || `Item ${index + 1}`,
     section: line.section,
     title: line.title,
@@ -59,7 +183,7 @@ export async function generateProposalCustomerSummary(input: ProposalSummaryInpu
       },
       body: JSON.stringify({
         model,
-        max_output_tokens: 1100,
+        max_output_tokens: 1800,
         reasoning: { effort: "low" },
         text: { verbosity: "medium" },
         input: [
@@ -75,7 +199,7 @@ export async function generateProposalCustomerSummary(input: ProposalSummaryInpu
                 "Do not invent facts, warranties, health claims, legal advice, exact timelines, financing terms, code requirements, or urgency beyond what the data supports.",
                 "If the data is limited, say what the proposal covers rather than guessing.",
                 "Use a calm, caring, professional tone.",
-                "Return only the customer-facing summary text.",
+                "Return only valid JSON. Do not wrap it in markdown.",
               ].join(" "),
             }],
           },
@@ -84,15 +208,23 @@ export async function generateProposalCustomerSummary(input: ProposalSummaryInpu
             content: [{
               type: "input_text",
               text: [
-                "Write a well-structured summary for inclusion on the customer review page, email context, and proposal/work authorization document.",
+                "Write one proposal summary and one concise contract scope for each line item.",
                 "",
-                "Use these exact section headings:",
+                "Return this exact JSON shape:",
+                "{",
+                "  \"proposal_summary\": \"string\",",
+                "  \"line_item_scopes\": [",
+                "    { \"line_item_id\": \"same id from input\", \"contract_scope\": \"string\" }",
+                "  ]",
+                "}",
+                "",
+                "For proposal_summary, use these exact section headings:",
                 "Overview",
                 "Issues Found",
                 "Recommended Actions",
                 "Overall Recommendation",
                 "",
-                "Formatting requirements:",
+                "Proposal summary requirements:",
                 "- Keep the Overview to 2-3 sentences.",
                 "- In Issues Found, group related items by area/category when possible.",
                 "- In Recommended Actions, explain what work is being recommended and the practical reason for it.",
@@ -100,6 +232,13 @@ export async function generateProposalCustomerSummary(input: ProposalSummaryInpu
                 "- Do not use markdown tables.",
                 "- Do not include prices except the proposal total.",
                 "- Keep it readable for a homeowner or real-estate client.",
+                "",
+                "Line item contract_scope requirements:",
+                "- Write 1-3 concise sentences for the formal proposal line item.",
+                "- Summarize only the work recommended in the source text.",
+                "- Do not add new work, warranty promises, guarantees, exclusions, or legal claims.",
+                "- Preserve important limitations, access constraints, or customer-provided items if they appear in the source text.",
+                "- End with a short reference to the source finding, e.g. \"See Finding 9A in the inspection report for full details.\"",
                 "",
                 "Proposal context:",
                 JSON.stringify({
@@ -120,27 +259,24 @@ export async function generateProposalCustomerSummary(input: ProposalSummaryInpu
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
-      throw new Error(`OpenAI summary failed with HTTP ${response.status}${errorText ? `: ${errorText.slice(0, 240)}` : ""}.`);
+      throw new Error(`openai_http_${response.status}${errorText ? `:${errorText.slice(0, 240)}` : ""}`);
     }
     const payload = await response.json();
-    const directText = typeof payload.output_text === "string" ? payload.output_text.trim() : "";
-    const nestedText = Array.isArray(payload.output)
-      ? payload.output
-          .flatMap((item: { content?: Array<{ text?: string }> }) => item.content ?? [])
-          .map((content: { text?: string }) => content.text ?? "")
-          .join("\n")
-          .trim()
-      : "";
-    const text = directText || nestedText;
+    const text = extractResponseText(payload);
     if (!text) throw new Error("OpenAI summary response was empty.");
-    return { text, source: { provider: "openai", model } };
+    return coerceGeneratedBundle(input, text, { provider: "openai", model });
   } catch (error) {
-    return {
-      text: fallbackSummary(input),
-      source: {
-        provider: "fallback",
-        reason: error instanceof Error ? error.message : "openai_failed",
-      },
-    };
+    return fallbackBundle(input, {
+      provider: "fallback",
+      reason: error instanceof Error ? error.message : "openai_failed",
+    });
   }
+}
+
+export async function generateProposalCustomerSummary(input: ProposalSummaryInput) {
+  const bundle = await generateProposalCustomerSummaryBundle(input);
+  return {
+    text: bundle.summary.text,
+    source: bundle.summary.source,
+  };
 }
