@@ -19,6 +19,7 @@ import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCurrentContext } from "@/lib/current-organization";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { buildProposalSummaryInputHash } from "@/lib/proposals/customer-summary";
+import { resolveCurrentWorkAuthorization } from "@/lib/proposals/current-work-authorization";
 import { loadProposalSnapshot } from "@/lib/proposals/load-proposal-snapshot";
 import {
   approveAndGenerateProposalContractDocument,
@@ -75,12 +76,6 @@ function summarySourceLabel(value: unknown) {
 function summarySourceProvider(value: unknown) {
   if (!value || typeof value !== "object") return null;
   return (value as { provider?: string }).provider ?? null;
-}
-
-function proposalSnapshotHash(value: unknown) {
-  if (!value || typeof value !== "object") return null;
-  const hash = (value as { contentHash?: unknown }).contentHash;
-  return typeof hash === "string" && hash ? hash : null;
 }
 
 const sectionOptions = [
@@ -181,7 +176,6 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
   const proposalVersionsRaw = proposalDocument?.document_versions ?? [];
   const proposalVersions = ([...(Array.isArray(proposalVersionsRaw) ? proposalVersionsRaw : [proposalVersionsRaw])] as ProposalDocumentVersion[])
     .sort((a, b) => b.version - a.version);
-  const latestProposalVersion = proposalVersions[0] ?? null;
   const lineScopeIsOutdated = (line: ProposalLine) => {
     if (!line.contract_scope?.trim() || !line.contract_scope_generated_at) return true;
     const lineUpdatedAt = line.updated_at ? new Date(line.updated_at).getTime() : 0;
@@ -225,16 +219,26 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
     ...includedLines.map((line) => line.updated_at ? new Date(line.updated_at).getTime() : 0),
     proposal.customer_summary_generated_at ? new Date(proposal.customer_summary_generated_at).getTime() : 0,
   );
-  const isVersionOutdated = (version: ProposalDocumentVersion) => {
-    const versionSnapshotHash = proposalSnapshotHash(version.snapshot);
-    if (versionSnapshotHash && currentProposalSnapshotHash) {
-      return versionSnapshotHash !== currentProposalSnapshotHash;
-    }
-    if (!version.generated_at || !proposalContentUpdatedAt) return false;
-    return new Date(version.generated_at).getTime() + 5000 < proposalContentUpdatedAt;
-  };
-  const latestProposalVersionOutdated = latestProposalVersion ? isVersionOutdated(latestProposalVersion) : false;
-  const hasCurrentContractPdf = Boolean(latestProposalVersion && latestProposalVersion.status === "ready" && !latestProposalVersionOutdated);
+  const workAuthorization = resolveCurrentWorkAuthorization({
+    currentContentHash: currentProposalSnapshotHash,
+    contentUpdatedAt: proposalContentUpdatedAt,
+    versions: proposalVersions.map((version) => ({
+      id: version.id,
+      version: version.version,
+      status: version.status,
+      approvalStatus: version.approval_status,
+      snapshot: version.snapshot,
+      generatedAt: version.generated_at,
+      kind: "proposal",
+    })),
+  });
+  const latestProposalVersion = workAuthorization.latestApprovedVersion
+    ? proposalVersions.find((version) => version.id === workAuthorization.latestApprovedVersion?.id) ?? null
+    : null;
+  const latestProposalVersionOutdated = workAuthorization.state === "outdated";
+  const hasCurrentContractPdf = workAuthorization.state === "ready";
+  const isVersionOutdated = (version: ProposalDocumentVersion) =>
+    version.id !== workAuthorization.currentVersion?.id;
   const customerSummarySource = summarySourceLabel(proposal.customer_summary_source);
   const customerSummaryProvider = summarySourceProvider(proposal.customer_summary_source);
   const nextAction = !hasIncludedLines
@@ -271,7 +275,6 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
     <AppShell organizationName={organization.name} userName={userName} membershipRole={membership.role}>
       <JobWorkspaceHeader
         address={property?.street_line_1 ?? ""}
-        actions={<Link className="secondary-button" href={`/jobs/${jobId}/send`}><Send size={16} /> Send Center</Link>}
         jobId={jobId}
         jobNumber={job.job_number}
         locality={[
@@ -536,7 +539,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
               {latestProposalVersion ? (
                 <div className={`proposal-document-state ${latestProposalVersionOutdated ? "outdated" : ""}`}>
                   <strong>{latestProposalVersionOutdated ? "Outdated contract PDF" : "Contract PDF ready"}</strong>
-                  <span>Latest generated snapshot: version {latestProposalVersion.version}</span>
+                  <span>{latestProposalVersionOutdated ? "A newer proposal change needs a fresh PDF." : "The current approved work authorization is ready."}</span>
                   {latestProposalVersionOutdated ? (
                     <p className="proposal-document-warning">Proposal details changed after this PDF was generated.</p>
                   ) : null}

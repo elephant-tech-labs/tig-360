@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveCurrentWorkAuthorization } from "./proposals/current-work-authorization";
+import { loadProposalSnapshot } from "./proposals/load-proposal-snapshot";
 
 export type WorkflowStepState =
   | "not_started"
@@ -23,6 +25,7 @@ export async function getJobWorkflowStates(
   jobId: string,
 ): Promise<JobWorkflowStates> {
   const [
+    { data: organization },
     { data: job },
     { data: drawing },
     { count: findingCount },
@@ -36,6 +39,11 @@ export async function getJobWorkflowStates(
     { data: signatureStates },
     { data: reviewLinkStates },
   ] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("id, name")
+      .eq("id", organizationId)
+      .maybeSingle(),
     supabase
       .from("inspection_jobs")
       .select(`
@@ -79,36 +87,36 @@ export async function getJobWorkflowStates(
       .neq("status", "archived"),
     supabase
       .from("documents")
-      .select("document_versions(status, approval_status, version)")
+      .select("document_versions(id, status, approval_status, version)")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organizationId)
       .eq("kind", "inspection_report")
       .maybeSingle(),
     supabase
       .from("job_proposals")
-      .select("status, customer_summary, proposal_line_items(id, included)")
+      .select("id, status, customer_summary, customer_summary_generated_at, proposal_line_items(id, included, updated_at)")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organizationId)
       .maybeSingle(),
     supabase
       .from("documents")
-      .select("document_versions(status, approval_status, version)")
+      .select("kind, document_versions(id, status, approval_status, version, snapshot, generated_at)")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organizationId)
       .in("kind", ["proposal", "contract"]),
     supabase
       .from("deliveries")
-      .select("status")
+      .select("status, document_version_id, attachment_version_ids")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organizationId),
     supabase
       .from("signature_requests")
-      .select("status")
+      .select("status, document_version_id")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organizationId),
     supabase
       .from("proposal_review_links")
-      .select("status")
+      .select("status, report_document_version_id, proposal_document_version_id, last_viewed_at")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organizationId),
   ]);
@@ -135,21 +143,83 @@ export async function getJobWorkflowStates(
   const reportVersions = [...(reportDocument?.document_versions ?? [])]
     .sort((a, b) => b.version - a.version);
   const latestReport = reportVersions[0];
+  const currentReport = reportVersions.find(
+    (version) => version.status === "ready" && version.approval_status === "approved",
+  ) ?? null;
   const proposalLines = (proposal?.proposal_line_items ?? []) as { included: boolean | null }[];
   const hasIncludedProposalLines = proposalLines.some((line) => line.included);
   const proposalDocuments = Array.isArray(proposalDocument) ? proposalDocument : [];
   const proposalVersions = proposalDocuments
-    .flatMap((document) => document.document_versions ?? [])
+    .flatMap((document) =>
+      (document.document_versions ?? []).map((version) => ({
+        ...version,
+        kind: document.kind,
+      })),
+    )
     .sort((a, b) => b.version - a.version);
-  const latestProposalVersion = proposalVersions[0];
-  const hasDeliveryActivity = Boolean(deliveryStates?.length || signatureStates?.length || reviewLinkStates?.length);
+  let currentProposalHash: string | null = null;
+  if (organization && proposal?.id && proposal.status === "approved" && hasIncludedProposalLines) {
+    currentProposalHash = (await loadProposalSnapshot(
+      supabase,
+      organization,
+      jobId,
+      proposal.id,
+    ).catch(() => null))?.contentHash ?? null;
+  }
+  const proposalContentUpdatedAt = Math.max(
+    0,
+    ...((proposal?.proposal_line_items ?? []) as { updated_at?: string | null }[]).map((line) =>
+      line.updated_at ? new Date(line.updated_at).getTime() : 0,
+    ),
+    proposal?.customer_summary_generated_at
+      ? new Date(proposal.customer_summary_generated_at).getTime()
+      : 0,
+  );
+  const workAuthorization = resolveCurrentWorkAuthorization({
+    currentContentHash: currentProposalHash,
+    contentUpdatedAt: proposalContentUpdatedAt,
+    versions: proposalVersions.map((version) => ({
+      id: version.id,
+      version: version.version,
+      status: version.status,
+      approvalStatus: version.approval_status,
+      snapshot: version.snapshot,
+      generatedAt: version.generated_at,
+      kind: version.kind,
+    })),
+  });
+  const currentWorkAuthorization = workAuthorization.currentVersion;
+  const attachmentIncludes = (value: unknown, id: string | undefined) =>
+    Boolean(id && Array.isArray(value) && value.includes(id));
+  const currentDeliveries = (deliveryStates ?? []).filter(
+    (delivery) =>
+      delivery.document_version_id === currentReport?.id
+      && attachmentIncludes(delivery.attachment_version_ids, currentWorkAuthorization?.id),
+  );
+  const currentSignatures = (signatureStates ?? []).filter(
+    (signature) => signature.document_version_id === currentWorkAuthorization?.id,
+  );
+  const currentReviewLinks = (reviewLinkStates ?? []).filter(
+    (link) =>
+      link.report_document_version_id === currentReport?.id
+      && link.proposal_document_version_id === currentWorkAuthorization?.id,
+  );
+  const hasCurrentDeliveryActivity = Boolean(
+    currentDeliveries.length || currentSignatures.length || currentReviewLinks.length,
+  );
   const sendComplete = Boolean(
-    deliveryStates?.some((delivery) => ["sent", "delivered"].includes(delivery.status))
-    || signatureStates?.some((signature) => signature.status === "completed"),
+    currentDeliveries.some((delivery) => ["sent", "delivered"].includes(delivery.status))
+    || currentSignatures.some((signature) => signature.status === "completed"),
+  );
+  const sendInProgress = Boolean(
+    currentSignatures.some((signature) => ["pending", "sending", "sent"].includes(signature.status))
+    || currentReviewLinks.some((link) => ["active", "viewed"].includes(link.status) || link.last_viewed_at),
   );
   const sendNeedsAttention = Boolean(
-    deliveryStates?.some((delivery) => ["failed", "cancelled"].includes(delivery.status))
-    || signatureStates?.some((signature) => ["failed", "declined", "expired", "cancelled"].includes(signature.status)),
+    currentDeliveries.some((delivery) => ["failed", "cancelled"].includes(delivery.status))
+    || currentSignatures.some((signature) => ["failed", "declined", "expired", "cancelled"].includes(signature.status))
+    || ((deliveryStates?.length || signatureStates?.length || reviewLinkStates?.length)
+      && (!currentReport || !currentWorkAuthorization)),
   );
 
   return {
@@ -180,7 +250,7 @@ export async function getJobWorkflowStates(
         : latestReport?.status === "generating"
           ? "in_progress"
           : "not_started",
-    proposal: proposal?.status === "approved" && latestProposalVersion?.status === "ready"
+    proposal: proposal?.status === "approved" && workAuthorization.state === "ready"
       ? "complete"
       : proposal?.status === "approved"
         ? "attention"
@@ -191,7 +261,7 @@ export async function getJobWorkflowStates(
       ? "complete"
       : sendNeedsAttention
         ? "attention"
-        : hasDeliveryActivity
+        : sendInProgress || hasCurrentDeliveryActivity
           ? "in_progress"
           : "not_started",
   };

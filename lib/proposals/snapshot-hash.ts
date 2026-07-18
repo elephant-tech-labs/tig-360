@@ -89,3 +89,12 @@ export function buildProposalSnapshotHash(snapshot: ProposalSnapshot) {
 
   return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
 }
+
+export function proposalSnapshotContentHash(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+
+  const contentHash = (value as { contentHash?: unknown }).contentHash;
+  return typeof contentHash === "string" && contentHash.trim()
+    ? contentHash
+    : null;
+}
