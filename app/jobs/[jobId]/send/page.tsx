@@ -11,8 +11,10 @@ import {
   RotateCw,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { InPersonSigningButton } from "@/components/in-person-signing-button";
 import { JobAuthoringNav } from "@/components/job-authoring-nav";
 import { JobWorkspaceHeader } from "@/components/job-workspace-header";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import {
   SendCenterComposer,
   type SendCenterDraft,
@@ -28,7 +30,6 @@ import {
   refreshSignatureRequestStatus,
   sendContractForSignature,
   sendCustomerReviewPackage,
-  startEmbeddedContractSigning,
 } from "./actions";
 
 type SendPageProps = {
@@ -432,9 +433,9 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                   </details>
 
                   <div className="signature-send-actions">
-                    <button className="primary-button" type="submit">
+                    <PendingSubmitButton className="primary-button" pendingLabel="Sending package">
                       <Mail size={16} /> Send review package
-                    </button>
+                    </PendingSubmitButton>
                     <span>Recommended for remote customers.</span>
                   </div>
                 </form>
@@ -494,12 +495,10 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                         </div>
                       </details>
                       <div className="signature-send-actions secondary-path-actions">
-                        <button className="secondary-button" type="submit">
+                        <PendingSubmitButton className="secondary-button" pendingLabel="Sending request">
                           <FileSignature size={16} /> Send Zoho Sign only
-                        </button>
-                        <button className="secondary-button" formAction={startEmbeddedContractSigning} type="submit">
-                          <ExternalLink size={16} /> Start in-person signing
-                        </button>
+                        </PendingSubmitButton>
+                        <InPersonSigningButton />
                       </div>
                     </form>
                   </section>

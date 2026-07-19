@@ -741,21 +741,33 @@ export async function sendCustomerReviewPackage(formData: FormData) {
 }
 
 export async function sendContractForSignature(formData: FormData) {
-  return submitContractSignatureRequest(formData, "remote");
+  await submitContractSignatureRequest(formData, "remote");
 }
 
-export async function startEmbeddedContractSigning(formData: FormData) {
-  return submitContractSignatureRequest(formData, "embedded");
+type EmbeddedSigningResult =
+  | { ok: true; url: string }
+  | { ok: false; error: string };
+
+export async function startEmbeddedContractSigning(formData: FormData): Promise<EmbeddedSigningResult> {
+  const result = await submitContractSignatureRequest(formData, "embedded");
+  return result ?? { ok: false, error: "Zoho Sign did not return a signing session." };
 }
 
-async function submitContractSignatureRequest(formData: FormData, mode: "remote" | "embedded") {
+async function submitContractSignatureRequest(
+  formData: FormData,
+  mode: "remote" | "embedded",
+): Promise<EmbeddedSigningResult | void> {
   const jobId = String(formData.get("jobId") ?? "");
   const documentVersionId = String(formData.get("documentVersionId") ?? "");
   const selectedSigner = parseSigner(formData.get("signer"));
   const signerNameOverride = String(formData.get("signerName") ?? "").trim();
   const signerEmailOverride = String(formData.get("signerEmail") ?? "").trim().toLowerCase();
-  if (!jobId || !documentVersionId) redirect("/jobs");
+  if (!jobId || !documentVersionId) {
+    if (mode === "embedded") return { ok: false, error: "Select a signing document before continuing." };
+    redirect("/jobs");
+  }
   if (!isZohoSignConfigured()) {
+    if (mode === "embedded") return { ok: false, error: "Zoho Sign is not configured." };
     redirect(signatureUrl(jobId, "Zoho Sign is not configured.", "error"));
   }
 
@@ -765,19 +777,25 @@ async function submitContractSignatureRequest(formData: FormData, mode: "remote"
     email: signerEmailOverride || selectedSigner?.email || "",
   };
   if (!signer.email || !signer.email.includes("@")) {
+    if (mode === "embedded") return { ok: false, error: "Select or enter a valid signer email." };
     redirect(signatureUrl(jobId, "Select or enter a valid signer email.", "error"));
   }
   if (!signer.name) signer.name = signer.email;
 
   const { supabase, organization, user, membership } = await getCurrentContext();
-  if (!canCreateJobs(membership.role)) redirect(`/jobs/${jobId}`);
+  if (!canCreateJobs(membership.role)) {
+    if (mode === "embedded") return { ok: false, error: "You do not have permission to start signing." };
+    redirect(`/jobs/${jobId}`);
+  }
 
   let documentFile: Awaited<ReturnType<typeof loadSignatureDocument>>;
   try {
     documentFile = await loadSignatureDocument(supabase, organization.id, jobId, documentVersionId);
     await assertCurrentProposalSnapshot(supabase, organization, jobId, documentFile.snapshot);
   } catch (error) {
-    redirect(signatureUrl(jobId, error instanceof Error ? error.message : "Unable to load the contract PDF.", "error"));
+    const failure = error instanceof Error ? error.message : "Unable to load the contract PDF.";
+    if (mode === "embedded") return { ok: false, error: failure };
+    redirect(signatureUrl(jobId, failure, "error"));
   }
 
   const requestName = `${documentFile.title} v${documentFile.version} - ${signer.name}`;
@@ -797,7 +815,9 @@ async function submitContractSignatureRequest(formData: FormData, mode: "remote"
     .select("id")
     .single();
   if (insertError || !signatureRequest) {
-    redirect(signatureUrl(jobId, insertError?.message ?? "Unable to record the signature request.", "error"));
+    const failure = insertError?.message ?? "Unable to record the signature request.";
+    if (mode === "embedded") return { ok: false, error: failure };
+    redirect(signatureUrl(jobId, failure, "error"));
   }
 
   let successMessage: string | null = null;
@@ -903,10 +923,17 @@ async function submitContractSignatureRequest(formData: FormData, mode: "remote"
       summary: failure,
     });
     revalidatePath(`/jobs/${jobId}/send`);
+    if (mode === "embedded") return { ok: false, error: failure };
     redirect(signatureUrl(jobId, failure, "error"));
   }
   if (embeddedRedirectUrl) {
-    redirect(embeddedRedirectUrl);
+    return { ok: true, url: embeddedRedirectUrl };
+  }
+  if (mode === "embedded") {
+    return {
+      ok: false,
+      error: submissionFailure || "Zoho Sign did not return a signing session.",
+    };
   }
   if (successMessage) {
     redirect(signatureUrl(jobId, successMessage, "sent"));
