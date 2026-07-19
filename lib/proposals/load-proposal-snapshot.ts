@@ -27,7 +27,7 @@ export async function loadProposalSnapshot(
         id, status, title, customer_note, customer_summary, terms,
         subtotal_amount, discount_amount, tax_amount, total_amount,
         proposal_line_items(
-          id, item_code, section, title, description, contract_scope, quantity, unit_price,
+          id, source_type, item_code, section, title, description, contract_scope, quantity, unit_price,
           included, sort_order
         )
       `)
@@ -129,6 +129,7 @@ export async function loadProposalSnapshot(
     }),
     lines: includedLines.map((line) => ({
       id: line.id,
+      sourceType: line.source_type,
       code: line.item_code,
       section: line.section,
       title: line.title,

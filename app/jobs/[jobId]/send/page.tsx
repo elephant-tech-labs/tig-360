@@ -720,7 +720,7 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                         <button className="secondary-button" type="submit">
                           <FileSignature size={16} /> Send Zoho Sign only
                         </button>
-                        <button className="secondary-button" formAction={startEmbeddedContractSigning} type="submit">
+                        <button className="secondary-button" formAction={startEmbeddedContractSigning} formTarget="_blank" type="submit">
                           <ExternalLink size={16} /> Start in-person signing
                         </button>
                       </div>

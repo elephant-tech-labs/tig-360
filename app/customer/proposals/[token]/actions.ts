@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashReviewToken } from "@/lib/proposals/review-links";
+import { renderProposalSigningPdf } from "@/lib/proposals/render-signing-pdf";
+import type { ProposalSnapshot } from "@/lib/proposals/types";
 import {
   isZohoSignConfigured,
   normalizeZohoSignStatus,
@@ -30,7 +32,7 @@ async function loadPublicSignatureDocument(
   const { data: version, error } = await supabase
     .from("document_versions")
     .select(`
-      id, version, status, approval_status,
+      id, version, status, approval_status, snapshot,
       assets(provider_file_id, original_filename, content_type),
       documents!inner(id, kind, title, inspection_job_id)
     `)
@@ -49,18 +51,15 @@ async function loadPublicSignatureDocument(
   }
   const asset = Array.isArray(version.assets) ? version.assets[0] : version.assets;
   if (!asset?.provider_file_id) throw new Error("The signing document file is missing.");
+  if (!version.snapshot || typeof version.snapshot !== "object") {
+    throw new Error("The approved work authorization snapshot is missing.");
+  }
 
-  const { data: pdf, error: downloadError } = await supabase.storage
-    .from("report-pdfs")
-    .download(asset.provider_file_id);
-  if (downloadError || !pdf) throw new Error(downloadError?.message ?? "Unable to download the signing document.");
-
-  return {
-    bytes: new Uint8Array(await pdf.arrayBuffer()),
-    filename: asset.original_filename || `${document.kind}-v${version.version}.pdf`,
-    title: document.title,
-    version: version.version,
-  };
+  return renderProposalSigningPdf(
+    version.snapshot as unknown as ProposalSnapshot,
+    version.version,
+    document.title,
+  );
 }
 
 async function recordSignatureEvent(input: {

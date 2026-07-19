@@ -19,16 +19,16 @@ const line = "#c8c8c8";
 
 const styles = StyleSheet.create({
   page: { color: ink, fontFamily: "Helvetica", fontSize: 9, padding: 34 },
-  cover: { padding: 0 },
-  coverBand: { backgroundColor: ink, color: "#ffffff", height: 250, paddingBottom: 42, paddingHorizontal: 42, paddingTop: 32 },
-  coverBandNoPhoto: { height: 570 },
-  coverLogo: { height: 48, marginBottom: 46, objectFit: "contain", objectPosition: "left", width: 170 },
-  brand: { color: "#ffffff", fontSize: 11, fontWeight: 700, marginBottom: 54, textTransform: "uppercase" },
+  cover: { backgroundColor: "#f4f6f4", padding: 0 },
+  coverBand: { backgroundColor: "#f4f6f4", borderBottomColor: accent, borderBottomWidth: 3, color: ink, height: 270, paddingBottom: 42, paddingHorizontal: 42, paddingTop: 32 },
+  coverBandNoPhoto: { height: 650 },
+  coverLogo: { height: 48, marginBottom: 50, objectFit: "contain", objectPosition: "left", width: 180 },
+  brand: { color: ink, fontSize: 11, fontWeight: 700, marginBottom: 58, textTransform: "uppercase" },
   reportType: { color: accent, fontSize: 10, fontWeight: 700, marginBottom: 10, textTransform: "uppercase" },
   coverTitle: { fontSize: 28, fontWeight: 700, lineHeight: 1.15, marginBottom: 8 },
-  coverAddress: { color: "#d8d8d8", fontSize: 11 },
-  coverPhoto: { height: 310, objectFit: "cover", width: "100%" },
-  coverMeta: { borderTopColor: accent, borderTopWidth: 3, display: "flex", flexDirection: "row", gap: 24, padding: 30 },
+  coverAddress: { color: "#59635f", fontSize: 11 },
+  coverPhoto: { height: 335, objectFit: "cover", width: "100%" },
+  coverMeta: { backgroundColor: "#ffffff", display: "flex", flexDirection: "row", gap: 24, paddingBottom: 28, paddingHorizontal: 42, paddingTop: 24 },
   metaItem: { flex: 1 },
   label: { color: muted, fontSize: 7, marginBottom: 4, textTransform: "uppercase" },
   value: { fontSize: 10, fontWeight: 700 },
@@ -51,11 +51,11 @@ const styles = StyleSheet.create({
   photoImage: { height: 205, objectFit: "contain", width: "100%" },
   photoImageSingle: { height: 300 },
   photoCaption: { lineHeight: 1.35, marginTop: 6 },
-  certificationSection: { borderTopColor: accent, borderTopWidth: 2, marginTop: 24, paddingTop: 12 },
-  certificationTitle: { fontSize: 14, fontWeight: 700, marginBottom: 8 },
-  certification: { fontSize: 8.5, lineHeight: 1.45, marginBottom: 14 },
-  certificationIdentity: { alignItems: "flex-end", display: "flex", flexDirection: "row", gap: 18 },
-  signature: { height: 48, objectFit: "contain", objectPosition: "left", width: 140 },
+  certificationSection: { borderTopColor: accent, borderTopWidth: 2, marginTop: 18, paddingTop: 10 },
+  certificationTitle: { fontSize: 10, fontWeight: 700, marginBottom: 5 },
+  certification: { color: "#4e5753", fontSize: 7.5, lineHeight: 1.4, marginBottom: 8 },
+  certificationIdentity: { alignItems: "center", display: "flex", flexDirection: "row", gap: 12 },
+  signature: { height: 34, objectFit: "contain", objectPosition: "left", width: 105 },
   certificationName: { flex: 1, paddingBottom: 3 },
   footer: { bottom: 18, color: muted, fontSize: 7, left: 34, position: "absolute", right: 34, textAlign: "center" },
 
@@ -131,11 +131,15 @@ const classificationLabels: Record<string, string> = {
 };
 
 function normalizeText(value: string, organizationName?: string) {
-  let normalized = value.replace(/\s+/g, " ").trim();
+  let normalized = value
+    .replace(/\b(\d+)\s+Y\s*ear\b/gi, "$1 Year")
+    .replace(/\bY\s+ear\b/gi, "Year")
+    .replace(/\bSUPLEMENTAL\b/gi, "SUPPLEMENTAL")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
   if (organizationName) {
-    normalized = normalized
-      .replace(/\bCOMPANY\b/g, organizationName)
-      .replace(/\bSUPLEMENTAL\b/gi, "SUPPLEMENTAL");
+    normalized = normalized.replace(/\bCOMPANY\b/g, organizationName);
   }
   return normalized;
 }
@@ -159,7 +163,9 @@ function findingCopy(description: string) {
 
 function recommendationCopy(description: string, organizationName: string) {
   const normalized = normalizeText(description, organizationName);
-  return normalized.replace(/^o restore\b/i, "To restore");
+  return normalized
+    .replace(/^Recommendation:\s*/i, "")
+    .replace(/^o restore\b/i, "To restore");
 }
 
 function Choice({ label, selected }: { label: string; selected: boolean }) {
@@ -250,8 +256,8 @@ export function InspectionReportPdf({
     <Document title={`Inspection Report ${snapshot.job.number}`} author={snapshot.organization.legalName}>
       <Page size="LETTER" style={[styles.page, styles.cover]}>
         <View style={[styles.coverBand, !media.coverUrl ? styles.coverBandNoPhoto : {}]}>
-          {media.companyLogoDarkUrl ? (
-            <Image src={media.companyLogoDarkUrl} style={styles.coverLogo} />
+          {media.companyLogoLightUrl ? (
+            <Image src={media.companyLogoLightUrl} style={styles.coverLogo} />
           ) : (
             <Text style={styles.brand}>{snapshot.organization.legalName}</Text>
           )}
@@ -347,14 +353,24 @@ export function InspectionReportPdf({
             </View>
           );
         }) : <Text>No findings or report notes were entered.</Text>}
+        <View style={styles.certificationSection} wrap={false}>
+          <Text style={styles.certificationTitle}>Inspector certification</Text>
+          <Text style={styles.certification}>This report reflects the visible and accessible conditions observed on the inspection date. Findings and recommendations are limited to the scope documented in this report.</Text>
+          <View style={styles.certificationIdentity}>
+            {media.signatureUrl ? <Image src={media.signatureUrl} style={styles.signature} /> : null}
+            <View style={styles.certificationName}>
+              <Text style={styles.value}>{snapshot.inspector?.name ?? "Inspector"}</Text>
+              <Text>{snapshot.inspector?.licenseNumber ? `License ${snapshot.inspector.licenseNumber}` : "License not recorded"}</Text>
+            </View>
+          </View>
+        </View>
         <Footer snapshot={snapshot} />
       </Page>
 
       {afterFindings.length ? <LegalPage blocks={afterFindings} sectionNumber={String(sectionNumber++).padStart(2, "0")} snapshot={snapshot} title="Report notices" /> : null}
 
-      <Page size="LETTER" style={styles.page} wrap>
-        {reportPhotos.length ? (
-          <>
+      {reportPhotos.length ? (
+        <Page size="LETTER" style={styles.page} wrap>
           <View style={styles.sectionHeader}><Text style={styles.sectionNumber}>{String(sectionNumber++).padStart(2, "0")}</Text><Text style={styles.sectionTitle}>Report photographs</Text></View>
           <View style={styles.photoGrid}>
             {reportPhotos.map((photo) => media.photoUrls[photo.id] ? (
@@ -366,21 +382,9 @@ export function InspectionReportPdf({
               </View>
             ) : null)}
           </View>
-          </>
-        ) : null}
-        <View style={styles.certificationSection} wrap={false}>
-        <Text style={styles.certificationTitle}>{String(sectionNumber).padStart(2, "0")}  Inspector certification</Text>
-        <Text style={styles.certification}>This report reflects the visible and accessible conditions observed on the inspection date. Findings and recommendations are limited to the scope and conditions documented in this report.</Text>
-        <View style={styles.certificationIdentity}>
-          {media.signatureUrl ? <Image src={media.signatureUrl} style={styles.signature} /> : null}
-          <View style={styles.certificationName}>
-            <Text style={styles.value}>{snapshot.inspector?.name ?? "Inspector"}</Text>
-            <Text>{snapshot.inspector?.licenseNumber ? `License ${snapshot.inspector.licenseNumber}` : "License not recorded"}</Text>
-          </View>
-        </View>
-        </View>
-        <Footer snapshot={snapshot} />
-      </Page>
+          <Footer snapshot={snapshot} />
+        </Page>
+      ) : null}
     </Document>
   );
 }

@@ -9,6 +9,8 @@ import { getCurrentContext } from "@/lib/current-organization";
 import { logReportDeliveryInZoho } from "@/lib/crm/zoho";
 import { createReviewToken, customerReviewUrl, hashReviewToken } from "@/lib/proposals/review-links";
 import { loadProposalSnapshot } from "@/lib/proposals/load-proposal-snapshot";
+import { renderProposalSigningPdf } from "@/lib/proposals/render-signing-pdf";
+import type { ProposalSnapshot } from "@/lib/proposals/types";
 import {
   getZohoSignRequestStatus,
   isZohoSignConfigured,
@@ -178,20 +180,15 @@ async function loadSignatureDocument(
   if (!asset?.provider_file_id) {
     throw new Error("The selected contract PDF file is missing from storage.");
   }
-
-  const { data: pdf, error: downloadError } = await supabase.storage
-    .from("report-pdfs")
-    .download(asset.provider_file_id);
-  if (downloadError || !pdf) {
-    throw new Error(downloadError?.message ?? "Unable to download the selected contract PDF.");
+  if (!version.snapshot || typeof version.snapshot !== "object") {
+    throw new Error("The approved work authorization snapshot is missing.");
   }
-  return {
-    bytes: new Uint8Array(await pdf.arrayBuffer()),
-    filename: asset.original_filename || `${document.kind}-v${version.version}.pdf`,
-    title: document.title,
-    version: version.version,
-    snapshot: version.snapshot,
-  };
+
+  return renderProposalSigningPdf(
+    version.snapshot as unknown as ProposalSnapshot,
+    version.version,
+    document.title,
+  );
 }
 
 async function recordSignatureEvent(input: {

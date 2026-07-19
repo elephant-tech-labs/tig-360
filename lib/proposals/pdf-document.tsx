@@ -39,8 +39,9 @@ const styles = StyleSheet.create({
   priceCol: { textAlign: "right", width: "12%" },
   amountCol: { textAlign: "right", width: "12%" },
   itemTitle: { fontSize: 8.5, fontWeight: 700, marginBottom: 3 },
+  itemSource: { color: muted, fontSize: 6.5, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" },
   itemDescription: { color: "#333", fontSize: 7.5, lineHeight: 1.35 },
-  totals: { alignSelf: "flex-end", borderColor: line, borderWidth: 1, marginBottom: 18, width: 220 },
+  totals: { alignSelf: "flex-end", borderColor: line, borderWidth: 1, width: 220 },
   totalRow: { borderTopColor: line, borderTopWidth: 1, display: "flex", flexDirection: "row" },
   firstTotalRow: { borderTopWidth: 0 },
   totalLabel: { color: muted, flex: 1, fontSize: 8, padding: 6 },
@@ -53,6 +54,9 @@ const styles = StyleSheet.create({
   signatureRow: { display: "flex", flexDirection: "row", gap: 18, marginTop: 28 },
   signatureBox: { borderTopColor: ink, borderTopWidth: 1, flex: 1, paddingTop: 6 },
   signatureTag: { color: "#222", fontSize: 8, marginBottom: 8 },
+  authorization: { backgroundColor: "#f7f8f7", borderColor: line, borderWidth: 1, marginTop: 22, padding: 12 },
+  authorizationTitle: { fontSize: 11, fontWeight: 700, marginBottom: 5 },
+  authorizationText: { color: "#333", fontSize: 8, lineHeight: 1.45 },
   termsBlock: { borderTopColor: line, borderTopWidth: 1, marginTop: 12, paddingTop: 12 },
   legalBlock: { borderBottomColor: "#dce2df", borderBottomWidth: 1, paddingBottom: 11, paddingTop: 11 },
   legalTitle: { fontSize: 10, fontWeight: 700, marginBottom: 5 },
@@ -82,6 +86,16 @@ function sectionLabel(value: string | null) {
   return value ? labels[value] ?? value.replaceAll("_", " ") : "Manual";
 }
 
+function sourceLabel(sourceType: ProposalSnapshot["lines"][number]["sourceType"]) {
+  return sourceType === "manual" ? "Custom item" : "Inspection recommendation";
+}
+
+function priceLabel(line: ProposalSnapshot["lines"][number], value: number) {
+  if (value !== 0) return money(value);
+  if (line.section === "further_inspection") return "Further inspection";
+  return line.sourceType === "manual" ? "Not separately priced" : "Included";
+}
+
 function partyBlock(snapshot: ProposalSnapshot, role: string, label: string) {
   const parties = snapshot.parties.filter((party) => party.role === role);
   return (
@@ -108,7 +122,13 @@ function Footer({ snapshot }: { snapshot: ProposalSnapshot }) {
   );
 }
 
-export function ProposalContractPdf({ snapshot }: { snapshot: ProposalSnapshot }) {
+export function ProposalContractPdf({
+  snapshot,
+  variant = "customer",
+}: {
+  snapshot: ProposalSnapshot;
+  variant?: "customer" | "signing";
+}) {
   const address = [
     snapshot.property.streetLine1,
     snapshot.property.streetLine2,
@@ -157,23 +177,24 @@ export function ProposalContractPdf({ snapshot }: { snapshot: ProposalSnapshot }
             <Text style={[styles.col, styles.amountCol]}>Amount</Text>
           </View>
           {snapshot.lines.map((line) => (
-            <View key={line.id} style={styles.row} wrap={false}>
+            <View key={line.id} style={styles.row}>
               <View style={[styles.col, styles.firstCol, styles.scopeCol]}>
+                <Text style={styles.itemSource}>{sourceLabel(line.sourceType)}</Text>
                 <Text style={styles.itemTitle}>{[line.code, line.title].filter(Boolean).join(" - ")}</Text>
                 {line.description ? <Text style={styles.itemDescription}>{line.description}</Text> : null}
               </View>
               <Text style={[styles.col, styles.sectionCol]}>{sectionLabel(line.section)}</Text>
               <Text style={[styles.col, styles.qtyCol]}>{line.quantity}</Text>
-              <Text style={[styles.col, styles.priceCol]}>{money(line.unitPrice)}</Text>
-              <Text style={[styles.col, styles.amountCol]}>{money(line.amount)}</Text>
+              <Text style={[styles.col, styles.priceCol]}>{priceLabel(line, line.unitPrice)}</Text>
+              <Text style={[styles.col, styles.amountCol]}>{priceLabel(line, line.amount)}</Text>
             </View>
           ))}
         </View>
 
-        <View style={styles.totals}>
+        <View style={styles.totals} wrap={false}>
           <View style={[styles.totalRow, styles.firstTotalRow]}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.totalValue}>{money(snapshot.proposal.subtotal)}</Text></View>
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Discount</Text><Text style={styles.totalValue}>-{money(snapshot.proposal.discount)}</Text></View>
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax</Text><Text style={styles.totalValue}>{money(snapshot.proposal.tax)}</Text></View>
+          {snapshot.proposal.discount ? <View style={styles.totalRow}><Text style={styles.totalLabel}>Discount</Text><Text style={styles.totalValue}>-{money(snapshot.proposal.discount)}</Text></View> : null}
+          {snapshot.proposal.tax ? <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax</Text><Text style={styles.totalValue}>{money(snapshot.proposal.tax)}</Text></View> : null}
           <View style={[styles.totalRow, styles.grandTotal]}><Text style={[styles.totalLabel, styles.grandTotalText]}>Total</Text><Text style={[styles.totalValue, styles.grandTotalText]}>{money(snapshot.proposal.total)}</Text></View>
         </View>
 
@@ -196,20 +217,32 @@ export function ProposalContractPdf({ snapshot }: { snapshot: ProposalSnapshot }
           </View>
         ) : null}
 
-        <View style={styles.signatureRow} wrap={false}>
-          <View style={styles.signatureBox}>
-            <Text style={styles.signatureTag}>{"{{Signature:Recipient1*}}"}</Text>
-            <Text>Owner / authorized signer</Text>
+        {variant === "signing" ? (
+          <View style={styles.signatureRow} wrap={false}>
+            <View style={styles.signatureBox}>
+              <Text style={styles.signatureTag}>{"{{Signature:Recipient1*}}"}</Text>
+              <Text>Owner / authorized signer</Text>
+            </View>
+            <View style={styles.signatureBox}>
+              <Text style={styles.signatureTag}>{"{{Date:Recipient1}}"}</Text>
+              <Text>Date</Text>
+            </View>
+            <View style={styles.signatureBox}>
+              <Text style={styles.signatureTag}>{"{{Name:Recipient1}}"}</Text>
+              <Text>Signer name</Text>
+            </View>
           </View>
-          <View style={styles.signatureBox}>
-            <Text style={styles.signatureTag}>{"{{Date:Recipient1}}"}</Text>
-            <Text>Date</Text>
+        ) : (
+          <View style={styles.authorization} wrap={false}>
+            <Text style={styles.authorizationTitle}>How to authorize this work</Text>
+            <Text style={styles.authorizationText}>
+              Use the secure review and signing link in the accompanying email when you are ready. You can read the formal authorization before signing. Nothing is scheduled or authorized until the electronic authorization is signed.
+            </Text>
+            {snapshot.organization.email ? (
+              <Text style={styles.authorizationText}>Questions? Contact {snapshot.organization.email} before proceeding.</Text>
+            ) : null}
           </View>
-          <View style={styles.signatureBox}>
-            <Text style={styles.signatureTag}>{"{{Name:Recipient1}}"}</Text>
-            <Text>Signer name</Text>
-          </View>
-        </View>
+        )}
         <Footer snapshot={snapshot} />
       </Page>
     </Document>

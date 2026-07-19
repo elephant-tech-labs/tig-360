@@ -141,6 +141,8 @@ export function FindingsWorkspace({
   });
 
   const activeFindings = entries.filter((entry) => !entry.archived && entry.entryType === "finding");
+  const hasSelectedCategory = Object.values(summary).some(Boolean);
+  const categorySelectionMissing = activeFindings.length > 0 && !hasSelectedCategory;
   const quoteTotal = activeFindings.reduce(
     (total, entry) => total + entry.recommendations.reduce(
       (entryTotal, recommendation) => entryTotal + Number(recommendation.estimatedCost ?? 0),
@@ -295,6 +297,17 @@ export function FindingsWorkspace({
 
   function completeFindings() {
     const activeEntryCount = entries.filter((entry) => !entry.archived).length;
+    if (categorySelectionMissing) {
+      setNotice({
+        type: "error",
+        message: "Select at least one visible-problem category before completing findings.",
+      });
+      document.getElementById("visible-problems")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      return;
+    }
     if (!activeEntryCount && !window.confirm("Confirm this inspection has no findings or report notes?")) return;
     startTransition(async () => {
       const result = await setFindingsStatus({
@@ -348,11 +361,18 @@ export function FindingsWorkspace({
         <div><DollarSign size={18} /><span>Quoted total</span><strong>{quoteTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })}</strong></div>
       </section>
 
-      <section className="visible-problems-panel">
+      <section
+        className={`visible-problems-panel${categorySelectionMissing ? " requires-selection" : ""}`}
+        id="visible-problems"
+      >
         <div>
           <p className="eyebrow">Inspection summary</p>
           <h2>Visible problems in accessible areas</h2>
-          <span>These declarations are independent from the detailed entries below.</span>
+          <span>
+            {categorySelectionMissing
+              ? "Select at least one category before completing findings."
+              : "These declarations are independent from the detailed entries below."}
+          </span>
         </div>
         <div className="visible-problem-options">
           {([

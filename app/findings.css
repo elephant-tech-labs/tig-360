@@ -14,6 +14,8 @@
 .visible-problems-panel { align-items: center; background: #fff; border: 1px solid var(--line); display: grid; gap: 26px; grid-template-columns: minmax(230px, .8fr) minmax(0, 1.5fr); margin: 18px 30px; padding: 18px; }
 .visible-problems-panel h2 { margin: 4px 0; }
 .visible-problems-panel span { color: var(--muted); font-size: 11px; }
+.visible-problems-panel.requires-selection { border-color: #d69240; box-shadow: inset 3px 0 #c87519; }
+.visible-problems-panel.requires-selection span { color: #8e4c0c; font-weight: 700; }
 .visible-problem-options { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .visible-problem-options label { align-items: center; border: 1px solid var(--line); cursor: pointer; display: flex; font-size: 11px; font-weight: 700; gap: 8px; min-height: 39px; padding: 7px 10px; }
 .visible-problem-options input { accent-color: var(--green); height: 15px; width: 15px; }

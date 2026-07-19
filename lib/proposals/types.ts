@@ -9,6 +9,7 @@ export type ProposalParty = {
 
 export type ProposalLineSnapshot = {
   id: string;
+  sourceType: "finding_recommendation" | "finding" | "manual";
   code: string | null;
   section: string | null;
   title: string;

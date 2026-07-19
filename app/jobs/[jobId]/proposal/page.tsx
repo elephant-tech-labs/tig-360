@@ -385,7 +385,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                 {lines.map((line) => {
                   const finding = Array.isArray(line.findings) ? line.findings[0] : line.findings;
                   const sourceLabel = line.source_type === "manual"
-                    ? "Manual"
+                    ? "Custom item"
                     : [line.item_code || finding?.code, sectionLabel(line.section)].filter(Boolean).join(" · ");
                   return (
                     <details className={`proposal-line ${line.included ? "" : "excluded"}`} key={line.id}>

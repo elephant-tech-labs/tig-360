@@ -294,6 +294,11 @@ export async function loadInspectionReportBundle(
   }
   if (findingSummary?.status !== "complete") {
     issues.push({ key: "findings-state", label: "Complete findings review", detail: "Mark findings complete, or confirm that the inspection has no findings.", severity: "blocking", href: `/jobs/${jobId}/findings` });
+  } else if (
+    snapshot.findings.some((finding) => finding.entryType === "finding")
+    && !Object.values(snapshot.findingSummary).some(Boolean)
+  ) {
+    issues.push({ key: "findings-category", label: "Select a finding category", detail: "At least one visible-problem category is required when findings are present.", severity: "blocking", href: `/jobs/${jobId}/findings` });
   }
   if (!snapshot.photos.length) {
     issues.push({ key: "photos-empty", label: "No inspection photos attached", detail: "Photos are optional. The report can be generated without a cover image or photo section.", severity: "advisory", href: `/jobs/${jobId}/photos` });
