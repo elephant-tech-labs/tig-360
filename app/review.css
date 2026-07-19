@@ -200,6 +200,8 @@
 .send-disclosure[open] > summary { margin-bottom: 12px; }
 .signature-send-actions { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
 .signature-send-actions span { color: var(--muted); font-size: 12px; line-height: 1.4; text-align: right; }
+.in-person-signing-control { display: grid; gap: 6px; }
+.in-person-signing-error { color: #a63b32; font-size: 11px; line-height: 1.4; max-width: 320px; text-align: left; }
 .signature-empty { align-items: center; background: var(--amber-soft); color: #8e4c0c; display: flex; font-weight: 700; gap: 9px; margin-top: 16px; padding: 12px; }
 .send-blocker > div { display: grid; gap: 3px; margin-right: auto; }
 .send-blocker span { font-size: 11px; font-weight: 500; }

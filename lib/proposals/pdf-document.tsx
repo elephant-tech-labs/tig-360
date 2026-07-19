@@ -82,6 +82,10 @@ function sectionLabel(value: string | null) {
   return value ? labels[value] ?? value.replaceAll("_", " ") : "Manual";
 }
 
+function proposalDocumentTitle(title: string, jobNumber: string | number) {
+  const jobReference = `#${jobNumber}`;
+  return title.includes(jobReference) ? title : `${title} ${jobReference}`;
+}
 function partyBlock(snapshot: ProposalSnapshot, role: string, label: string) {
   const parties = snapshot.parties.filter((party) => party.role === role);
   return (
@@ -118,7 +122,7 @@ export function ProposalContractPdf({ snapshot }: { snapshot: ProposalSnapshot }
   ].filter(Boolean).join(", ");
 
   return (
-    <Document title={`${snapshot.proposal.title} #${snapshot.job.number}`}>
+    <Document title={proposalDocumentTitle(snapshot.proposal.title, snapshot.job.number)}>
       <Page size="LETTER" style={styles.page} wrap>
         <View style={styles.header}>
           <Text style={styles.brand}>{snapshot.organization.legalName}</Text>
@@ -147,9 +151,9 @@ export function ProposalContractPdf({ snapshot }: { snapshot: ProposalSnapshot }
           </View>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Authorized scope</Text>
+        <Text minPresenceAhead={140} style={styles.sectionTitle}>Authorized scope</Text>
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
+          <View style={styles.tableHeader} wrap={false}>
             <Text style={[styles.col, styles.firstCol, styles.scopeCol]}>Scope</Text>
             <Text style={[styles.col, styles.sectionCol]}>Section</Text>
             <Text style={[styles.col, styles.qtyCol]}>Qty</Text>
