@@ -20,15 +20,15 @@ const line = "#c8c8c8";
 const styles = StyleSheet.create({
   page: { color: ink, fontFamily: "Helvetica", fontSize: 9, padding: 34 },
   cover: { padding: 0 },
-  coverBand: { backgroundColor: ink, color: "#ffffff", height: 250, paddingBottom: 42, paddingHorizontal: 42, paddingTop: 32 },
+  coverBand: { backgroundColor: "#ffffff", borderBottomColor: accent, borderBottomWidth: 4, color: ink, height: 250, paddingBottom: 42, paddingHorizontal: 42, paddingTop: 32 },
   coverBandNoPhoto: { height: 570 },
-  coverLogo: { height: 48, marginBottom: 46, objectFit: "contain", objectPosition: "left", width: 170 },
-  brand: { color: "#ffffff", fontSize: 11, fontWeight: 700, marginBottom: 54, textTransform: "uppercase" },
-  reportType: { color: accent, fontSize: 10, fontWeight: 700, marginBottom: 10, textTransform: "uppercase" },
+  coverLogo: { height: 48, marginBottom: 42, objectFit: "contain", objectPosition: "left", width: 180 },
+  brand: { color: ink, fontSize: 11, fontWeight: 700, marginBottom: 50, textTransform: "uppercase" },
+  reportType: { color: "#0f7658", fontSize: 10, fontWeight: 700, marginBottom: 10, textTransform: "uppercase" },
   coverTitle: { fontSize: 28, fontWeight: 700, lineHeight: 1.15, marginBottom: 8 },
-  coverAddress: { color: "#d8d8d8", fontSize: 11 },
+  coverAddress: { color: "#59645f", fontSize: 11 },
   coverPhoto: { height: 310, objectFit: "cover", width: "100%" },
-  coverMeta: { borderTopColor: accent, borderTopWidth: 3, display: "flex", flexDirection: "row", gap: 24, padding: 30 },
+  coverMeta: { backgroundColor: "#f3f6f4", display: "flex", flexDirection: "row", gap: 24, padding: 30 },
   metaItem: { flex: 1 },
   label: { color: muted, fontSize: 7, marginBottom: 4, textTransform: "uppercase" },
   value: { fontSize: 10, fontWeight: 700 },
@@ -250,8 +250,8 @@ export function InspectionReportPdf({
     <Document title={`Inspection Report ${snapshot.job.number}`} author={snapshot.organization.legalName}>
       <Page size="LETTER" style={[styles.page, styles.cover]}>
         <View style={[styles.coverBand, !media.coverUrl ? styles.coverBandNoPhoto : {}]}>
-          {media.companyLogoDarkUrl ? (
-            <Image src={media.companyLogoDarkUrl} style={styles.coverLogo} />
+          {media.companyLogoLightUrl ? (
+            <Image src={media.companyLogoLightUrl} style={styles.coverLogo} />
           ) : (
             <Text style={styles.brand}>{snapshot.organization.legalName}</Text>
           )}

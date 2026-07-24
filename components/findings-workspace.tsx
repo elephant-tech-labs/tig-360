@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -121,6 +121,7 @@ export function FindingsWorkspace({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const categoryPanelRef = useRef<HTMLElement>(null);
 
   const filteredTemplates = useMemo(() => {
     const query = templateSearch.trim().toLowerCase();
@@ -141,6 +142,7 @@ export function FindingsWorkspace({
   });
 
   const activeFindings = entries.filter((entry) => !entry.archived && entry.entryType === "finding");
+  const hasSelectedSummaryCategory = Object.values(summary).some(Boolean);
   const quoteTotal = activeFindings.reduce(
     (total, entry) => total + entry.recommendations.reduce(
       (entryTotal, recommendation) => entryTotal + Number(recommendation.estimatedCost ?? 0),
@@ -294,8 +296,15 @@ export function FindingsWorkspace({
   }
 
   function completeFindings() {
-    const activeEntryCount = entries.filter((entry) => !entry.archived).length;
-    if (!activeEntryCount && !window.confirm("Confirm this inspection has no findings or report notes?")) return;
+    if (activeFindings.length > 0 && !hasSelectedSummaryCategory) {
+      setNotice({
+        type: "error",
+        message: "Select at least one visible-problem category before marking findings complete.",
+      });
+      categoryPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (!activeFindings.length && !window.confirm("Confirm this inspection has no findings? Notes will still remain in the report.")) return;
     startTransition(async () => {
       const result = await setFindingsStatus({
         organizationId,
@@ -309,7 +318,7 @@ export function FindingsWorkspace({
       setWorkflowStatus("complete");
       setNotice({
         type: "success",
-        message: activeEntryCount
+        message: activeFindings.length
           ? "Findings review marked complete."
           : "Inspection confirmed with no findings.",
       });
@@ -348,11 +357,19 @@ export function FindingsWorkspace({
         <div><DollarSign size={18} /><span>Quoted total</span><strong>{quoteTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })}</strong></div>
       </section>
 
-      <section className="visible-problems-panel">
+      <section
+        className={`visible-problems-panel${activeFindings.length > 0 && !hasSelectedSummaryCategory ? " needs-category" : ""}`}
+        ref={categoryPanelRef}
+      >
         <div>
           <p className="eyebrow">Inspection summary</p>
           <h2>Visible problems in accessible areas</h2>
           <span>These declarations are independent from the detailed entries below.</span>
+          {activeFindings.length > 0 && !hasSelectedSummaryCategory ? (
+            <p className="visible-problem-warning" role="status">
+              Select at least one category before marking this section complete.
+            </p>
+          ) : null}
         </div>
         <div className="visible-problem-options">
           {([

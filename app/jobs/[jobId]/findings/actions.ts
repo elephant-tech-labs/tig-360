@@ -137,6 +137,34 @@ export async function setFindingsStatus(input: {
   status: "draft" | "complete";
 }): Promise<FindingMutationResult> {
   const supabase = await createClient();
+  if (input.status === "complete") {
+    const [findingResult, summaryResult] = await Promise.all([
+      supabase
+        .from("findings")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", input.organizationId)
+        .eq("inspection_job_id", input.jobId)
+        .eq("entry_type", "finding")
+        .is("archived_at", null),
+      supabase
+        .from("job_finding_summaries")
+        .select("subterranean_termites,drywood_termites,fungus_dryrot,other_findings,further_inspection")
+        .eq("organization_id", input.organizationId)
+        .eq("inspection_job_id", input.jobId)
+        .maybeSingle(),
+    ]);
+    if (findingResult.error) return { ok: false, message: findingResult.error.message };
+    if (summaryResult.error) return { ok: false, message: summaryResult.error.message };
+    const selectedCategory = summaryResult.data
+      ? Object.values(summaryResult.data).some(Boolean)
+      : false;
+    if ((findingResult.count ?? 0) > 0 && !selectedCategory) {
+      return {
+        ok: false,
+        message: "Select at least one visible-problem category before marking findings complete.",
+      };
+    }
+  }
   const { error } = await supabase.rpc("set_job_findings_status", {
     target_organization_id: input.organizationId,
     target_job_id: input.jobId,

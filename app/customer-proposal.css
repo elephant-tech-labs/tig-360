@@ -13,14 +13,25 @@
 .customer-doc-card { align-items: center; border: 1px solid var(--line); color: var(--ink); display: flex; justify-content: space-between; padding: 13px; text-decoration: none; }
 .customer-doc-card strong, .customer-doc-card span { display: block; }
 .customer-doc-card span { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.customer-review-order { background: #f3f6f4; border-left: 3px solid var(--green); display: grid; gap: 8px; margin-top: 14px; padding: 12px 14px; }
+.customer-review-order span { align-items: center; color: var(--ink); display: flex; font-size: 13px; gap: 9px; }
+.customer-review-order strong { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 50%; display: inline-flex; flex: 0 0 24px; height: 24px; justify-content: center; }
 .customer-line-list { border: 1px solid var(--line); margin-top: 14px; }
 .customer-line-item { border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) auto; padding: 14px; }
 .customer-line-item:first-child { border-top: 0; }
 .customer-line-item strong, .customer-line-item span { display: block; }
 .customer-line-item span { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .customer-line-price { color: var(--green-dark); font-weight: 850; white-space: nowrap; }
+.customer-line-price.included { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+.customer-total-summary { align-items: center; border-top: 2px solid var(--ink); display: flex; justify-content: space-between; margin-top: 16px; padding-top: 14px; }
+.customer-total-summary span, .customer-total-summary small { display: block; }
+.customer-total-summary span { font-weight: 800; }
+.customer-total-summary small { color: var(--muted); margin-top: 3px; }
+.customer-total-summary strong { color: var(--green-dark); font-size: 24px; }
 .customer-sign-panel { position: sticky; top: 20px; }
-.customer-sign-total { border-bottom: 1px solid var(--line); color: var(--green-dark); font-size: 30px; font-weight: 900; margin-bottom: 18px; padding-bottom: 18px; }
+.customer-next-step-list { display: grid; gap: 10px; margin: 16px 0 18px; }
+.customer-next-step-list span { align-items: flex-start; color: var(--ink); display: flex; font-size: 13px; gap: 8px; line-height: 1.4; }
+.customer-next-step-list svg { color: var(--green); flex: 0 0 auto; margin-top: 2px; }
 .customer-sign-panel form { display: grid; gap: 10px; }
 .customer-sign-panel .primary-button { justify-content: center; min-height: 46px; width: 100%; }
 .customer-sign-note { color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: 12px; }

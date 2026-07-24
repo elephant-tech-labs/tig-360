@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download, ExternalLink } from "lucide-react";
+import { Check, Download, ExternalLink } from "lucide-react";
 import { startCustomerProposalSigning } from "./actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashReviewToken } from "@/lib/proposals/review-links";
 
@@ -127,6 +128,11 @@ export default async function CustomerProposalPage({ params, searchParams }: Cus
                 </Link>
               ) : null}
             </div>
+            <div className="customer-review-order" aria-label="Suggested review order">
+              <span><strong>1</strong> Read the inspection report</span>
+              <span><strong>2</strong> Review recommended work and pricing</span>
+              <span><strong>3</strong> Open the authorization when ready</span>
+            </div>
           </section>
 
           <section className="customer-proposal-panel">
@@ -149,25 +155,39 @@ export default async function CustomerProposalPage({ params, searchParams }: Cus
                       <strong>{[line.item_code, line.title].filter(Boolean).join(" - ")}</strong>
                       {line.contract_scope || line.description ? <span>{line.contract_scope || line.description}</span> : null}
                     </div>
-                    <div className="customer-line-price">{money(amount)}</div>
+                    <div className={`customer-line-price${amount === 0 ? " included" : ""}`}>
+                      {amount === 0 ? "Included" : money(amount)}
+                    </div>
                   </article>
                 );
               })}
+            </div>
+            <div className="customer-total-summary">
+              <div>
+                <span>Work authorization total</span>
+                <small>{includedLines.length} included item{includedLines.length === 1 ? "" : "s"}</small>
+              </div>
+              <strong>{money(proposal.total_amount)}</strong>
             </div>
           </section>
         </div>
 
         <aside className="customer-proposal-panel customer-sign-panel">
-          <p className="eyebrow">Total proposal</p>
-          <div className="customer-sign-total">{money(proposal.total_amount)}</div>
+          <p className="eyebrow">Next step</p>
+          <h2>Ready when you are</h2>
+          <div className="customer-next-step-list">
+            <span><Check size={15} /> You have reviewed the inspection report</span>
+            <span><Check size={15} /> You understand the recommended work and pricing</span>
+            <span><Check size={15} /> You are ready to open the secure authorization</span>
+          </div>
           <form action={startCustomerProposalSigning}>
             <input name="token" type="hidden" value={token} />
-            <button className="primary-button" type="submit">
-              <ExternalLink size={17} /> Proceed to electronic signature
-            </button>
+            <PendingSubmitButton className="primary-button" pendingLabel="Opening secure authorization...">
+              <ExternalLink size={17} /> Review authorization
+            </PendingSubmitButton>
           </form>
           <p className="customer-sign-note">
-            This opens a secure Zoho Sign session for {link.signer_name}. You can review the formal authorization there before signing.
+            This opens the formal work authorization for {link.signer_name}. Signing is the final step only when you choose to proceed.
           </p>
         </aside>
       </div>

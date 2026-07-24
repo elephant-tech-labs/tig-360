@@ -12,8 +12,10 @@
 .findings-metrics span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .findings-metrics strong { font-size: 17px; }
 .visible-problems-panel { align-items: center; background: #fff; border: 1px solid var(--line); display: grid; gap: 26px; grid-template-columns: minmax(230px, .8fr) minmax(0, 1.5fr); margin: 18px 30px; padding: 18px; }
+.visible-problems-panel.needs-category { border-color: #d79731; box-shadow: inset 3px 0 0 #d79731; }
 .visible-problems-panel h2 { margin: 4px 0; }
 .visible-problems-panel span { color: var(--muted); font-size: 11px; }
+.visible-problems-panel .visible-problem-warning { background: #fff4df; color: #7a4c00; font-size: 12px; font-weight: 750; line-height: 1.4; margin: 12px 0 0; padding: 9px 10px; }
 .visible-problem-options { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .visible-problem-options label { align-items: center; border: 1px solid var(--line); cursor: pointer; display: flex; font-size: 11px; font-weight: 700; gap: 8px; min-height: 39px; padding: 7px 10px; }
 .visible-problem-options input { accent-color: var(--green); height: 15px; width: 15px; }
