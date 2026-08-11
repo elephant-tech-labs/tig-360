@@ -90,7 +90,7 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
               <label>Full name<input name="fullName" required /></label>
               <label>Email<input name="email" type="email" /></label>
               <label>Phone<input name="phone" type="tel" /></label>
-              <label>License number<input name="licenseNumber" /></label>
+              <label>SPCB license number<input name="licenseNumber" placeholder="FR, OPR, or applicable SPCB license" /></label>
               <label>License expiration<input name="licenseExpiresOn" type="date" /></label>
               {isAdmin ? (
                 <label className="inline-check"><input name="allowLogin" type="checkbox" /> Send login invitation now</label>
@@ -161,7 +161,7 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
                   <label>Full name<input name="fullName" defaultValue={inspector.full_name} disabled={!canManage} required /></label>
                   <label>Email<input name="email" type="email" defaultValue={inspector.email ?? ""} disabled={!canManage} /></label>
                   <label>Phone<input name="phone" type="tel" defaultValue={inspector.phone ?? ""} disabled={!canManage} /></label>
-                  <label>License number<input name="licenseNumber" defaultValue={inspector.license_number ?? ""} disabled={!canManage} /></label>
+                  <label>SPCB license number<input name="licenseNumber" defaultValue={inspector.license_number ?? ""} disabled={!canManage} /></label>
                   <label>License expiration<input name="licenseExpiresOn" type="date" defaultValue={inspector.license_expires_on ?? ""} disabled={!canManage} /></label>
                   <label className="signature-upload">Signature image<input name="signature" type="file" accept="image/png,image/jpeg,image/webp" disabled={!canManage} /></label>
                   <label className="inline-check"><input name="isActive" type="checkbox" defaultChecked={inspector.is_active} disabled={!canManage} /> Available for inspections</label>

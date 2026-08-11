@@ -1,12 +1,12 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { Building2, Check, Upload } from "lucide-react";
+import { Building2, Check, MapPinned, Plus, Upload } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ManagementNav } from "@/components/management-nav";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { canAccessManagement } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
-import { removeCompanyLogo, saveCompanyProfile } from "@/app/management/actions";
+import { removeCompanyLogo, saveCompanyProfile, saveWdoBranch } from "@/app/management/actions";
 
 type ManagementPageProps = {
   searchParams: Promise<{ saved?: string; error?: string }>;
@@ -22,6 +22,12 @@ export default async function ManagementPage({ searchParams }: ManagementPagePro
     .eq("organization_id", organization.id)
     .maybeSingle();
   if (error) throw new Error(error.message);
+  const { data: wdoBranches, error: branchError } = await supabase
+    .from("wdo_branches")
+    .select("id, name, registration_number, is_active")
+    .eq("organization_id", organization.id)
+    .order("name");
+  if (branchError) throw new Error(branchError.message);
 
   const canManage = membership.role === "administrator" || membership.role === "manager";
   let logoUrl: string | null = null;
@@ -52,7 +58,7 @@ export default async function ManagementPage({ searchParams }: ManagementPagePro
               <legend>Company identity</legend>
               <div className="field-grid">
                 <label className="field-span-2">Legal company name<input name="legalName" defaultValue={profile?.legal_name ?? organization.name} disabled={!canManage} required /></label>
-                <label>Registration number<input name="registrationNumber" defaultValue={profile?.registration_number ?? ""} disabled={!canManage} /></label>
+                <label>SPCB Principal Registration (PR)<input name="registrationNumber" defaultValue={profile?.registration_number ?? ""} disabled={!canManage} placeholder="PR8662" /></label>
                 <label>Operator license<input name="operatorLicense" defaultValue={profile?.operator_license ?? ""} disabled={!canManage} /></label>
                 <label>Contractor license<input name="contractorLicense" defaultValue={profile?.contractor_license ?? ""} disabled={!canManage} /></label>
                 <label>Regulatory contact<input name="regulatoryContact" defaultValue={profile?.regulatory_contact ?? ""} disabled={!canManage} placeholder="Branch, board, or license details" /></label>
@@ -87,6 +93,31 @@ export default async function ManagementPage({ searchParams }: ManagementPagePro
             {canManage ? <PendingSubmitButton className="primary-button" pendingLabel="Saving company profile"><Upload size={16} /> Save company profile</PendingSubmitButton> : null}
           </form>
           {canManage && profile?.logo_path ? <form action={removeCompanyLogo}><input name="organizationId" type="hidden" value={organization.id} /><button className="danger-text-button" type="submit">Remove company logo</button></form> : null}
+        </section>
+        <section className="management-panel wdo-branch-management">
+          <div className="management-panel-intro">
+            <div className="onboarding-icon"><MapPinned size={23} /></div>
+            <div><p className="eyebrow">WDO regulatory offices</p><h2>Branch registrations</h2><p>Principal-office exports use the PR above. Branch records are retained for assignment and validation, but branch TXT generation remains blocked until the external BR layout is verified.</p></div>
+          </div>
+          <div className="wdo-branch-list">
+            {(wdoBranches ?? []).map((branch) => (
+              <form action={saveWdoBranch} className="wdo-branch-form" key={branch.id}>
+                <input name="organizationId" type="hidden" value={organization.id} />
+                <input name="branchId" type="hidden" value={branch.id} />
+                <label>Branch name<input name="branchName" defaultValue={branch.name} required /></label>
+                <label>Branch Registration (BR)<input name="branchRegistrationNumber" defaultValue={branch.registration_number ?? ""} placeholder="BR number" /></label>
+                <label className="inline-check"><input name="isActive" type="checkbox" defaultChecked={branch.is_active} /> Active</label>
+                <PendingSubmitButton className="secondary-button" pendingLabel="Saving branch">Save branch</PendingSubmitButton>
+              </form>
+            ))}
+            <form action={saveWdoBranch} className="wdo-branch-form new">
+              <input name="organizationId" type="hidden" value={organization.id} />
+              <label>Branch name<input name="branchName" required placeholder="Branch name" /></label>
+              <label>Branch Registration (BR)<input name="branchRegistrationNumber" placeholder="BR number" /></label>
+              <label className="inline-check"><input name="isActive" type="checkbox" defaultChecked /> Active</label>
+              <PendingSubmitButton className="primary-button" pendingLabel="Adding branch"><Plus size={15} /> Add branch</PendingSubmitButton>
+            </form>
+          </div>
         </section>
       </div>
     </AppShell>

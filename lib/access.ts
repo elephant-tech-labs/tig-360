@@ -32,3 +32,7 @@ export function canAccessContacts(role: MembershipRole) {
 export function canAccessManagement(role: MembershipRole) {
   return role === "administrator" || role === "manager";
 }
+
+export function canAccessWdoCompliance(role: MembershipRole) {
+  return role === "administrator" || role === "manager" || role === "office_coordinator";
+}

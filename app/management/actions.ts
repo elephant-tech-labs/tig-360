@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentContext } from "@/lib/current-organization";
 
 function clean(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -93,4 +94,40 @@ export async function removeCompanyLogo(formData: FormData) {
     .eq("organization_id", organizationId);
   revalidatePath("/management");
   redirect(managementUrl("Company logo removed."));
+}
+
+export async function saveWdoBranch(formData: FormData) {
+  const organizationId = clean(formData, "organizationId");
+  const branchId = clean(formData, "branchId");
+  const branchName = clean(formData, "branchName");
+  const registrationNumber = clean(formData, "branchRegistrationNumber");
+  const { supabase, organization, membership, user } = await getCurrentContext();
+  if (
+    organization.id !== organizationId
+    || !["administrator", "manager"].includes(membership.role)
+  ) {
+    redirect(managementUrl("Administrator or manager access required.", "error"));
+  }
+  if (!branchName) redirect(managementUrl("Branch name is required.", "error"));
+
+  const values = {
+    organization_id: organizationId,
+    name: branchName,
+    registration_number: registrationNumber || null,
+    is_active: formData.get("isActive") === "on",
+    updated_by: user.id,
+  };
+  const { error } = branchId
+    ? await supabase
+        .from("wdo_branches")
+        .update(values)
+        .eq("organization_id", organizationId)
+        .eq("id", branchId)
+    : await supabase
+        .from("wdo_branches")
+        .insert({ ...values, created_by: user.id });
+  if (error) redirect(managementUrl(error.message, "error"));
+  revalidatePath("/management");
+  revalidatePath("/compliance/wdo");
+  redirect(managementUrl(branchId ? "WDO branch updated." : "WDO branch added."));
 }

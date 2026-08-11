@@ -12,6 +12,7 @@ import "./review.css";
 import "./management.css";
 import "./proposal.css";
 import "./customer-proposal.css";
+import "./wdo.css";
 
 const inter = Inter({
   variable: "--font-sans",
