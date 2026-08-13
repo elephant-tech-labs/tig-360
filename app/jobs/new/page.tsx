@@ -31,7 +31,7 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
         report_type,
         status,
         inspection_at,
-        properties(street_line_1, street_line_2, city, region, postal_code, county, property_type)
+        properties(building_number, street_name, unit_or_suite, street_line_1, street_line_2, city, region, postal_code, county, property_type)
       `)
       .eq("organization_id", organization.id)
       .order("job_number", { ascending: false }),
@@ -54,6 +54,9 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
       reportType: job.report_type,
       status: job.status,
       inspectionAt: job.inspection_at,
+      buildingNumber: property.building_number,
+      streetName: property.street_name,
+      unitOrSuite: property.unit_or_suite,
       streetLine1: property.street_line_1,
       streetLine2: property.street_line_2,
       city: property.city,

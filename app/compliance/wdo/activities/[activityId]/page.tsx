@@ -7,7 +7,7 @@ import { canAccessWdoCompliance } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { CALIFORNIA_WDO_ACTIVITY_CODES } from "@/lib/wdo/california/activity-codes";
 import { mapCaliforniaWdoActivity } from "@/lib/wdo/california/mapper";
-import { updateWdoActivity } from "../../actions";
+import { updateWdoActivity, voidManualWdoActivity } from "../../actions";
 
 type WdoActivityPageProps = {
   params: Promise<{ activityId: string }>;
@@ -35,8 +35,8 @@ export default async function WdoActivityPage({ params, searchParams }: WdoActiv
         id, inspection_job_id, activity_date, activity_code, activity_date_source,
         activity_code_source, inspector_source, branch_id, source_type,
         override_building_number, override_street, override_city, override_zip_code,
-        inspection_jobs(id, job_number, report_type, inspection_at),
-        properties(id, street_line_1, street_line_2, city, region, postal_code),
+        inspection_jobs(id, job_number, report_type, inspection_at, wdo_filing_requirement),
+        properties(id, building_number, street_name, unit_or_suite, street_line_1, street_line_2, city, region, postal_code),
         inspectors(id, full_name, license_number),
         wdo_branches(id, name, registration_number),
         wdo_export_batch_items(
@@ -83,9 +83,13 @@ export default async function WdoActivityPage({ params, searchParams }: WdoActiv
     inspectorLicenseNumber: currentInspector?.license_number ?? null,
     inspectorName: currentInspector?.full_name ?? null,
     address: {
+      buildingNumber: property?.building_number ?? null,
+      streetName: property?.street_name ?? null,
+      unitOrSuite: property?.unit_or_suite ?? null,
       streetLine1: property?.street_line_1 ?? null,
       streetLine2: property?.street_line_2 ?? null,
       city: property?.city ?? null,
+      region: property?.region ?? null,
       zipCode: property?.postal_code ?? null,
       overrideBuildingNumber: activity.override_building_number,
       overrideStreet: activity.override_street,
@@ -139,40 +143,26 @@ export default async function WdoActivityPage({ params, searchParams }: WdoActiv
           </div>
           <form action={updateWdoActivity} className="wdo-activity-form">
             <input name="activityId" type="hidden" value={activityId} />
-            <label>
-              Activity date
-              <input name="activityDate" type="date" defaultValue={activity.activity_date ?? ""} required />
-              <small>{activity.activity_date_source === "derived" ? "Derived from the job inspection date; saving confirms it." : "Confirmed for this regulatory activity."}</small>
-            </label>
-            <label>
-              Activity type
-              <select name="activityCode" defaultValue={String(activity.activity_code ?? "")} required>
-                <option value="" disabled>Select activity type</option>
-                {Object.entries(CALIFORNIA_WDO_ACTIVITY_CODES).map(([code, config]) => (
-                  <option value={code} key={code}>{code} · {config.label}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Responsible inspector / licensee
-              <select name="inspectorId" defaultValue={currentInspector?.id ?? ""} required>
-                <option value="" disabled>Select an inspector</option>
-                {(inspectors ?? []).filter((inspector) => inspector.is_active || inspector.id === currentInspector?.id).map((inspector) => (
-                  <option value={inspector.id} key={inspector.id}>{inspector.full_name}{inspector.license_number ? ` · ${inspector.license_number}` : " · license missing"}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Office
-              <select name="branchId" defaultValue={currentBranch?.id ?? ""}>
-                <option value="">Principal Office</option>
-                {(branches ?? []).filter((branch) => branch.is_active || branch.id === currentBranch?.id).map((branch) => (
-                  <option value={branch.id} key={branch.id}>{branch.name}{branch.registration_number ? ` · ${branch.registration_number}` : ""}</option>
-                ))}
-              </select>
-              <small>Branch-office records are blocked until the external BR layout is verified.</small>
-            </label>
-            <fieldset className="field-span-2 wdo-address-fieldset">
+            {activity.source_type === "inspection_job" && job ? (
+              <>
+                <div className="field-display"><span>Activity date</span><strong>{activity.activity_date || "Missing"}</strong><small>Derived from the job inspection date.</small></div>
+                <div className="field-display"><span>Activity type</span><strong>{CALIFORNIA_WDO_ACTIVITY_CODES[activity.activity_code as keyof typeof CALIFORNIA_WDO_ACTIVITY_CODES]?.label || "Missing"}</strong><small>Derived from report type.</small></div>
+                <div className="field-display"><span>Responsible inspector</span><strong>{currentInspector?.full_name || "Missing"}</strong><small>{currentInspector?.license_number || "SPCB license missing"}</small></div>
+                <div className="field-display"><span>Office</span><strong>Principal Office</strong><small>Normal Trident job default.</small></div>
+              </>
+            ) : <>
+              <label>Activity date<input name="activityDate" type="date" defaultValue={activity.activity_date ?? ""} required /></label>
+              <label>Activity type<select name="activityCode" defaultValue={String(activity.activity_code ?? "")} required><option value="" disabled>Select activity type</option>{Object.entries(CALIFORNIA_WDO_ACTIVITY_CODES).map(([code, config]) => <option value={code} key={code}>{code} · {config.label}</option>)}</select></label>
+              <label>Responsible inspector / licensee<select name="inspectorId" defaultValue={currentInspector?.id ?? ""} required><option value="" disabled>Select an inspector</option>{(inspectors ?? []).filter((inspector) => inspector.is_active || inspector.id === currentInspector?.id).map((inspector) => <option value={inspector.id} key={inspector.id}>{inspector.full_name}{inspector.license_number ? ` · ${inspector.license_number}` : " · license missing"}</option>)}</select></label>
+              <label>Office<select name="branchId" defaultValue={currentBranch?.id ?? ""}><option value="">Principal Office</option>{(branches ?? []).filter((branch) => branch.is_active || branch.id === currentBranch?.id).map((branch) => <option value={branch.id} key={branch.id}>{branch.name}{branch.registration_number ? ` · ${branch.registration_number}` : ""}</option>)}</select><small>Branch-office records are blocked until the external BR layout is verified.</small></label>
+            </>}
+            {activity.source_type === "inspection_job" && job ? (
+              <fieldset className="field-span-2 wdo-address-fieldset">
+                <legend>California TXT address</legend>
+                <p><strong>{mapped.record.buildingNumber} {mapped.record.street}</strong>, {mapped.record.city} {mapped.record.zipCode}</p>
+                <small>This job-derived activity uses the canonical property. <Link href={`/jobs/${job.id}/edit#property-address`}>Fix the property address</Link>.</small>
+              </fieldset>
+            ) : <fieldset className="field-span-2 wdo-address-fieldset">
               <legend>California TXT address</legend>
               <p>Canonical TIG property: {[property?.street_line_1, property?.street_line_2, property?.city, property?.region, property?.postal_code].filter(Boolean).join(", ")}</p>
               <div className="wdo-address-grid">
@@ -183,13 +173,26 @@ export default async function WdoActivityPage({ params, searchParams }: WdoActiv
               </div>
               <label className="inline-check wdo-canonical-check"><input name="useCanonicalAddress" type="checkbox" /> Clear the regulatory override and derive from the canonical property again</label>
               {hasAddressOverride ? <small>A regulatory-specific address override is currently stored. It does not change the canonical TIG property.</small> : null}
-            </fieldset>
+            </fieldset>}
             <div className="form-actions field-span-2">
               <Link className="secondary-button" href="/compliance/wdo">Back to WDO queue</Link>
-              <PendingSubmitButton className="primary-button" pendingLabel="Saving WDO activity">Save WDO activity</PendingSubmitButton>
+              {activity.source_type === "inspection_job" && job
+                ? <Link className="primary-button" href={`/jobs/${job.id}/edit#wdo-filing`}>Fix source job</Link>
+                : <PendingSubmitButton className="primary-button" pendingLabel="Saving WDO activity">Save WDO activity</PendingSubmitButton>}
             </div>
           </form>
         </section>
+
+        {activity.source_type !== "inspection_job" ? (
+          <section className="wdo-source-panel" id="void-activity">
+            <div><p className="eyebrow">Exception handling</p><h2>Exclude this direct activity</h2><p>Use only when this manual regulatory activity should never be filed. Generated and filed snapshots remain immutable.</p></div>
+            <form action={voidManualWdoActivity} className="wdo-activity-form">
+              <input name="activityId" type="hidden" value={activityId} />
+              <label className="field-span-2">Void reason<textarea name="voidReason" rows={3} required /></label>
+              <PendingSubmitButton className="danger-button field-span-2" pendingLabel="Voiding activity">Void WDO activity</PendingSubmitButton>
+            </form>
+          </section>
+        ) : null}
 
         <section className="wdo-source-panel">
           <div><p className="eyebrow">Source and history</p><h2>Activity audit context</h2></div>

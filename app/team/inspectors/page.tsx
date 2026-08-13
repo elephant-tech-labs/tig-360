@@ -6,6 +6,7 @@ import { ManagementNav } from "@/components/management-nav";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { canAccessManagement, roleLabels, type MembershipRole } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
+import { validateCaliforniaWdoInspectorLicense } from "@/lib/wdo/california/validator";
 import {
   createInspector,
   inviteTeamMember,
@@ -90,7 +91,7 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
               <label>Full name<input name="fullName" required /></label>
               <label>Email<input name="email" type="email" /></label>
               <label>Phone<input name="phone" type="tel" /></label>
-              <label>SPCB license number<input name="licenseNumber" placeholder="FR, OPR, or applicable SPCB license" /></label>
+              <label>SPCB license number<input name="licenseNumber" maxLength={10} pattern="(?=.*[0-9])\S{1,10}" placeholder="SPCB-issued value" /><span className="field-help">Optional while drafting; required and format-checked before report completion.</span></label>
               <label>License expiration<input name="licenseExpiresOn" type="date" /></label>
               {isAdmin ? (
                 <label className="inline-check"><input name="allowLogin" type="checkbox" /> Send login invitation now</label>
@@ -136,6 +137,7 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
             const pendingInvitation = (invitations ?? []).find(
               (invitation) => invitation.inspector_id === inspector.id && invitation.status === "pending",
             );
+            const wdoLicenseIssue = validateCaliforniaWdoInspectorLicense(inspector.license_number);
 
             return (
               <article className="inspector-profile-row" key={inspector.id}>
@@ -161,7 +163,7 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
                   <label>Full name<input name="fullName" defaultValue={inspector.full_name} disabled={!canManage} required /></label>
                   <label>Email<input name="email" type="email" defaultValue={inspector.email ?? ""} disabled={!canManage} /></label>
                   <label>Phone<input name="phone" type="tel" defaultValue={inspector.phone ?? ""} disabled={!canManage} /></label>
-                  <label>SPCB license number<input name="licenseNumber" defaultValue={inspector.license_number ?? ""} disabled={!canManage} /></label>
+                  <label>SPCB license number<input name="licenseNumber" defaultValue={inspector.license_number ?? ""} maxLength={10} pattern="(?=.*[0-9])\S{1,10}" disabled={!canManage} /><span className={wdoLicenseIssue ? "field-help warning" : "field-help success"}>{wdoLicenseIssue ? `WDO not ready: ${wdoLicenseIssue}` : "WDO ready"}</span></label>
                   <label>License expiration<input name="licenseExpiresOn" type="date" defaultValue={inspector.license_expires_on ?? ""} disabled={!canManage} /></label>
                   <label className="signature-upload">Signature image<input name="signature" type="file" accept="image/png,image/jpeg,image/webp" disabled={!canManage} /></label>
                   <label className="inline-check"><input name="isActive" type="checkbox" defaultChecked={inspector.is_active} disabled={!canManage} /> Available for inspections</label>

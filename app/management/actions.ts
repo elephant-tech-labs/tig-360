@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentContext } from "@/lib/current-organization";
+import { CALIFORNIA_WDO_FIELD_WIDTHS } from "@/lib/wdo/california/config";
 
 function clean(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -15,6 +16,17 @@ function managementUrl(message: string, kind: "saved" | "error" = "saved") {
 
 export async function saveCompanyProfile(formData: FormData) {
   const organizationId = clean(formData, "organizationId");
+  const legalName = clean(formData, "legalName");
+  const registrationNumber = clean(formData, "registrationNumber");
+  if (!legalName || !registrationNumber) {
+    redirect(managementUrl("Legal company name and SPCB Principal Registration are required.", "error"));
+  }
+  if (legalName.length > CALIFORNIA_WDO_FIELD_WIDTHS.companyName
+    || registrationNumber.length > CALIFORNIA_WDO_FIELD_WIDTHS.registrationNumber
+    || !/^[\x20-\x7E]+$/.test(legalName)
+    || !/^[\x20-\x7E]+$/.test(registrationNumber)) {
+    redirect(managementUrl("Company name or Principal Registration exceeds the WDO TXT format.", "error"));
+  }
   const supabase = await createClient();
   const { data: existing } = await supabase
     .from("organization_report_profiles")
@@ -46,7 +58,7 @@ export async function saveCompanyProfile(formData: FormData) {
     .from("organization_report_profiles")
     .upsert({
       organization_id: organizationId,
-      legal_name: clean(formData, "legalName") || null,
+      legal_name: legalName,
       street_line_1: clean(formData, "streetLine1") || null,
       street_line_2: clean(formData, "streetLine2") || null,
       city: clean(formData, "city") || null,
@@ -55,7 +67,7 @@ export async function saveCompanyProfile(formData: FormData) {
       phone: clean(formData, "phone") || null,
       email: clean(formData, "email") || null,
       website: clean(formData, "website") || null,
-      registration_number: clean(formData, "registrationNumber") || null,
+      registration_number: registrationNumber,
       operator_license: clean(formData, "operatorLicense") || null,
       contractor_license: clean(formData, "contractorLicense") || null,
       regulatory_contact: clean(formData, "regulatoryContact") || null,

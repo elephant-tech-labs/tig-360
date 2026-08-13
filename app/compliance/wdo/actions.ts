@@ -110,6 +110,21 @@ export async function updateWdoActivity(formData: FormData) {
   redirect(activityUrl(activityId, "WDO activity saved."));
 }
 
+export async function voidManualWdoActivity(formData: FormData) {
+  const activityId = clean(formData, "activityId");
+  const reason = clean(formData, "voidReason");
+  if (!activityId || !reason) redirect(wdoUrl("A void reason is required.", "error"));
+  const { supabase, organization } = await requireWdoContext();
+  const { error } = await supabase.rpc("void_manual_wdo_activity", {
+    target_organization_id: organization.id,
+    target_activity_id: activityId,
+    activity_void_reason: reason,
+  });
+  if (error) redirect(activityUrl(activityId, error.message, "error"));
+  revalidatePath("/compliance/wdo");
+  redirect(wdoUrl("WDO activity voided. Existing export history was retained."));
+}
+
 export async function generateWdoExport(formData: FormData) {
   const { supabase, organization } = await requireWdoContext();
   let selectedIds: string[] = [];
@@ -128,7 +143,8 @@ export async function generateWdoExport(formData: FormData) {
       .select(`
         id, activity_date, activity_code, branch_id,
         override_building_number, override_street, override_city, override_zip_code,
-        properties(street_line_1, street_line_2, city, postal_code),
+        inspection_jobs(wdo_filing_requirement),
+        properties(building_number, street_name, unit_or_suite, street_line_1, street_line_2, city, region, postal_code),
         inspectors(full_name, license_number),
         wdo_branches(name)
       `)
@@ -151,10 +167,12 @@ export async function generateWdoExport(formData: FormData) {
   const mapped = selectedIds.map((activityId) => {
     const activity = activityById.get(activityId)!;
     const property = Array.isArray(activity.properties) ? activity.properties[0] : activity.properties;
+    const job = Array.isArray(activity.inspection_jobs) ? activity.inspection_jobs[0] : activity.inspection_jobs;
     const inspector = Array.isArray(activity.inspectors) ? activity.inspectors[0] : activity.inspectors;
     const branch = Array.isArray(activity.wdo_branches) ? activity.wdo_branches[0] : activity.wdo_branches;
     return {
       activityId,
+      excluded: Boolean(job && job.wdo_filing_requirement !== "required"),
       mapped: mapCaliforniaWdoActivity({
         activityId,
         activityDate: activity.activity_date,
@@ -166,9 +184,13 @@ export async function generateWdoExport(formData: FormData) {
         inspectorLicenseNumber: inspector?.license_number ?? null,
         inspectorName: inspector?.full_name ?? null,
         address: {
+          buildingNumber: property?.building_number ?? null,
+          streetName: property?.street_name ?? null,
+          unitOrSuite: property?.unit_or_suite ?? null,
           streetLine1: property?.street_line_1 ?? null,
           streetLine2: property?.street_line_2 ?? null,
           city: property?.city ?? null,
+          region: property?.region ?? null,
           zipCode: property?.postal_code ?? null,
           overrideBuildingNumber: activity.override_building_number,
           overrideStreet: activity.override_street,
@@ -183,6 +205,9 @@ export async function generateWdoExport(formData: FormData) {
       }),
     };
   });
+  if (mapped.some((item) => item.excluded)) {
+    redirect(wdoUrl("One or more selected jobs no longer require WDO filing. Refresh the queue.", "error"));
+  }
   const issues = mapped.flatMap(({ mapped: result }) => result.issues);
   if (issues.length) {
     const summary = issues.slice(0, 4).map((issue) => issue.message).join(" ");

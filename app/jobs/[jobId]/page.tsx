@@ -15,6 +15,7 @@ import { getCurrentContext } from "@/lib/current-organization";
 import { JobAuthoringNav } from "@/components/job-authoring-nav";
 import { JobWorkspaceHeader } from "@/components/job-workspace-header";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
+import { getCaliforniaWdoReadinessForJob } from "@/lib/wdo/california/readiness";
 
 type JobPageProps = { params: Promise<{ jobId: string }>; searchParams: Promise<{ updated?: string }> };
 
@@ -26,7 +27,8 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
     id, job_number, status, report_type, inspection_at, prior_job_id, summary, escrow_number,
     inspection_tag_posted, other_tags_posted, garage_description,
     internal_notes, created_at, created_by, inspected_by_id, include_inspector_signature,
-    properties(street_line_1, street_line_2, city, region, postal_code, county, property_type),
+    wdo_filing_requirement, wdo_exclusion_reason, wdo_exclusion_notes,
+    properties(building_number, street_name, unit_or_suite, street_line_1, street_line_2, city, region, postal_code, county, property_type),
     prior_job:inspection_jobs!prior_job_id(id, job_number, report_type, inspection_at, properties(street_line_1, city, region, postal_code)),
     job_parties(id, role, is_primary, receive_report_by_default, contacts(id, first_name, last_name, email, companies(name))),
     findings(id, archived_at), assets(id, kind)
@@ -34,7 +36,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
 
   if (error || !job) notFound();
   const property = Array.isArray(job.properties) ? job.properties[0] : job.properties;
-  const [{ data: inspector }, { data: enteredBy }] = await Promise.all([
+  const [{ data: inspector }, { data: enteredBy }, { data: reportProfile }] = await Promise.all([
     job.inspected_by_id
       ? supabase
           .from("inspectors")
@@ -50,9 +52,35 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
           .eq("id", job.created_by)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase
+      .from("organization_report_profiles")
+      .select("legal_name, registration_number")
+      .eq("organization_id", organization.id)
+      .maybeSingle(),
   ]);
   const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
   const requiresPriorJob = job.report_type === "supplemental" || job.report_type === "reinspection";
+  const wdoReadiness = getCaliforniaWdoReadinessForJob({
+    jobId,
+    filingRequirement: job.wdo_filing_requirement,
+    reportType: job.report_type,
+    inspectionDate: job.inspection_at,
+    companyName: reportProfile?.legal_name ?? null,
+    registrationNumber: reportProfile?.registration_number ?? null,
+    inspectorId: job.inspected_by_id,
+    inspectorName: inspector?.full_name ?? inspector?.email ?? null,
+    inspectorLicenseNumber: inspector?.license_number ?? null,
+    address: {
+      buildingNumber: property?.building_number ?? null,
+      streetName: property?.street_name ?? null,
+      unitOrSuite: property?.unit_or_suite ?? null,
+      streetLine1: property?.street_line_1 ?? null,
+      streetLine2: property?.street_line_2 ?? null,
+      city: property?.city ?? null,
+      region: property?.region ?? null,
+      zipCode: property?.postal_code ?? null,
+    },
+  });
   const readinessItems = [
     {
       label: "Property address",
@@ -68,6 +96,7 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
     ...(requiresPriorJob
       ? [{ label: "Prior inspection linked", complete: Boolean(job.prior_job_id) }]
       : []),
+    { label: wdoReadiness.required ? "WDO filing ready" : "WDO filing excluded", complete: wdoReadiness.ready },
   ];
   const readyCount = readinessItems.filter((item) => item.complete).length;
   const uniqueContacts = new Set(job.job_parties.flatMap((party) => {
@@ -118,6 +147,19 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
         <div className="overview-tile"><CalendarDays size={20} /><span>Inspection</span><strong>{job.inspection_at ? new Date(job.inspection_at).toLocaleString() : "Not scheduled"}</strong></div>
         <div className="overview-tile"><Users size={20} /><span>Contacts</span><strong>{uniqueContacts} {uniqueContacts === 1 ? "person" : "people"} · {job.job_parties.length} {job.job_parties.length === 1 ? "role" : "roles"}</strong></div>
       </section>
+
+      {wdoReadiness.required && !wdoReadiness.ready ? (
+        <section className="job-readiness-band">
+          <div><p className="eyebrow">California compliance</p><h2>WDO source data needs attention</h2></div>
+          <div className="readiness-items">
+            {wdoReadiness.issues.map((issue) => (
+              <Link className="incomplete" href={issue.href ?? `/jobs/${jobId}/edit#wdo-filing`} key={`${issue.field}:${issue.code}`}>
+                <AlertTriangle size={14} /> {issue.message}
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="job-readiness-band">
         <div>

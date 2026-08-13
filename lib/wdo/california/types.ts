@@ -22,6 +22,7 @@ export type WdoValidationField =
   | "zipCode"
   | "inspectorLicenseNumber"
   | "activityCode"
+  | "region"
   | "branch";
 
 export type WdoValidationIssue = {
@@ -32,15 +33,27 @@ export type WdoValidationIssue = {
 };
 
 export type WdoAddressSource = {
+  buildingNumber?: string | null;
+  streetName?: string | null;
+  unitOrSuite?: string | null;
   streetLine1: string | null;
   streetLine2: string | null;
   city: string | null;
+  region?: string | null;
   zipCode: string | null;
   overrideBuildingNumber?: string | null;
   overrideStreet?: string | null;
   overrideCity?: string | null;
   overrideZipCode?: string | null;
 };
+
+export type WdoFilingRequirement = "required" | "not_required";
+
+export type WdoExclusionReason =
+  | "test_or_training"
+  | "created_in_error_or_duplicate"
+  | "inspection_never_commenced"
+  | "other_non_reportable";
 
 export type WdoActivityMappingInput = {
   activityId: string;

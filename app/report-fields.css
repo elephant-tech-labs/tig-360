@@ -10,7 +10,7 @@
 .job-readiness-band { align-items: center; display: grid; gap: 20px; grid-template-columns: 220px minmax(0, 1fr); }
 .job-readiness-band h2, .inspection-personnel-band h2 { margin-top: 4px; }
 .readiness-items { display: flex; flex-wrap: wrap; gap: 8px; }
-.readiness-items span { align-items: center; border: 1px solid var(--line); display: inline-flex; font-size: 11px; font-weight: 700; gap: 6px; padding: 7px 9px; }
+.readiness-items span, .readiness-items > a { align-items: center; border: 1px solid var(--line); display: inline-flex; font-size: 11px; font-weight: 700; gap: 6px; padding: 7px 9px; }
 .readiness-items .complete { background: #edf7f2; color: var(--green-dark); }
 .readiness-items .incomplete { background: #fff5e9; color: #8a4c0d; }
 .inspection-personnel-band { align-items: start; display: grid; gap: 18px; grid-template-columns: 190px minmax(0, 1fr) 30px; }

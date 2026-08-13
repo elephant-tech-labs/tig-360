@@ -44,7 +44,16 @@ export function mapCaliforniaWdoActivity(
     inspectorName: input.inspectorName,
     links: input.links,
   });
-  const issues = [...normalizedAddress.issues, ...validationIssues].filter(
+  const regionIssues = input.address.region !== undefined
+    && normalizeWdoWhitespace(input.address.region).toUpperCase() !== "CA"
+    ? [{
+        field: "region" as const,
+        code: "property_not_california",
+        message: "WDO-required property must be in California.",
+        href: input.links?.property || activityHref,
+      }]
+    : [];
+  const issues = [...normalizedAddress.issues, ...regionIssues, ...validationIssues].filter(
     (issue, index, all) => all.findIndex(
       (candidate) => candidate.field === issue.field && candidate.code === issue.code,
     ) === index,

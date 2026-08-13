@@ -9,7 +9,7 @@ import type {
   WdoValidationIssue,
 } from "./types";
 
-const FIELD_LABELS: Record<Exclude<WdoValidationField, "branch" | "activityCode">, string> = {
+const FIELD_LABELS: Record<Exclude<WdoValidationField, "branch" | "activityCode" | "region">, string> = {
   companyName: "Company name",
   registrationNumber: "SPCB principal registration",
   activityDate: "Activity date",
@@ -33,6 +33,24 @@ const STRING_FIELDS = [
 
 function isPrintableAscii(value: string) {
   return /^[\x20-\x7E]*$/.test(value);
+}
+
+export function validateCaliforniaWdoInspectorLicense(value: string | null | undefined) {
+  const license = String(value ?? "").trim();
+  if (!license) return "Inspector SPCB license number is required.";
+  if (license.length > CALIFORNIA_WDO_FIELD_WIDTHS.inspectorLicenseNumber) {
+    return `Inspector SPCB license number exceeds ${CALIFORNIA_WDO_FIELD_WIDTHS.inspectorLicenseNumber} characters.`;
+  }
+  if (!isPrintableAscii(license)) {
+    return "Inspector SPCB license number contains unsupported characters.";
+  }
+  if (/\s/.test(license)) {
+    return "Inspector SPCB license number cannot contain spaces.";
+  }
+  if (!/\d/.test(license)) {
+    return "Inspector SPCB license number must contain at least one number.";
+  }
+  return null;
 }
 
 function isValidExportDate(value: string) {
@@ -96,6 +114,18 @@ export function validateCaliforniaWdoRecord(
         href,
       });
     }
+  }
+
+  const inspectorLicenseIssue = validateCaliforniaWdoInspectorLicense(
+    record.inspectorLicenseNumber,
+  );
+  if (record.inspectorLicenseNumber && inspectorLicenseIssue) {
+    issues.push({
+      field: "inspectorLicenseNumber",
+      code: "invalid_inspector_license",
+      message: inspectorLicenseIssue,
+      href: options.links?.inspector,
+    });
   }
 
   if (record.activityDate && !isValidExportDate(record.activityDate)) {

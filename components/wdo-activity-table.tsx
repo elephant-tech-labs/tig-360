@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Download, ExternalLink, FileWarning, History } from "lucide-react";
+import { AlertTriangle, Ban, Download, ExternalLink, FileWarning, History } from "lucide-react";
 import { generateWdoExport } from "@/app/compliance/wdo/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { CALIFORNIA_WDO_FEE_PER_ACTIVITY } from "@/lib/wdo/california/config";
@@ -66,6 +66,7 @@ export function WdoActivityTable({ rows, dateFrom, dateTo, idempotencyKey }: Wdo
         >
           <Download size={16} /> Download WDO .TXT
         </PendingSubmitButton>
+        {!selected.size ? <small>Select at least one ready activity to enable download.</small> : null}
       </div>
 
       {hasReexports ? (
@@ -158,7 +159,7 @@ export function WdoActivityTable({ rows, dateFrom, dateTo, idempotencyKey }: Wdo
                         <ul>
                           {row.issues.map((issue) => (
                             <li key={`${issue.field}-${issue.code}`}>
-                              {issue.href ? <Link href={issue.href}>{issue.message}</Link> : issue.message}
+                              <span>{issue.message}</span>{issue.href ? <Link href={issue.href}>Fix</Link> : null}
                             </li>
                           ))}
                         </ul>
@@ -166,6 +167,11 @@ export function WdoActivityTable({ rows, dateFrom, dateTo, idempotencyKey }: Wdo
                     )}
                   </td>
                   <td>
+                    {row.exclusionHref ? (
+                      <Link className="icon-button small" href={row.exclusionHref} title="Exclude from WDO filing" aria-label={`Exclude ${row.property} from WDO filing`}>
+                        <Ban size={15} />
+                      </Link>
+                    ) : null}
                     <Link
                       aria-label={`Review WDO activity for ${row.property}`}
                       className="icon-button small"

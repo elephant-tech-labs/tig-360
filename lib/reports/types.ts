@@ -1,4 +1,5 @@
 import type { RichTextDocument } from "@/lib/report-content";
+import type { CaliforniaWdoReadiness } from "@/lib/wdo/california/readiness";
 
 export type ReportParty = {
   contactId: string | null;
@@ -141,6 +142,7 @@ export type ReadinessIssue = {
 export type InspectionReportBundle = {
   snapshot: InspectionReportSnapshot;
   media: ReportMedia;
+  wdoReadiness: CaliforniaWdoReadiness;
   readiness: {
     canGenerate: boolean;
     issues: ReadinessIssue[];

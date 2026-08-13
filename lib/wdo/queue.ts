@@ -16,6 +16,7 @@ export type WdoQueueRow = {
   id: string;
   jobId: string | null;
   jobNumber: number | null;
+  exclusionHref: string | null;
   activityDate: string | null;
   property: string;
   activityType: string;

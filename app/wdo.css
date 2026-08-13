@@ -40,6 +40,8 @@
 .wdo-selection-bar { align-items: center; background: #f4f7f5; border: 1px solid var(--line); display: flex; justify-content: space-between; padding: 10px 12px; }
 .wdo-selection-bar strong, .wdo-selection-bar span { display: block; }
 .wdo-selection-bar span { color: var(--muted); font-size: 11px; margin-top: 3px; }
+.wdo-selection-bar > small { color: var(--muted); font-size: 10px; margin-left: auto; margin-right: 10px; }
+.wdo-selection-bar button:disabled { background: #aab5b0; border-color: #aab5b0; color: #eef2f0; cursor: not-allowed; opacity: 1; }
 .wdo-reexport-warning { align-items: start; background: var(--amber-soft); border: 1px solid #efc998; color: #74400e; display: grid; gap: 11px; grid-template-columns: auto minmax(0, 1fr); padding: 12px; }
 .wdo-reexport-warning p { margin: 3px 0 10px; }
 .wdo-reexport-warning label { max-width: 360px; }
@@ -61,6 +63,8 @@
 .wdo-validation-details summary { align-items: center; color: var(--red); cursor: pointer; display: flex; font-size: 10px; font-weight: 750; gap: 4px; }
 .wdo-validation-details ul { color: #6e342d; margin: 8px 0 0; padding-left: 17px; }
 .wdo-validation-details li { line-height: 1.35; margin-top: 5px; }
+.wdo-validation-details li span { display: block; }
+.wdo-validation-details li a { color: var(--green-dark); display: inline-block; font-weight: 800; margin-top: 3px; }
 .deadline-normal { color: var(--muted) !important; }
 .deadline-attention { color: #94520f !important; }
 .deadline-urgent, .deadline-overdue { color: var(--red) !important; font-weight: 750; }

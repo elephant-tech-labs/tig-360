@@ -7,6 +7,7 @@ import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { canAccessManagement } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { removeCompanyLogo, saveCompanyProfile, saveWdoBranch } from "@/app/management/actions";
+import { CALIFORNIA_WDO_FIELD_WIDTHS } from "@/lib/wdo/california/config";
 
 type ManagementPageProps = {
   searchParams: Promise<{ saved?: string; error?: string }>;
@@ -57,8 +58,8 @@ export default async function ManagementPage({ searchParams }: ManagementPagePro
             <fieldset>
               <legend>Company identity</legend>
               <div className="field-grid">
-                <label className="field-span-2">Legal company name<input name="legalName" defaultValue={profile?.legal_name ?? organization.name} disabled={!canManage} required /></label>
-                <label>SPCB Principal Registration (PR)<input name="registrationNumber" defaultValue={profile?.registration_number ?? ""} disabled={!canManage} placeholder="PR8662" /></label>
+                <label className="field-span-2">Legal company name<input name="legalName" defaultValue={profile?.legal_name ?? organization.name} maxLength={CALIFORNIA_WDO_FIELD_WIDTHS.companyName} disabled={!canManage} required /><span className="field-help">Required upstream for reports and WDO filing.</span></label>
+                <label>SPCB Principal Registration (PR)<input name="registrationNumber" defaultValue={profile?.registration_number ?? ""} maxLength={CALIFORNIA_WDO_FIELD_WIDTHS.registrationNumber} disabled={!canManage} placeholder="PR8662" required /><span className={profile?.registration_number ? "field-help success" : "field-help warning"}>{profile?.registration_number ? "WDO ready · Principal Office" : "Required for WDO readiness"}</span></label>
                 <label>Operator license<input name="operatorLicense" defaultValue={profile?.operator_license ?? ""} disabled={!canManage} /></label>
                 <label>Contractor license<input name="contractorLicense" defaultValue={profile?.contractor_license ?? ""} disabled={!canManage} /></label>
                 <label>Regulatory contact<input name="regulatoryContact" defaultValue={profile?.regulatory_contact ?? ""} disabled={!canManage} placeholder="Branch, board, or license details" /></label>

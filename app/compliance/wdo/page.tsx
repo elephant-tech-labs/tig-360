@@ -21,6 +21,7 @@ import {
   getCaliforniaWdoDeadline,
 } from "@/lib/wdo/california/deadlines";
 import { mapCaliforniaWdoActivity } from "@/lib/wdo/california/mapper";
+import { groupCaliforniaWdoIssuesForOffice } from "@/lib/wdo/california/readiness";
 import type { WdoPriorExport, WdoQueueRow } from "@/lib/wdo/queue";
 import { reconcileWdoActivities } from "./actions";
 
@@ -37,10 +38,10 @@ type WdoPageProps = {
 };
 
 const ACTIVITY_SELECT = `
-  id, inspection_job_id, activity_date, activity_code, branch_id,
+  id, inspection_job_id, activity_date, activity_code, branch_id, source_type,
   override_building_number, override_street, override_city, override_zip_code,
-  inspection_jobs(id, job_number),
-  properties(street_line_1, street_line_2, city, region, postal_code),
+  inspection_jobs(id, job_number, wdo_filing_requirement),
+  properties(building_number, street_name, unit_or_suite, street_line_1, street_line_2, city, region, postal_code),
   inspectors(id, full_name, license_number),
   wdo_branches(id, name, registration_number),
   wdo_export_batch_items(
@@ -149,7 +150,10 @@ export default async function WdoActivityExportPage({ searchParams }: WdoPagePro
   const firstError = datedError || undatedError || profileError || branchError || batchError;
   if (firstError) throw new Error(firstError.message);
 
-  const activities = [...(datedActivities ?? []), ...(undatedActivities ?? [])];
+  const activities = [...(datedActivities ?? []), ...(undatedActivities ?? [])].filter((activity) => {
+    const job = one(activity.inspection_jobs);
+    return activity.source_type !== "inspection_job" || job?.wdo_filing_requirement === "required";
+  });
   const userIds = new Set<string>((batches ?? []).map((batch) => batch.created_by));
   for (const activity of activities) {
     for (const item of activity.wdo_export_batch_items ?? []) {
@@ -194,9 +198,13 @@ export default async function WdoActivityExportPage({ searchParams }: WdoPagePro
       inspectorLicenseNumber: inspector?.license_number ?? null,
       inspectorName: inspector?.full_name ?? null,
       address: {
+        buildingNumber: property?.building_number ?? null,
+        streetName: property?.street_name ?? null,
+        unitOrSuite: property?.unit_or_suite ?? null,
         streetLine1: property?.street_line_1 ?? null,
         streetLine2: property?.street_line_2 ?? null,
         city: property?.city ?? null,
+        region: property?.region ?? null,
         zipCode: property?.postal_code ?? null,
         overrideBuildingNumber: activity.override_building_number,
         overrideStreet: activity.override_street,
@@ -204,8 +212,8 @@ export default async function WdoActivityExportPage({ searchParams }: WdoPagePro
         overrideZipCode: activity.override_zip_code,
       },
       links: {
-        activity: `/compliance/wdo/activities/${activity.id}`,
-        property: job?.id ? `/jobs/${job.id}/edit` : undefined,
+        activity: job?.id ? `/jobs/${job.id}/edit#wdo-filing` : `/compliance/wdo/activities/${activity.id}`,
+        property: job?.id ? `/jobs/${job.id}/edit#property-address` : undefined,
         inspector: "/team/inspectors",
         companySettings: "/management",
       },
@@ -215,6 +223,9 @@ export default async function WdoActivityExportPage({ searchParams }: WdoPagePro
       id: activity.id,
       jobId: job?.id ?? null,
       jobNumber: job?.job_number ? Number(job.job_number) : null,
+      exclusionHref: job?.id
+        ? `/jobs/${job.id}/edit#wdo-filing`
+        : `/compliance/wdo/activities/${activity.id}#void-activity`,
       activityDate: activity.activity_date,
       property: [
         property?.street_line_1 || "Property address pending",
@@ -227,7 +238,7 @@ export default async function WdoActivityExportPage({ searchParams }: WdoPagePro
       branchName: branch?.name || "Principal Office",
       deadline: getCaliforniaWdoDeadline(activity.activity_date, today),
       exportStatus: filed ? "filed" : priorExports.length ? "generated_previously" : "not_generated",
-      issues: mapped.issues,
+      issues: groupCaliforniaWdoIssuesForOffice(mapped.issues),
       priorExports,
     };
   });
