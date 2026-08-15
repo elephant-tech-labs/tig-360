@@ -35,11 +35,12 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
       id, job_number, report_type, inspection_at, prior_job_id, summary, escrow_number,
       internal_notes, inspected_by_id, include_inspector_signature,
       inspection_tag_posted, other_tags_posted, garage_description,
-      properties(street_line_1, street_line_2, city, region, postal_code, county, property_type)
+      wdo_filing_requirement, wdo_exclusion_reason, wdo_exclusion_notes,
+      properties(building_number, street_name, unit_or_suite, street_line_1, street_line_2, city, region, postal_code, county, property_type)
     `).eq("id", jobId).single(),
     supabase.from("inspection_jobs").select(`
       id, job_number, report_type, status, inspection_at,
-      properties(street_line_1, street_line_2, city, region, postal_code, county, property_type)
+      properties(building_number, street_name, unit_or_suite, street_line_1, street_line_2, city, region, postal_code, county, property_type)
     `).eq("organization_id", organization.id).neq("id", jobId).order("job_number", { ascending: false }),
     supabase
       .from("inspectors")
@@ -61,6 +62,8 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
       id: prior.id, jobNumber: prior.job_number, reportType: prior.report_type, status: prior.status,
       inspectionAt: prior.inspection_at, streetLine1: priorProperty.street_line_1,
       streetLine2: priorProperty.street_line_2, city: priorProperty.city, region: priorProperty.region,
+      buildingNumber: priorProperty.building_number, streetName: priorProperty.street_name,
+      unitOrSuite: priorProperty.unit_or_suite,
       postalCode: priorProperty.postal_code, propertyType: priorProperty.property_type,
       county: priorProperty.county,
     }];
@@ -92,8 +95,9 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
           priorInspections={priorInspections}
           inspectors={inspectors}
           initialValues={{
-            streetLine1: property.street_line_1,
-            streetLine2: property.street_line_2 ?? "",
+            buildingNumber: property.building_number ?? "",
+            streetName: property.street_name ?? "",
+            unitOrSuite: property.unit_or_suite ?? "",
             city: property.city,
             region: property.region,
             postalCode: property.postal_code,
@@ -110,6 +114,9 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
             inspectedById: job.inspected_by_id ?? "",
             includeInspectorSignature: job.include_inspector_signature,
             internalNotes: job.internal_notes ?? "",
+            wdoFilingRequirement: job.wdo_filing_requirement,
+            wdoExclusionReason: job.wdo_exclusion_reason ?? "",
+            wdoExclusionNotes: job.wdo_exclusion_notes ?? "",
           }}
         />
       </div>

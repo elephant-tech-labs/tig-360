@@ -12,7 +12,7 @@ export async function getCurrentContext() {
 
   const { data: membership, error } = await supabase
     .from("organization_memberships")
-    .select("organization_id, user_id, role, organizations(id, name, slug)")
+    .select("organization_id, user_id, role, organizations(id, name, slug, timezone)")
     .eq("status", "active")
     .limit(1)
     .maybeSingle();

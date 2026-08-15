@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getCaliforniaWdoReadinessForJob } from "@/lib/wdo/california/readiness";
 
 export type WorkflowStepState =
   | "not_started"
@@ -35,13 +36,15 @@ export async function getJobWorkflowStates(
     { data: deliveryStates },
     { data: signatureStates },
     { data: reviewLinkStates },
+    { data: reportProfile },
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
       .select(`
-        report_type, inspection_at, inspected_by_id, include_inspector_signature,
-        prior_job_id, properties(street_line_1, city, region, postal_code),
-        inspectors:inspectors!inspection_jobs_inspected_by_inspector_fkey(signature_path)
+        id, report_type, inspection_at, inspected_by_id, include_inspector_signature,
+        prior_job_id, wdo_filing_requirement,
+        properties(building_number, street_name, unit_or_suite, street_line_1, street_line_2, city, region, postal_code),
+        inspectors:inspectors!inspection_jobs_inspected_by_inspector_fkey(full_name, license_number, signature_path)
       `)
       .eq("id", jobId)
       .eq("organization_id", organizationId)
@@ -111,6 +114,11 @@ export async function getJobWorkflowStates(
       .select("status")
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organizationId),
+    supabase
+      .from("organization_report_profiles")
+      .select("legal_name, registration_number")
+      .eq("organization_id", organizationId)
+      .maybeSingle(),
   ]);
 
   const property = job
@@ -120,6 +128,29 @@ export async function getJobWorkflowStates(
     ? (Array.isArray(job.inspectors) ? job.inspectors[0] : job.inspectors)
     : null;
   const requiresPriorJob = job?.report_type === "supplemental" || job?.report_type === "reinspection";
+  const wdoReadiness = job && property
+    ? getCaliforniaWdoReadinessForJob({
+        jobId: job.id,
+        filingRequirement: job.wdo_filing_requirement,
+        reportType: job.report_type,
+        inspectionDate: job.inspection_at,
+        companyName: reportProfile?.legal_name ?? null,
+        registrationNumber: reportProfile?.registration_number ?? null,
+        inspectorId: job.inspected_by_id,
+        inspectorName: inspector?.full_name ?? null,
+        inspectorLicenseNumber: inspector?.license_number ?? null,
+        address: {
+          buildingNumber: property.building_number,
+          streetName: property.street_name,
+          unitOrSuite: property.unit_or_suite,
+          streetLine1: property.street_line_1,
+          streetLine2: property.street_line_2,
+          city: property.city,
+          region: property.region,
+          zipCode: property.postal_code,
+        },
+      })
+    : null;
   const setupComplete = Boolean(
     property?.street_line_1
     && property.city
@@ -129,7 +160,8 @@ export async function getJobWorkflowStates(
     && job?.report_type
     && job?.inspected_by_id
     && (!job.include_inspector_signature || inspector?.signature_path)
-    && (!requiresPriorJob || job.prior_job_id),
+    && (!requiresPriorJob || job.prior_job_id)
+    && wdoReadiness?.ready,
   );
   const drawingObjects = drawing?.source_json as { objects?: unknown[] } | null;
   const reportVersions = [...(reportDocument?.document_versions ?? [])]

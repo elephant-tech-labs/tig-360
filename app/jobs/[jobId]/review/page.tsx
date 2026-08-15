@@ -55,7 +55,7 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
   const approvedVersion = versions.find((version) => version.approvalStatus === "approved") ?? null;
   const canApprove = membership.role === "administrator" || membership.role === "manager";
   const blockingIssues = bundle.readiness.issues.filter((issue) => issue.severity === "blocking");
-  const advisoryIssues = bundle.readiness.issues.filter((issue) => issue.severity === "advisory");
+  const reportCheckIssues = bundle.readiness.issues.filter((issue) => !issue.key.startsWith("wdo:"));
   const currentVersionReady = latestVersion?.status === "ready";
   const currentVersionApproved = latestVersion?.approvalStatus === "approved";
   const currentVersionNeedsApproval = Boolean(currentVersionReady && !currentVersionApproved);
@@ -166,15 +166,33 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
           <aside className="review-sidebar">
             <section className="review-panel" id="report-checks">
               <div className="section-heading compact"><div><p className="eyebrow">Readiness</p><h2>Report checks</h2></div></div>
-              {!bundle.readiness.issues.length ? <div className="review-all-clear"><CheckCircle2 size={20} /><div><strong>All checks passed</strong><span>The current job data is ready to snapshot.</span></div></div> : null}
+              {!reportCheckIssues.length ? <div className="review-all-clear"><CheckCircle2 size={20} /><div><strong>All report checks passed</strong><span>The inspection content is ready to snapshot.</span></div></div> : null}
               <div className="review-issue-list">
-                {[...blockingIssues, ...advisoryIssues].map((issue) => (
+                {reportCheckIssues.map((issue) => (
                   <Link className={`review-issue ${issue.severity}`} href={issue.href} key={issue.key}>
                     {issue.severity === "blocking" ? <AlertTriangle size={17} /> : <Eye size={17} />}
                     <div><strong>{issue.label}</strong><span>{issue.detail}</span></div>
                   </Link>
                 ))}
               </div>
+            </section>
+
+            <section className="review-panel" id="wdo-readiness">
+              <div className="section-heading compact"><div><p className="eyebrow">California compliance</p><h2>WDO filing readiness</h2></div></div>
+              {!bundle.wdoReadiness.required ? (
+                <div className="review-all-clear"><CheckCircle2 size={20} /><div><strong>Filing not required</strong><span>The audited job exclusion is retained.</span></div></div>
+              ) : bundle.wdoReadiness.ready ? (
+                <div className="review-all-clear"><CheckCircle2 size={20} /><div><strong>Ready for WDO filing</strong><span>Property, date, inspector license, company PR, and Principal Office passed.</span></div></div>
+              ) : (
+                <div className="review-issue-list">
+                  {bundle.wdoReadiness.issues.map((issue) => (
+                    <Link className="review-issue blocking" href={issue.href ?? `/jobs/${jobId}/edit#wdo-filing`} key={`${issue.field}:${issue.code}`}>
+                      <AlertTriangle size={17} />
+                      <div><strong>{issue.message}</strong><span>Fix this source value before report generation.</span></div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className={`review-panel current-report-panel state-${currentReportState.tone}`}>

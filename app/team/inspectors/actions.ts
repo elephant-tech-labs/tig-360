@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentContext } from "@/lib/current-organization";
+import { validateCaliforniaWdoInspectorLicense } from "@/lib/wdo/california/validator";
 
 function clean(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -41,9 +42,14 @@ export async function createInspector(formData: FormData) {
   const organizationId = clean(formData, "organizationId");
   const fullName = clean(formData, "fullName");
   const email = clean(formData, "email");
+  const licenseNumber = clean(formData, "licenseNumber");
   if (!organizationId || !fullName) {
     redirect(inspectorUrl("Inspector name is required.", "error"));
   }
+  const licenseIssue = licenseNumber
+    ? validateCaliforniaWdoInspectorLicense(licenseNumber)
+    : null;
+  if (licenseIssue) redirect(inspectorUrl(licenseIssue, "error"));
 
   const supabase = await createClient();
   const { data: inspectorId, error } = await supabase.rpc("create_inspector", {
@@ -51,7 +57,7 @@ export async function createInspector(formData: FormData) {
     inspector_full_name: fullName,
     inspector_email: email || null,
     inspector_phone: clean(formData, "phone") || null,
-    inspector_license_number: clean(formData, "licenseNumber") || null,
+    inspector_license_number: licenseNumber || null,
     inspector_license_expires_on: clean(formData, "licenseExpiresOn") || null,
     inspector_is_active: true,
   });
@@ -86,6 +92,11 @@ export async function createInspector(formData: FormData) {
 export async function updateInspector(formData: FormData) {
   const organizationId = clean(formData, "organizationId");
   const inspectorId = clean(formData, "inspectorId");
+  const licenseNumber = clean(formData, "licenseNumber");
+  const licenseIssue = licenseNumber
+    ? validateCaliforniaWdoInspectorLicense(licenseNumber)
+    : null;
+  if (licenseIssue) redirect(inspectorUrl(licenseIssue, "error"));
   const supabase = await createClient();
   const { data: existing } = await supabase
     .from("inspectors")
@@ -107,7 +118,7 @@ export async function updateInspector(formData: FormData) {
     inspector_full_name: clean(formData, "fullName"),
     inspector_email: clean(formData, "email") || null,
     inspector_phone: clean(formData, "phone") || null,
-    inspector_license_number: clean(formData, "licenseNumber") || null,
+    inspector_license_number: licenseNumber || null,
     inspector_license_expires_on: clean(formData, "licenseExpiresOn") || null,
     inspector_is_active: formData.get("isActive") === "on",
     inspector_signature_path: uploaded?.path ?? null,

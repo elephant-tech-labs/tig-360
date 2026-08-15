@@ -5,10 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function createInspectionJob(formData: FormData) {
   const organizationId = String(formData.get("organizationId") ?? "");
-  const streetLine1 = String(formData.get("streetLine1") ?? "").trim();
-  const streetLine2 = String(formData.get("streetLine2") ?? "").trim();
+  const buildingNumber = String(formData.get("buildingNumber") ?? "").trim();
+  const streetName = String(formData.get("streetName") ?? "").trim();
+  const unitOrSuite = String(formData.get("unitOrSuite") ?? "").trim();
   const city = String(formData.get("city") ?? "").trim();
-  const region = String(formData.get("region") ?? "").trim().toUpperCase();
   const postalCode = String(formData.get("postalCode") ?? "").trim();
   const county = String(formData.get("county") ?? "").trim();
   const propertyType = String(formData.get("propertyType") ?? "").trim();
@@ -22,18 +22,26 @@ export async function createInspectionJob(formData: FormData) {
   const garageDescription = String(formData.get("garageDescription") ?? "").trim();
   const inspectedById = String(formData.get("inspectedById") ?? "").trim();
   const includeInspectorSignature = formData.get("includeInspectorSignature") === "on";
+  const wdoFilingRequirement = String(formData.get("wdoFilingRequirement") ?? "required");
+  const wdoExclusionReason = String(formData.get("wdoExclusionReason") ?? "").trim();
+  const wdoExclusionNotes = String(formData.get("wdoExclusionNotes") ?? "").trim();
 
-  if (!organizationId || !streetLine1 || !city || !region || !postalCode) {
+  if (!organizationId || !buildingNumber || !streetName || !city || !/^(\d{5}|\d{9})$/.test(postalCode)) {
     redirect("/jobs/new?error=Complete%20the%20required%20property%20fields.");
+  }
+  if (!['required', 'not_required'].includes(wdoFilingRequirement)
+    || (wdoFilingRequirement === 'not_required' && !wdoExclusionReason)
+    || (wdoExclusionReason === 'other_non_reportable' && !wdoExclusionNotes)) {
+    redirect("/jobs/new?error=Complete%20the%20California%20WDO%20filing%20decision.");
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_inspection_job", {
+  const { data, error } = await supabase.rpc("create_california_inspection_job", {
     target_organization_id: organizationId,
-    property_street_line_1: streetLine1,
-    property_street_line_2: streetLine2 || null,
+    property_building_number: buildingNumber,
+    property_street_name: streetName,
+    property_unit_or_suite: unitOrSuite || null,
     property_city: city,
-    property_region: region,
     property_postal_code: postalCode,
     property_type_name: propertyType || null,
     inspection_report_type: reportType,
@@ -44,6 +52,9 @@ export async function createInspectionJob(formData: FormData) {
     property_county: county || null,
     job_inspected_by_id: inspectedById || null,
     job_include_inspector_signature: includeInspectorSignature,
+    job_wdo_filing_requirement: wdoFilingRequirement,
+    job_wdo_exclusion_reason: wdoExclusionReason || null,
+    job_wdo_exclusion_notes: wdoExclusionNotes || null,
   });
 
   if (error) redirect(`/jobs/new?error=${encodeURIComponent(error.message)}`);
@@ -63,10 +74,10 @@ export async function createInspectionJob(formData: FormData) {
 export async function updateInspectionJob(formData: FormData) {
   const organizationId = String(formData.get("organizationId") ?? "");
   const jobId = String(formData.get("jobId") ?? "");
-  const streetLine1 = String(formData.get("streetLine1") ?? "").trim();
-  const streetLine2 = String(formData.get("streetLine2") ?? "").trim();
+  const buildingNumber = String(formData.get("buildingNumber") ?? "").trim();
+  const streetName = String(formData.get("streetName") ?? "").trim();
+  const unitOrSuite = String(formData.get("unitOrSuite") ?? "").trim();
   const city = String(formData.get("city") ?? "").trim();
-  const region = String(formData.get("region") ?? "").trim().toUpperCase();
   const postalCode = String(formData.get("postalCode") ?? "").trim();
   const county = String(formData.get("county") ?? "").trim();
   const propertyType = String(formData.get("propertyType") ?? "").trim();
@@ -81,19 +92,47 @@ export async function updateInspectionJob(formData: FormData) {
   const garageDescription = String(formData.get("garageDescription") ?? "").trim();
   const inspectedById = String(formData.get("inspectedById") ?? "").trim();
   const includeInspectorSignature = formData.get("includeInspectorSignature") === "on";
+  const wdoFilingRequirement = String(formData.get("wdoFilingRequirement") ?? "required");
+  const wdoExclusionReason = String(formData.get("wdoExclusionReason") ?? "").trim();
+  const wdoExclusionNotes = String(formData.get("wdoExclusionNotes") ?? "").trim();
 
-  if (!organizationId || !jobId || !streetLine1 || !city || !region || !postalCode) {
-    redirect(`/jobs/${jobId}/edit?error=Complete%20the%20required%20property%20fields.`);
+  if (!['required', 'not_required'].includes(wdoFilingRequirement)
+    || (wdoFilingRequirement === 'not_required' && !wdoExclusionReason)
+    || (wdoExclusionReason === 'other_non_reportable' && !wdoExclusionNotes)) {
+    redirect(`/jobs/${jobId}/edit?error=Complete%20the%20California%20WDO%20filing%20decision.`);
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("update_inspection_job", {
+  const addressReady = Boolean(buildingNumber && streetName && city && /^(\d{5}|\d{9})$/.test(postalCode));
+  if (!organizationId || !jobId || (wdoFilingRequirement === "required" && !addressReady)) {
+    redirect(`/jobs/${jobId}/edit?error=Complete%20the%20required%20property%20fields.`);
+  }
+  const { data: existingJob, error: existingJobError } = await supabase
+    .from("inspection_jobs")
+    .select("wdo_filing_requirement")
+    .eq("organization_id", organizationId)
+    .eq("id", jobId)
+    .single();
+  if (existingJobError) redirect(`/jobs/${jobId}/edit?error=${encodeURIComponent(existingJobError.message)}`);
+  if (wdoFilingRequirement === "not_required"
+    && (existingJob.wdo_filing_requirement !== "not_required" || !addressReady)) {
+    const { error: requirementError } = await supabase.rpc("set_inspection_job_wdo_requirement", {
+      target_organization_id: organizationId,
+      target_job_id: jobId,
+      job_wdo_filing_requirement: wdoFilingRequirement,
+      job_wdo_exclusion_reason: wdoExclusionReason,
+      job_wdo_exclusion_notes: wdoExclusionNotes || null,
+    });
+    if (requirementError) redirect(`/jobs/${jobId}/edit?error=${encodeURIComponent(requirementError.message)}`);
+    redirect(`/jobs/${jobId}?updated=1`);
+  }
+  const { error } = await supabase.rpc("update_california_inspection_job", {
     target_organization_id: organizationId,
     target_job_id: jobId,
-    property_street_line_1: streetLine1,
-    property_street_line_2: streetLine2 || null,
+    property_building_number: buildingNumber,
+    property_street_name: streetName,
+    property_unit_or_suite: unitOrSuite || null,
     property_city: city,
-    property_region: region,
     property_postal_code: postalCode,
     property_type_name: propertyType || null,
     inspection_report_type: reportType,
@@ -105,6 +144,9 @@ export async function updateInspectionJob(formData: FormData) {
     property_county: county || null,
     job_inspected_by_id: inspectedById || null,
     job_include_inspector_signature: includeInspectorSignature,
+    job_wdo_filing_requirement: wdoFilingRequirement,
+    job_wdo_exclusion_reason: wdoExclusionReason || null,
+    job_wdo_exclusion_notes: wdoExclusionNotes || null,
   });
 
   if (error) redirect(`/jobs/${jobId}/edit?error=${encodeURIComponent(error.message)}`);

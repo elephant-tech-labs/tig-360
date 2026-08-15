@@ -12,6 +12,7 @@ import type {
   ReportMedia,
   ReportVersionSummary,
 } from "@/lib/reports/types";
+import { getCaliforniaWdoReadinessForJob } from "@/lib/wdo/california/readiness";
 
 function one<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
@@ -57,8 +58,8 @@ export async function loadInspectionReportBundle(
       .select(`
         id, job_number, report_type, inspection_at, escrow_number, summary,
         inspection_tag_posted, other_tags_posted, garage_description,
-        include_inspector_signature, inspected_by_id,
-        properties(street_line_1, street_line_2, city, region, postal_code, county, property_type),
+        include_inspector_signature, inspected_by_id, wdo_filing_requirement,
+        properties(building_number, street_name, unit_or_suite, street_line_1, street_line_2, city, region, postal_code, county, property_type),
         prior_job:inspection_jobs!prior_job_id(job_number),
         job_parties(
           role, is_primary, receive_report_by_default,
@@ -271,6 +272,27 @@ export async function loadInspectionReportBundle(
   };
 
   const issues: ReadinessIssue[] = [];
+  const wdoReadiness = getCaliforniaWdoReadinessForJob({
+    jobId,
+    filingRequirement: job.wdo_filing_requirement,
+    reportType: job.report_type,
+    inspectionDate: job.inspection_at,
+    companyName: reportProfile?.legal_name ?? null,
+    registrationNumber: reportProfile?.registration_number ?? null,
+    inspectorId: job.inspected_by_id,
+    inspectorName: inspector?.full_name ?? inspector?.email ?? null,
+    inspectorLicenseNumber: inspector?.license_number ?? null,
+    address: {
+      buildingNumber: property.building_number,
+      streetName: property.street_name,
+      unitOrSuite: property.unit_or_suite,
+      streetLine1: property.street_line_1,
+      streetLine2: property.street_line_2,
+      city: property.city,
+      region: property.region,
+      zipCode: property.postal_code,
+    },
+  });
   const requiresPrior = ["supplemental", "reinspection"].includes(job.report_type);
   if (!property.street_line_1 || !property.city || !property.region || !property.postal_code) {
     issues.push({ key: "property", label: "Complete property address", detail: "The report cover requires a complete property address.", severity: "blocking", href: `/jobs/${jobId}/edit` });
@@ -309,6 +331,15 @@ export async function loadInspectionReportBundle(
   if (!snapshot.parties.some((party) => party.email && (party.role === "report_recipient" || party.sendByDefault))) {
     issues.push({ key: "recipient", label: "No default report recipient", detail: "Add or preselect a recipient before using Send Center.", severity: "advisory", href: `/jobs/${jobId}/contacts` });
   }
+  for (const issue of wdoReadiness.issues) {
+    issues.push({
+      key: `wdo:${issue.code}`,
+      label: issue.message,
+      detail: "Required California WDO source data must be ready before the report can be generated.",
+      severity: "blocking",
+      href: issue.href ?? `/jobs/${jobId}/edit#wdo-filing`,
+    });
+  }
 
   const coverPhoto = snapshot.photos.find((photo) => photo.isCover) ?? null;
   const photoUrlEntries = await Promise.all(
@@ -343,6 +374,7 @@ export async function loadInspectionReportBundle(
   return {
     snapshot,
     media,
+    wdoReadiness,
     readiness: {
       canGenerate: !issues.some((issue) => issue.severity === "blocking"),
       issues,

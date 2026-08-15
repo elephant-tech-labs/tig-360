@@ -92,6 +92,11 @@ select { font: inherit; }
 .job-form fieldset:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
 .job-form legend { font-family: var(--font-display); font-size: 16px; font-weight: 750; margin-bottom: 16px; padding: 0; }
 .field-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.field-display { align-content: center; background: #f5f8f6; border: 1px solid #d7dfdb; border-radius: 5px; display: grid; gap: 3px; min-height: 66px; padding: 10px 11px; }
+.field-display span { color: #35413d; font-size: 12px; font-weight: 700; }
+.field-display strong { font-size: 13px; }
+.field-display small, .field-help.warning { color: #8a4c0d; }
+.field-help.success { color: var(--green-dark); }
 .field-span-2 { grid-column: 1 / -1; }
 .form-actions { border-top: 1px solid var(--line); display: flex; gap: 9px; justify-content: flex-end; margin-top: 25px; padding-top: 20px; }
 .related-inspection-panel { background: #f5f8f6; border-left: 3px solid var(--green); display: grid; gap: 15px; margin-top: 18px; padding: 16px; }
