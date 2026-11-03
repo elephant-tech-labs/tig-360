@@ -153,7 +153,7 @@ async function sendInvitation(input: InvitationInput) {
   }
 
   const email = input.email.trim().toLowerCase();
-  if (email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("Enter a valid work email address.");
   }
 
