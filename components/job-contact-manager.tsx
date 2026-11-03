@@ -14,7 +14,7 @@ import {
 import {
   assignContactToJob,
   removeJobParty,
-} from "@/app/contacts/actions";
+} from "@/app/(workspace)/contacts/actions";
 import { jobPartyRoleLabel, jobPartyRoles } from "@/lib/job-parties";
 
 export type ContactOption = {

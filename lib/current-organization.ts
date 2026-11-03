@@ -1,8 +1,10 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { MembershipRole } from "@/lib/access";
 
-export async function getCurrentContext() {
+// cache(): the workspace layout and the page share one lookup per request.
+export const getCurrentContext = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -10,9 +12,12 @@ export async function getCurrentContext() {
 
   if (!user) redirect("/login");
 
+  // RLS lets members read every membership in their organization, so the
+  // lookup must be filtered to the signed-in user to get *their* role.
   const { data: membership, error } = await supabase
     .from("organization_memberships")
     .select("organization_id, user_id, role, organizations(id, name, slug, timezone)")
+    .eq("user_id", user.id)
     .eq("status", "active")
     .limit(1)
     .maybeSingle();
@@ -37,4 +42,4 @@ export async function getCurrentContext() {
     userName:
       String(user.user_metadata.full_name ?? user.user_metadata.name ?? user.email ?? "Team member"),
   };
-}
+});

@@ -342,29 +342,40 @@ export async function loadInspectionReportBundle(
   }
 
   const coverPhoto = snapshot.photos.find((photo) => photo.isCover) ?? null;
-  const photoUrlEntries = await Promise.all(
-    snapshot.photos.map(async (photo) => [
-      photo.id,
-      await signedUrl(supabase, photo.bucket, photo.path),
-    ] as const),
-  );
-  const [uploadedCompanyLogo, defaultCompanyLogo, defaultCompanyLogoDark] = await Promise.all([
-    embeddedStorageImage(
-      supabase,
-      "organization-branding",
-      snapshot.organization.logoPath,
+  // All storage lookups are independent, so they run together.
+  const [
+    photoUrlEntries,
+    [uploadedCompanyLogo, defaultCompanyLogo, defaultCompanyLogoDark],
+    diagramUrl,
+    signatureUrl,
+  ] = await Promise.all([
+    Promise.all(
+      snapshot.photos.map(async (photo) => [
+        photo.id,
+        await signedUrl(supabase, photo.bucket, photo.path),
+      ] as const),
     ),
-    bundledBrandAsset("trident-logo-light.png"),
-    bundledBrandAsset("trident-logo-dark.png"),
+    Promise.all([
+      embeddedStorageImage(
+        supabase,
+        "organization-branding",
+        snapshot.organization.logoPath,
+      ),
+      bundledBrandAsset("trident-logo-light.png"),
+      bundledBrandAsset("trident-logo-dark.png"),
+    ]),
+    snapshot.diagram?.path
+      ? signedUrl(supabase, snapshot.diagram.bucket, snapshot.diagram.path)
+      : null,
+    snapshot.inspector?.includeSignature
+      ? signedUrl(supabase, snapshot.inspector.signatureBucket, snapshot.inspector.signaturePath)
+      : null,
   ]);
   const media: ReportMedia = {
-    coverUrl: coverPhoto ? await signedUrl(supabase, coverPhoto.bucket, coverPhoto.path) : null,
-    diagramUrl: snapshot.diagram?.path
-      ? await signedUrl(supabase, snapshot.diagram.bucket, snapshot.diagram.path)
-      : null,
-    signatureUrl: snapshot.inspector?.includeSignature
-      ? await signedUrl(supabase, snapshot.inspector.signatureBucket, snapshot.inspector.signaturePath)
-      : null,
+    // The cover is one of snapshot.photos, so its URL was already signed above.
+    coverUrl: coverPhoto ? photoUrlEntries.find(([id]) => id === coverPhoto.id)?.[1] ?? null : null,
+    diagramUrl,
+    signatureUrl,
     companyLogoUrl: uploadedCompanyLogo ?? defaultCompanyLogo,
     companyLogoLightUrl: uploadedCompanyLogo ?? defaultCompanyLogo,
     companyLogoDarkUrl: defaultCompanyLogoDark,

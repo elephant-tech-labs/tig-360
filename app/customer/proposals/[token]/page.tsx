@@ -109,7 +109,7 @@ export default async function CustomerProposalPage({ params, searchParams }: Cus
 
       <div className="customer-proposal-main">
         <div className="customer-proposal-content">
-          {messages.error ? <div className="customer-proposal-alert error">{messages.error}</div> : null}
+          {messages.error ? <div className="customer-proposal-alert error" role="alert">{messages.error}</div> : null}
           <section className="customer-proposal-panel">
             <p className="eyebrow">Inspection</p>
             <h2>{address || `Report #${job.job_number}`}</h2>

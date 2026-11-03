@@ -12,6 +12,7 @@ import {
   Minus,
   Map,
 } from "lucide-react";
+import { LinkPendingIndicator } from "@/components/link-pending-indicator";
 import type { JobWorkflowStates, WorkflowStepState } from "@/lib/job-workflow";
 
 type JobAuthoringNavProps = {
@@ -45,7 +46,7 @@ export function JobAuthoringNav({ jobId, current, states }: JobAuthoringNavProps
         const Icon = step.icon;
         const state = states[step.id];
         const content = <><StepIndicator index={index + 1} state={state} /><Icon size={15} />{step.label}</>;
-        return <Link className={`job-authoring-step ${current === step.id ? "active" : ""} state-${state}`} href={step.href(jobId)} key={step.id}>{content}</Link>;
+        return <Link aria-current={current === step.id ? "page" : undefined} className={`job-authoring-step ${current === step.id ? "active" : ""} state-${state}`} href={step.href(jobId)} key={step.id}>{content}<LinkPendingIndicator /></Link>;
       })}
     </nav>
   );

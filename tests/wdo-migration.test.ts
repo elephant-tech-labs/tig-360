@@ -63,7 +63,7 @@ test("server-side permissions include office filing roles and exclude inspectors
 });
 
 test("queue filters regulatory activity_date inclusively", async () => {
-  const page = await readFile(new URL("../app/compliance/wdo/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/(workspace)/compliance/wdo/page.tsx", import.meta.url), "utf8");
   const table = await readFile(new URL("../components/wdo-activity-table.tsx", import.meta.url), "utf8");
   assert.match(page, /\.gte\("activity_date", dateFrom\)/);
   assert.match(page, /\.lte\("activity_date", dateTo\)/);

@@ -68,7 +68,7 @@ export default async function ActivatePage({ searchParams }: ActivatePageProps) 
             </form>
           </>
         ) : (
-          <div className="form-alert error">
+          <div className="form-alert error" role="alert">
             {params.error || "No valid invitation was found for this email. Ask an administrator to send a fresh invitation."}
           </div>
         )}

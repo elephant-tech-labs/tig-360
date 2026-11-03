@@ -31,7 +31,7 @@ import {
   setFindingArchived,
   setFindingsStatus,
   type FindingRecommendationInput,
-} from "@/app/jobs/[jobId]/findings/actions";
+} from "@/app/(workspace)/jobs/[jobId]/findings/actions";
 
 export type FindingTemplateOption = {
   id: string;

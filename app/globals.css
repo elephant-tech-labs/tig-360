@@ -212,3 +212,41 @@ h2 { font-size: 17px; }
   .evidence-metric { border-left: 0; border-top: 1px solid var(--line); padding: 12px 0; }
   .evidence-metric:first-child { border-top: 0; }
 }
+
+/* Loading, navigation and interaction feedback */
+.sr-only { border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; width: 1px; }
+
+.route-loading { animation: route-loading-in .2s ease-out .15s both; }
+@keyframes route-loading-in { from { opacity: 0; } }
+.skeleton-bar { animation: skeleton-shimmer 1.4s ease-in-out infinite; background: linear-gradient(90deg, #e6ebe9 25%, #f2f5f4 50%, #e6ebe9 75%); background-size: 200% 100%; border-radius: 4px; display: block; max-width: 100%; }
+.skeleton-bar + .skeleton-bar { margin-top: 8px; }
+@keyframes skeleton-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.skeleton-card { background: #fff; border: 1px solid var(--line); border-radius: 7px; margin: 18px 30px 42px; padding: 19px; }
+.skeleton-rows { border: 1px solid var(--line); margin-top: 16px; }
+.skeleton-row { align-items: center; border-top: 1px solid var(--line); display: flex; min-height: 56px; padding: 0 16px; }
+.skeleton-row:first-child { border-top: 0; }
+.skeleton-metric { border-radius: 7px; height: 70px; }
+.skeleton-metric + .skeleton-metric { margin-top: 0; }
+.form-page > .skeleton-bar:first-child { margin-bottom: 22px; }
+.job-workspace-header .skeleton-bar:first-child { margin-bottom: 15px; }
+.job-authoring-step > .skeleton-bar { border: 0; border-radius: 4px; }
+.skeleton-icon { flex: 0 0 auto; height: 46px; width: 46px; }
+.skeleton-form-card { display: grid; gap: 18px; margin: 0; }
+.skeleton-field .skeleton-bar + .skeleton-bar { margin-top: 7px; }
+
+.nav-item, .job-authoring-step, .management-nav a { position: relative; }
+.link-pending { background: currentColor; border-radius: 50%; height: 6px; opacity: 0; pointer-events: none; position: absolute; right: 8px; top: calc(50% - 3px); transition: opacity .15s ease-out; width: 6px; }
+.link-pending[data-pending] { animation: link-pending-pulse 1s ease-in-out infinite; opacity: 1; transition-delay: .12s; }
+@keyframes link-pending-pulse { 50% { transform: scale(.5); } }
+.job-authoring-step > .link-pending, .management-nav .link-pending { right: 5px; top: 7px; }
+
+.sidebar a:focus-visible, .sidebar summary:focus-visible { outline: 2px solid #8fd3b6; outline-offset: 2px; }
+.account-menu button:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+.job-authoring-step:focus-visible, .management-nav a:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+
+.route-error-help { color: var(--muted); line-height: 1.55; }
+.route-error-actions { display: flex; gap: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
