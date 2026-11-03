@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { clean } from "@/lib/form";
 
 const validRoles = new Set([
   "ordered_by",
@@ -30,10 +31,6 @@ export type RemoveJobPartyInput = {
   jobId: string;
   partyId: string;
 };
-
-function clean(formData: FormData, name: string) {
-  return String(formData.get(name) ?? "").trim();
-}
 
 function errorUrl(path: string, message: string) {
   const separator = path.includes("?") ? "&" : "?";

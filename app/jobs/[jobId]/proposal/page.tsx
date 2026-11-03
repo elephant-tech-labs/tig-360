@@ -29,6 +29,7 @@ import {
   saveProposalSettings,
   saveProposalSummary,
 } from "@/app/jobs/[jobId]/proposal/actions";
+import { formatUsd } from "@/lib/format";
 
 type ProposalPageProps = {
   params: Promise<{ jobId: string }>;
@@ -90,11 +91,6 @@ const sectionOptions = [
   ["other", "Other"],
   ["manual", "Manual"],
 ];
-
-function money(value: number | string | null | undefined) {
-  const numeric = Number(value ?? 0);
-  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(numeric);
-}
 
 function sectionLabel(value: string | null | undefined) {
   return sectionOptions.find(([id]) => id === value)?.[1] ?? "Manual";
@@ -306,7 +302,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
         <section className="proposal-status-grid">
           <div><FilePenLine size={20} /><span>Status</span><strong>{proposal.status.replaceAll("_", " ")}</strong></div>
           <div><ReceiptText size={20} /><span>Included lines</span><strong>{includedLines.length}</strong></div>
-          <div><BadgeDollarSign size={20} /><span>Total</span><strong>{money(proposal.total_amount)}</strong></div>
+          <div><BadgeDollarSign size={20} /><span>Total</span><strong>{formatUsd(proposal.total_amount)}</strong></div>
         </section>
 
         <div className="proposal-layout">
@@ -393,7 +389,7 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
                         </div>
                         <div className="proposal-line-right">
                           <div className="proposal-line-price">
-                            <strong>{money(Number(line.quantity) * Number(line.unit_price))}</strong>
+                            <strong>{formatUsd(Number(line.quantity) * Number(line.unit_price))}</strong>
                             <span>{line.included ? "Included" : "Excluded"}</span>
                           </div>
                           <span className="proposal-line-edit">Edit</span>
@@ -494,10 +490,10 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
             <section className="proposal-panel totals-panel">
               <p className="eyebrow">Totals</p>
               <dl>
-                <div><dt>Subtotal</dt><dd>{money(proposal.subtotal_amount)}</dd></div>
-                <div><dt>Discount</dt><dd>-{money(proposal.discount_amount)}</dd></div>
-                <div><dt>Tax</dt><dd>{money(proposal.tax_amount)}</dd></div>
-                <div className="total"><dt>Total</dt><dd>{money(proposal.total_amount)}</dd></div>
+                <div><dt>Subtotal</dt><dd>{formatUsd(proposal.subtotal_amount)}</dd></div>
+                <div><dt>Discount</dt><dd>-{formatUsd(proposal.discount_amount)}</dd></div>
+                <div><dt>Tax</dt><dd>{formatUsd(proposal.tax_amount)}</dd></div>
+                <div className="total"><dt>Total</dt><dd>{formatUsd(proposal.total_amount)}</dd></div>
               </dl>
             </section>
 

@@ -7,7 +7,7 @@ import { canCreateJobs } from "@/lib/access";
 import { getEmailProvider, type EmailAttachment } from "@/lib/email";
 import { getCurrentContext } from "@/lib/current-organization";
 import { logReportDeliveryInZoho } from "@/lib/crm/zoho";
-import { createReviewToken, customerReviewUrl, hashReviewToken } from "@/lib/proposals/review-links";
+import { appOrigin, createReviewToken, customerReviewUrl, hashReviewToken } from "@/lib/proposals/review-links";
 import { loadProposalSnapshot } from "@/lib/proposals/load-proposal-snapshot";
 import {
   getZohoSignRequestStatus,
@@ -46,12 +46,6 @@ function sendUrl(
 
 function signatureUrl(jobId: string, message: string, kind: "saved" | "sent" | "error") {
   return sendUrl(jobId, message, kind);
-}
-
-function appOrigin() {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
-  return "http://localhost:3000";
 }
 
 function proposalSnapshotHash(value: unknown) {

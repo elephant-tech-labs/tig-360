@@ -7,6 +7,7 @@ import {
 } from "@react-pdf/renderer";
 import { RichReportContentPdf } from "@/lib/reports/rich-content-pdf";
 import type { ProposalSnapshot } from "@/lib/proposals/types";
+import { formatUsd } from "@/lib/format";
 
 const accent = "#f7a924";
 const ink = "#1c1c1c";
@@ -58,10 +59,6 @@ const styles = StyleSheet.create({
   legalTitle: { fontSize: 10, fontWeight: 700, marginBottom: 5 },
   footer: { bottom: 18, color: muted, fontSize: 7, left: 34, position: "absolute", right: 34, textAlign: "center" },
 });
-
-function money(value: number) {
-  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value);
-}
 
 function date(value: string | null) {
   if (!value) return "Not scheduled";
@@ -168,17 +165,17 @@ export function ProposalContractPdf({ snapshot }: { snapshot: ProposalSnapshot }
               </View>
               <Text style={[styles.col, styles.sectionCol]}>{sectionLabel(line.section)}</Text>
               <Text style={[styles.col, styles.qtyCol]}>{line.quantity}</Text>
-              <Text style={[styles.col, styles.priceCol]}>{money(line.unitPrice)}</Text>
-              <Text style={[styles.col, styles.amountCol]}>{money(line.amount)}</Text>
+              <Text style={[styles.col, styles.priceCol]}>{formatUsd(line.unitPrice)}</Text>
+              <Text style={[styles.col, styles.amountCol]}>{formatUsd(line.amount)}</Text>
             </View>
           ))}
         </View>
 
         <View style={styles.totals}>
-          <View style={[styles.totalRow, styles.firstTotalRow]}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.totalValue}>{money(snapshot.proposal.subtotal)}</Text></View>
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Discount</Text><Text style={styles.totalValue}>-{money(snapshot.proposal.discount)}</Text></View>
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax</Text><Text style={styles.totalValue}>{money(snapshot.proposal.tax)}</Text></View>
-          <View style={[styles.totalRow, styles.grandTotal]}><Text style={[styles.totalLabel, styles.grandTotalText]}>Total</Text><Text style={[styles.totalValue, styles.grandTotalText]}>{money(snapshot.proposal.total)}</Text></View>
+          <View style={[styles.totalRow, styles.firstTotalRow]}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.totalValue}>{formatUsd(snapshot.proposal.subtotal)}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Discount</Text><Text style={styles.totalValue}>-{formatUsd(snapshot.proposal.discount)}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax</Text><Text style={styles.totalValue}>{formatUsd(snapshot.proposal.tax)}</Text></View>
+          <View style={[styles.totalRow, styles.grandTotal]}><Text style={[styles.totalLabel, styles.grandTotalText]}>Total</Text><Text style={[styles.totalValue, styles.grandTotalText]}>{formatUsd(snapshot.proposal.total)}</Text></View>
         </View>
 
         {snapshot.proposal.terms ? (

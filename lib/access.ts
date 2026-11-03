@@ -13,14 +13,6 @@ export const roleLabels: Record<MembershipRole, string> = {
   treatment_coordinator: "Treatment coordinator",
 };
 
-export function canManageOrganization(role: MembershipRole) {
-  return role === "administrator" || role === "manager";
-}
-
-export function canInviteTeam(role: MembershipRole) {
-  return role === "administrator";
-}
-
 export function canCreateJobs(role: MembershipRole) {
   return role === "administrator" || role === "manager" || role === "office_coordinator";
 }
@@ -36,3 +28,4 @@ export function canAccessManagement(role: MembershipRole) {
 export function canAccessWdoCompliance(role: MembershipRole) {
   return role === "administrator" || role === "manager" || role === "office_coordinator";
 }
+

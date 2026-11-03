@@ -5,15 +5,12 @@ import { startCustomerProposalSigning } from "./actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashReviewToken } from "@/lib/proposals/review-links";
+import { formatUsd } from "@/lib/format";
 
 type CustomerProposalPageProps = {
   params: Promise<{ token: string }>;
   searchParams: Promise<{ error?: string }>;
 };
-
-function money(value: number | string | null | undefined) {
-  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(Number(value ?? 0));
-}
 
 function one<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
@@ -156,7 +153,7 @@ export default async function CustomerProposalPage({ params, searchParams }: Cus
                       {line.contract_scope || line.description ? <span>{line.contract_scope || line.description}</span> : null}
                     </div>
                     <div className={`customer-line-price${amount === 0 ? " included" : ""}`}>
-                      {amount === 0 ? "Included" : money(amount)}
+                      {amount === 0 ? "Included" : formatUsd(amount)}
                     </div>
                   </article>
                 );
@@ -167,7 +164,7 @@ export default async function CustomerProposalPage({ params, searchParams }: Cus
                 <span>Work authorization total</span>
                 <small>{includedLines.length} included item{includedLines.length === 1 ? "" : "s"}</small>
               </div>
-              <strong>{money(proposal.total_amount)}</strong>
+              <strong>{formatUsd(proposal.total_amount)}</strong>
             </div>
           </section>
         </div>

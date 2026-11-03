@@ -3,12 +3,9 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { clean } from "@/lib/form";
 import { getCurrentContext } from "@/lib/current-organization";
 import { CALIFORNIA_WDO_FIELD_WIDTHS } from "@/lib/wdo/california/config";
-
-function clean(formData: FormData, name: string) {
-  return String(formData.get(name) ?? "").trim();
-}
 
 function managementUrl(message: string, kind: "saved" | "error" = "saved") {
   return `/management?${kind}=${encodeURIComponent(message)}`;

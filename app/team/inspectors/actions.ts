@@ -4,12 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { clean } from "@/lib/form";
 import { getCurrentContext } from "@/lib/current-organization";
 import { validateCaliforniaWdoInspectorLicense } from "@/lib/wdo/california/validator";
-
-function clean(formData: FormData, name: string) {
-  return String(formData.get(name) ?? "").trim();
-}
 
 function inspectorUrl(message: string, kind: "saved" | "error" = "saved") {
   return `/team/inspectors?${kind}=${encodeURIComponent(message)}`;

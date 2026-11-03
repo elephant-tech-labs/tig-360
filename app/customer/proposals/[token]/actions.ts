@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hashReviewToken } from "@/lib/proposals/review-links";
+import { appOrigin, hashReviewToken } from "@/lib/proposals/review-links";
 import {
   isZohoSignConfigured,
   normalizeZohoSignStatus,
@@ -13,12 +13,6 @@ function portalUrl(token: string, message?: string) {
   const params = new URLSearchParams();
   if (message) params.set("error", message);
   return `/customer/proposals/${token}${params.toString() ? `?${params.toString()}` : ""}`;
-}
-
-function appOrigin() {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
-  return "http://localhost:3000";
 }
 
 async function loadPublicSignatureDocument(

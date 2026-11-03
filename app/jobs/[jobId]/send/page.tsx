@@ -22,6 +22,7 @@ import {
 } from "@/components/send-center-composer";
 import { canCreateJobs } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
+import { getEmailProvider } from "@/lib/email";
 import { jobPartyRoleLabel } from "@/lib/job-parties";
 import { getJobWorkflowStates } from "@/lib/job-workflow";
 import { loadProposalSnapshot } from "@/lib/proposals/load-proposal-snapshot";
@@ -59,20 +60,11 @@ type SignatureCandidate = {
 };
 
 function providerLabel() {
-  const selected = process.env.EMAIL_PROVIDER?.trim().toLowerCase();
-  if (selected === "zoho_mail") {
-    return process.env.ZOHO_MAIL_ACCOUNT_ID && process.env.ZOHO_REFRESH_TOKEN && process.env.REPORT_EMAIL_FROM
-      ? "Zoho Mail"
-      : null;
+  try {
+    return getEmailProvider().name === "zoho_mail" ? "Zoho Mail" : "Resend";
+  } catch {
+    return null;
   }
-  if (selected === "resend") {
-    return process.env.RESEND_API_KEY && process.env.REPORT_EMAIL_FROM ? "Resend" : null;
-  }
-  if (process.env.ZOHO_MAIL_ACCOUNT_ID && process.env.ZOHO_REFRESH_TOKEN && process.env.REPORT_EMAIL_FROM) {
-    return "Zoho Mail";
-  }
-  if (process.env.RESEND_API_KEY && process.env.REPORT_EMAIL_FROM) return "Resend";
-  return null;
 }
 
 function zohoSignWebUrl() {

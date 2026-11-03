@@ -32,6 +32,7 @@ import {
   setFindingsStatus,
   type FindingRecommendationInput,
 } from "@/app/jobs/[jobId]/findings/actions";
+import { formatUsd } from "@/lib/format";
 
 export type FindingTemplateOption = {
   id: string;
@@ -354,7 +355,7 @@ export function FindingsWorkspace({
         <div><FileText size={18} /><span>Active findings</span><strong>{activeFindings.length}</strong></div>
         <div><StickyNote size={18} /><span>Notes</span><strong>{entries.filter((entry) => !entry.archived && entry.entryType === "note").length}</strong></div>
         <div><ListFilter size={18} /><span>Section I / II</span><strong>{activeFindings.filter((entry) => entry.classification === "section_i").length} / {activeFindings.filter((entry) => entry.classification === "section_ii").length}</strong></div>
-        <div><DollarSign size={18} /><span>Quoted total</span><strong>{quoteTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })}</strong></div>
+        <div><DollarSign size={18} /><span>Quoted total</span><strong>{formatUsd(quoteTotal)}</strong></div>
       </section>
 
       <section
@@ -431,7 +432,7 @@ export function FindingsWorkspace({
                       </div>
                       <div className="finding-entry-meta">
                         {entry.recommendations.length ? <span>{entry.recommendations.length} recommendation{entry.recommendations.length === 1 ? "" : "s"}</span> : null}
-                        {entryTotal > 0 ? <strong>{entryTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })}</strong> : null}
+                        {entryTotal > 0 ? <strong>{formatUsd(entryTotal)}</strong> : null}
                       </div>
                     </div>
                     <p><b>{entry.entryType === "note" ? "NOTE:" : "FINDING:"}</b> {entry.findingText}</p>
@@ -441,7 +442,7 @@ export function FindingsWorkspace({
                     {expanded && entry.recommendations.slice(1).map((recommendation, recommendationIndex) => (
                       <div className="alternate-recommendation" key={recommendation.id}>
                         <b>ALTERNATE {recommendationIndex + 1}:</b> {recommendation.description}
-                        {recommendation.estimatedCost ? <span>{Number(recommendation.estimatedCost).toLocaleString("en-US", { style: "currency", currency: "USD" })}</span> : null}
+                        {recommendation.estimatedCost ? <span>{formatUsd(recommendation.estimatedCost)}</span> : null}
                       </div>
                     ))}
                   </div>
