@@ -31,6 +31,41 @@ Invitation activation collects a name, not a password.
 Do not replace these checks with an email-domain allowlist; a matching
 domain is not proof that somebody is authorized.
 
+## Branded email template
+
+The production-ready **HTML source** is checked into:
+
+`supabase/email-templates/inspect360-sign-in.html`
+
+Recommended email metadata:
+
+- **Subject:** `Your Inspect360 sign-in code`
+- **Sender display name:** `Trident Inspect360`
+- **Sender address:** use an address on `@tridentinspectiongroup.com` that is
+  authorized by your configured SMTP provider. Do not assume a suggested
+  address exists or that DNS/authentication is set up.
+
+This design intentionally uses a text-based wordmark, inline CSS, basic
+HTML tables, no external images, no web fonts, and a fluid single-column
+layout. The message remains readable if an email client suppresses styles.
+
+### Apply to Supabase (manual project setting)
+
+1. In the TIG360 Supabase project, open Authentication → Email Templates → **Magic Link**.
+2. Set the subject to `Your Inspect360 sign-in code`.
+3. Copy the complete source of `supabase/email-templates/inspect360-sign-in.html`
+   into the HTML body editor, replacing the existing template.
+4. Save, then send an actual email OTP to a test **authorized** staff
+   account to confirm rendering and token substitution.
+5. Test Gmail (web/mobile), Outlook desktop, and Apple Mail. Confirm code
+   readability under dark mode and disabled-image conditions.
+
+The mandatory `{{ .Token }}` placeholder is already present in the
+source. **Do not replace it with a sample code** when pasting into Supabase.
+Avoid putting the code in the subject line. Sender authentication
+(SPF, DKIM, DMARC), provider delivery, and final inbox rendering
+must be verified separately from the template source.
+
 ## Supabase configuration (required before end-to-end testing)
 
 Project: `tig360` (project ref `jqqzemvyvjujvpgvongw`).
