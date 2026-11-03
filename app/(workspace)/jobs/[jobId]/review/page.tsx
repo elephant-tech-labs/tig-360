@@ -124,9 +124,9 @@ export default async function ReviewPage({ params, searchParams }: ReviewPagePro
       <JobAuthoringNav jobId={jobId} current="review" states={workflowStates} />
 
       <div className="review-page">
-        {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
-        {messages.generated ? <div className="form-alert success"><Check size={17} /> {messages.generated}</div> : null}
-        {messages.approved ? <div className="form-alert success"><Check size={17} /> {messages.approved}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert"><AlertTriangle size={17} /> {messages.error}</div> : null}
+        {messages.generated ? <div className="form-alert success" role="status"><Check size={17} /> {messages.generated}</div> : null}
+        {messages.approved ? <div className="form-alert success" role="status"><Check size={17} /> {messages.approved}</div> : null}
 
         <header className="review-heading">
           <div>

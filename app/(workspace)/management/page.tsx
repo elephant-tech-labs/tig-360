@@ -45,8 +45,8 @@ export default async function ManagementPage({ searchParams }: ManagementPagePro
       </div>
       <ManagementNav current="company" />
       <div className="management-page">
-        {messages.saved ? <div className="form-alert success"><Check size={17} /> {messages.saved}</div> : null}
-        {messages.error ? <div className="form-alert error">{messages.error}</div> : null}
+        {messages.saved ? <div className="form-alert success" role="status"><Check size={17} /> {messages.saved}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert">{messages.error}</div> : null}
         <section className="management-panel company-profile-panel">
           <div className="management-panel-intro">
             <div className="onboarding-icon"><Building2 size={23} /></div>
@@ -92,7 +92,7 @@ export default async function ManagementPage({ searchParams }: ManagementPagePro
             </fieldset>
             {canManage ? <PendingSubmitButton className="primary-button" pendingLabel="Saving company profile"><Upload size={16} /> Save company profile</PendingSubmitButton> : null}
           </form>
-          {canManage && profile?.logo_path ? <form action={removeCompanyLogo}><input name="organizationId" type="hidden" value={organization.id} /><button className="danger-text-button" type="submit">Remove company logo</button></form> : null}
+          {canManage && profile?.logo_path ? <form action={removeCompanyLogo}><input name="organizationId" type="hidden" value={organization.id} /><PendingSubmitButton className="danger-text-button" pendingLabel="Removing logo">Remove company logo</PendingSubmitButton></form> : null}
         </section>
         <section className="management-panel wdo-branch-management">
           <div className="management-panel-intro">

@@ -52,7 +52,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
       </div>
 
       <section className="directory-panel">
-        {updated ? <div className="form-alert success">Contact updated.</div> : null}
+        {updated ? <div className="form-alert success" role="status">Contact updated.</div> : null}
         <form className="directory-search" action="/contacts">
           <Search size={17} />
           <input name="q" defaultValue={q} placeholder="Search name or email" />

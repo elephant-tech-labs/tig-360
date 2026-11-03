@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Bell, ChevronDown, LogOut, Plus, Search } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { WorkspaceNav } from "@/components/workspace-nav";
 import { canCreateJobs, roleLabels, type MembershipRole } from "@/lib/access";
 
@@ -43,7 +44,7 @@ export function AppShell({
           <details className="account-menu">
             <summary aria-label="Account menu"><ChevronDown size={16} /></summary>
             <form action={signOut}>
-              <button type="submit"><LogOut size={15} /> Sign out</button>
+              <PendingSubmitButton className="" pendingLabel="Signing out"><LogOut size={15} /> Sign out</PendingSubmitButton>
             </form>
           </details>
         </div>

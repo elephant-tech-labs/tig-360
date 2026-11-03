@@ -282,8 +282,8 @@ export default async function ProposalPage({ params, searchParams }: ProposalPag
       <JobAuthoringNav jobId={jobId} current="proposal" states={workflowStates} />
 
       <main className="proposal-page">
-        {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
-        {messages.saved ? <div className="form-alert success"><CheckCircle2 size={17} /> {messages.saved}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert"><AlertTriangle size={17} /> {messages.error}</div> : null}
+        {messages.saved ? <div className="form-alert success" role="status"><CheckCircle2 size={17} /> {messages.saved}</div> : null}
 
         <header className="proposal-heading">
           <div>

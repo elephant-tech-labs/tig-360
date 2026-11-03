@@ -51,8 +51,8 @@ export default async function WdoBatchPage({ params, searchParams }: WdoBatchPag
         </div>
       </div>
       <div className="wdo-batch-page">
-        {messages.saved ? <div className="form-alert success"><Check size={17} /> {messages.saved}</div> : null}
-        {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
+        {messages.saved ? <div className="form-alert success" role="status"><Check size={17} /> {messages.saved}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert"><AlertTriangle size={17} /> {messages.error}</div> : null}
 
         <section className={`wdo-batch-state state-${batch.status}`}>
           {batch.status === "filed" ? <FileCheck2 size={23} /> : <ShieldCheck size={23} />}

@@ -15,7 +15,7 @@ export default async function FindingLibraryPage({ searchParams }: FindingLibrar
   if (membership.role !== "administrator" && membership.role !== "manager") {
     return (
       <>
-        <div className="form-page"><div className="form-alert error">Administrator or manager access required.</div></div>
+        <div className="form-page"><div className="form-alert error" role="alert">Administrator or manager access required.</div></div>
       </>
     );
   }
@@ -39,8 +39,8 @@ export default async function FindingLibraryPage({ searchParams }: FindingLibrar
             <p>Reusable wording for fast, consistent inspection reports.</p>
           </div>
         </div>
-        {messages.saved ? <div className="form-alert success"><Check size={16} /> Template saved.</div> : null}
-        {messages.error ? <div className="form-alert error">{messages.error}</div> : null}
+        {messages.saved ? <div className="form-alert success" role="status"><Check size={16} /> Template saved.</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert">{messages.error}</div> : null}
 
         <div className="library-layout">
           <section className="library-list">

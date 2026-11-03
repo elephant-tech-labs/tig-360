@@ -86,7 +86,7 @@ export default async function NewJobPage({ searchParams }: NewJobPageProps) {
           </div>
         </div>
 
-        {params.error ? <div className="form-alert error">{params.error}</div> : null}
+        {params.error ? <div className="form-alert error" role="alert">{params.error}</div> : null}
 
         <InspectionJobForm
           action={createInspectionJob}

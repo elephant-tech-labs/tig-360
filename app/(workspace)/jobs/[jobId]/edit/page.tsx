@@ -83,7 +83,7 @@ export default async function EditJobPage({ params, searchParams }: EditJobPageP
           <div className="onboarding-icon"><Pencil size={22} /></div>
           <div><p className="eyebrow">Job setup</p><h1>Edit inspection job</h1><p>Update the property, scheduling, report details, and prior-inspection link.</p></div>
         </div>
-        {message ? <div className="form-alert error">{message}</div> : null}
+        {message ? <div className="form-alert error" role="alert">{message}</div> : null}
         <InspectionJobForm
           action={updateInspectionJob}
           organizationId={organization.id}

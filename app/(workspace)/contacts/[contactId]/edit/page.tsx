@@ -50,7 +50,7 @@ export default async function EditContactPage({
             <p>Update reusable contact and address information.</p>
           </div>
         </div>
-        {message ? <div className="form-alert error">{message}</div> : null}
+        {message ? <div className="form-alert error" role="alert">{message}</div> : null}
         <form className="job-form" action={updateContact}>
           <input name="organizationId" type="hidden" value={organization.id} />
           <input name="contactId" type="hidden" value={contact.id} />

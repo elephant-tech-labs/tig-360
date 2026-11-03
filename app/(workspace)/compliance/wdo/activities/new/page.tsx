@@ -53,7 +53,7 @@ export default async function NewWdoActivityPage({ searchParams }: NewWdoActivit
         <div><p className="eyebrow">California compliance</p><h1>Add WDO activity</h1><p>Create a completion, correction, separated report, or other regulatory activity linked to an existing job.</p></div>
       </div>
       <div className="wdo-form-page">
-        {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert"><AlertTriangle size={17} /> {messages.error}</div> : null}
         <section className="wdo-form-panel">
           <div className="management-panel-intro">
             <div className="onboarding-icon"><ClipboardPlus size={22} /></div>

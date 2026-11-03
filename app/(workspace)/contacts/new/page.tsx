@@ -29,7 +29,7 @@ export default async function NewContactPage({ searchParams }: NewContactPagePro
           </div>
         </div>
 
-        {error ? <div className="form-alert error">{error}</div> : null}
+        {error ? <div className="form-alert error" role="alert">{error}</div> : null}
 
         <form className="job-form" action={createContact}>
           <input name="organizationId" type="hidden" value={organization.id} />

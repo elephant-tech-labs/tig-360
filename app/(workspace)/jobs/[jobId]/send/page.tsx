@@ -336,9 +336,9 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
       <JobAuthoringNav jobId={jobId} current="send" states={workflowStates} />
 
       <div className="send-center-page">
-        {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
-        {messages.saved ? <div className="form-alert success"><Check size={17} /> {messages.saved}</div> : null}
-        {messages.sent ? <div className="form-alert success"><Check size={17} /> {messages.sent}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert"><AlertTriangle size={17} /> {messages.error}</div> : null}
+        {messages.saved ? <div className="form-alert success" role="status"><Check size={17} /> {messages.saved}</div> : null}
+        {messages.sent ? <div className="form-alert success" role="status"><Check size={17} /> {messages.sent}</div> : null}
 
         <header className="send-center-heading">
           <div>
@@ -592,9 +592,9 @@ export default async function SendCenterPage({ params, searchParams }: SendPageP
                               <form action={refreshSignatureRequestStatus}>
                                 <input name="jobId" type="hidden" value={jobId} />
                                 <input name="signatureRequestId" type="hidden" value={request.id} />
-                                <button className="text-button" type="submit">
+                                <PendingSubmitButton className="text-button" pendingLabel="Refreshing">
                                   <RotateCw size={13} /> Refresh
-                                </button>
+                                </PendingSubmitButton>
                               </form>
                             </div>
                           ) : null}

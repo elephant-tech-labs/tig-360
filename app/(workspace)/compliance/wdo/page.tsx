@@ -286,8 +286,8 @@ export default async function WdoActivityExportPage({ searchParams }: WdoPagePro
       </div>
 
       <div className="wdo-page">
-        {messages.saved ? <div className="form-alert success"><Check size={17} /> {messages.saved}</div> : null}
-        {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
+        {messages.saved ? <div className="form-alert success" role="status"><Check size={17} /> {messages.saved}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert"><AlertTriangle size={17} /> {messages.error}</div> : null}
 
         <section className="wdo-filter-panel">
           <form method="get">

@@ -134,9 +134,9 @@ export default async function JobContactsPage({
 
       <div className="job-contacts-layout">
         <div className="job-contacts-main">
-          {messages.error ? <div className="form-alert error">{messages.error}</div> : null}
-          {messages.saved ? <div className="form-alert success"><Check size={17} /> Contact assignment saved.</div> : null}
-          {messages.removed ? <div className="form-alert success"><Check size={17} /> Contact removed from this job.</div> : null}
+          {messages.error ? <div className="form-alert error" role="alert">{messages.error}</div> : null}
+          {messages.saved ? <div className="form-alert success" role="status"><Check size={17} /> Contact assignment saved.</div> : null}
+          {messages.removed ? <div className="form-alert success" role="status"><Check size={17} /> Contact removed from this job.</div> : null}
 
           <JobContactManager
             organizationId={organization.id}

@@ -77,8 +77,8 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
       <ManagementNav current="inspectors" />
 
       <div className="team-page">
-        {messages.saved ? <div className="form-alert success"><Check size={17} /> {messages.saved}</div> : null}
-        {messages.error ? <div className="form-alert error">{messages.error}</div> : null}
+        {messages.saved ? <div className="form-alert success" role="status"><Check size={17} /> {messages.saved}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert">{messages.error}</div> : null}
 
         {canManage ? (
           <section className="team-create-band">
@@ -183,7 +183,7 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
                         <form action={removeInspectorSignature}>
                           <input name="organizationId" type="hidden" value={organization.id} />
                           <input name="inspectorId" type="hidden" value={inspector.id} />
-                          <button className="danger-text-button" type="submit">Remove signature</button>
+                          <PendingSubmitButton className="danger-text-button" pendingLabel="Removing signature">Remove signature</PendingSubmitButton>
                         </form>
                       ) : null}
                     </>

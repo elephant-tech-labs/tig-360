@@ -33,8 +33,8 @@ export default async function ReportContentPage({ searchParams }: ReportContentP
       </div>
       <ManagementNav current="report-content" />
       <div className="management-page">
-        {messages.saved ? <div className="form-alert success"><Check size={17} /> {messages.saved}</div> : null}
-        {messages.error ? <div className="form-alert error">{messages.error}</div> : null}
+        {messages.saved ? <div className="form-alert success" role="status"><Check size={17} /> {messages.saved}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert">{messages.error}</div> : null}
         <section className="management-panel">
           <div className="management-panel-intro">
             <div className="onboarding-icon"><FilePlus2 size={22} /></div>
@@ -66,7 +66,7 @@ export default async function ReportContentPage({ searchParams }: ReportContentP
                   <div className="report-content-flags"><label className="inline-check"><input name="isActive" type="checkbox" defaultChecked={block.is_active} disabled={!canManage} /> Active</label><label className="inline-check"><input name="isRequired" type="checkbox" defaultChecked={block.is_required} disabled={!canManage} /> Required content</label></div>
                   {canManage ? <PendingSubmitButton className="primary-button" pendingLabel="Saving content"><Save size={15} /> Save block</PendingSubmitButton> : null}
                 </form>
-                {canManage ? <form action={deleteReportContentBlock}><input name="organizationId" type="hidden" value={organization.id} /><input name="blockId" type="hidden" value={block.id} /><button className="danger-text-button" type="submit"><Trash2 size={14} /> Delete block</button></form> : null}
+                {canManage ? <form action={deleteReportContentBlock}><input name="organizationId" type="hidden" value={organization.id} /><input name="blockId" type="hidden" value={block.id} /><PendingSubmitButton className="danger-text-button" pendingLabel="Deleting block"><Trash2 size={14} /> Delete block</PendingSubmitButton></form> : null}
               </article>
             ))}
             {canManage ? (

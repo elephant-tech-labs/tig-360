@@ -563,7 +563,7 @@ function PhotoAnnotationEditor({ organizationId, jobId, photo, onClose, onSaved 
       <button title="Clear annotations" disabled={!objects.length} onClick={() => setObjects([])}><Trash2 size={17} /></button>
     </div>
     <div className="annotation-canvas-wrap"><canvas ref={canvasRef} width={1200} height={800} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} /></div>
-    {error ? <div className="form-alert error">{error}</div> : null}
+    {error ? <div className="form-alert error" role="alert">{error}</div> : null}
     <footer><button className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving} onClick={save}>{saving ? <LoaderCircle className="button-spinner" size={16} /> : <Save size={16} />} Save annotation</button></footer>
   </section></div>;
 }

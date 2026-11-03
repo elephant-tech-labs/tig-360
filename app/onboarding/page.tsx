@@ -76,7 +76,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
         <h1>Create your organization</h1>
         <p>This becomes the secure home for your inspections, team, and documents.</p>
 
-        {params.error ? <div className="form-alert error">{params.error}</div> : null}
+        {params.error ? <div className="form-alert error" role="alert">{params.error}</div> : null}
 
         <form className="form-stack" action={createOrganization}>
           <label>

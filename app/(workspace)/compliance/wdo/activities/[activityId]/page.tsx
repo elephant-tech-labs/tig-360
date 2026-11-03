@@ -123,8 +123,8 @@ export default async function WdoActivityPage({ params, searchParams }: WdoActiv
         {job ? <Link className="secondary-button" href={`/jobs/${job.id}`}><ExternalLink size={15} /> Open inspection job</Link> : null}
       </div>
       <div className="wdo-form-page">
-        {messages.saved ? <div className="form-alert success"><Check size={17} /> {messages.saved}</div> : null}
-        {messages.error ? <div className="form-alert error"><AlertTriangle size={17} /> {messages.error}</div> : null}
+        {messages.saved ? <div className="form-alert success" role="status"><Check size={17} /> {messages.saved}</div> : null}
+        {messages.error ? <div className="form-alert error" role="alert"><AlertTriangle size={17} /> {messages.error}</div> : null}
 
         {mapped.issues.length ? (
           <section className="wdo-issue-panel">
@@ -133,7 +133,7 @@ export default async function WdoActivityPage({ params, searchParams }: WdoActiv
               <ul>{mapped.issues.map((issue) => <li key={`${issue.field}-${issue.code}`}>{issue.href && issue.href !== `/compliance/wdo/activities/${activityId}` ? <Link href={issue.href}>{issue.message}</Link> : issue.message}</li>)}</ul>
             </div>
           </section>
-        ) : <div className="form-alert success"><Check size={17} /> This activity is ready for the verified principal-office TXT serializer.</div>}
+        ) : <div className="form-alert success" role="status"><Check size={17} /> This activity is ready for the verified principal-office TXT serializer.</div>}
 
         <section className="wdo-form-panel">
           <div className="management-panel-intro">
