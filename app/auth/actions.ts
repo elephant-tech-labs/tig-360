@@ -81,8 +81,8 @@ export async function verifyLoginCode(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const token = String(formData.get("token") ?? "").replace(/\s/g, "");
 
-  if (!validEmail(email) || !/^\d{6,10}$/.test(token)) {
-    redirect(verifyUrl(email, "Enter the code from your email."));
+  if (!validEmail(email) || !/^\d{8}$/.test(token)) {
+    redirect(verifyUrl(email, "Enter the complete 8-digit code from your email."));
   }
 
   const supabase = await createClient();
