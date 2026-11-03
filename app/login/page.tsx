@@ -1,6 +1,7 @@
 import { Building2, CheckCircle2, ClipboardCheck, ShieldCheck } from "lucide-react";
 import { requestLoginCode, verifyLoginCode } from "@/app/auth/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { EmailOtpInput } from "@/components/email-otp-input";
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -57,21 +58,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <>
               <form className="form-stack" action={verifyLoginCode}>
                 <input name="email" type="hidden" value={email} />
-                <label>
-                  Verification code
-                  <input
-                    name="token"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]{6,10}"
-                    minLength={6}
-                    maxLength={10}
-                    autoComplete="one-time-code"
-                    placeholder="Enter your code"
-                    autoFocus
-                    required
-                  />
-                </label>
+                <EmailOtpInput />
                 <PendingSubmitButton
                   className="primary-button form-submit"
                   pendingLabel="Verifying code"
