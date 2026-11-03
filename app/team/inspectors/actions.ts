@@ -152,36 +152,68 @@ async function sendInvitation(input: InvitationInput) {
     throw new Error("Administrator access required.");
   }
 
+  const email = input.email.trim().toLowerCase();
+  if (email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    throw new Error("Enter a valid work email address.");
+  }
+
+  const admin = createAdminClient();
+  const { data: profiles, error: lookupError } = await admin
+    .from("profiles")
+    .select("id, email")
+    .ilike("email", email)
+    .limit(50);
+  if (lookupError) throw new Error("Unable to check current team access.");
+
+  const existing = profiles?.find(
+    (candidate) => String(candidate.email ?? "").trim().toLowerCase() === email,
+  );
+  if (existing) {
+    const { data: currentAccess, error: accessError } = await admin
+      .from("organization_memberships")
+      .select("status")
+      .eq("organization_id", input.organizationId)
+      .eq("user_id", existing.id)
+      .maybeSingle();
+    if (accessError) throw new Error("Unable to check current team access.");
+    if (currentAccess?.status === "suspended") {
+      throw new Error(
+        "This team member is suspended. Restore their access in Team access instead of inviting them again.",
+      );
+    }
+  }
+
   const { data: invitationId, error } = await supabase.rpc("create_organization_invitation", {
     target_organization_id: input.organizationId,
-    invitation_email: input.email,
+    invitation_email: email,
     invitation_role: input.role,
     target_inspector_id: input.inspectorId || null,
   });
   if (error || !invitationId) throw new Error(error?.message ?? "Unable to create invitation.");
 
   try {
-    const admin = createAdminClient();
-    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/accept`;
-    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(input.email, {
+    // Invite new Auth users via the Supabase Invite email template (link).
+    // Existing Auth users receive the configured 8-digit Magic Link email
+    // OTP; the login screen then routes them to account activation.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://tig-360.vercel.app";
+    const redirectTo = new URL("/auth/accept", appUrl).toString();
+    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo,
       data: {
         tig360_invitation_id: invitationId,
-        full_name: input.role === "inspector" ? undefined : input.email.split("@")[0],
+        full_name: input.role === "inspector" ? undefined : email.split("@")[0],
       },
     });
+
     if (inviteError) {
       const existingAccount = /already|registered|exists/i.test(inviteError.message);
       if (!existingAccount) throw inviteError;
 
-      const { error: magicLinkError } = await admin.auth.signInWithOtp({
-        email: input.email,
-        options: {
-          emailRedirectTo: redirectTo,
-          shouldCreateUser: false,
-        },
+      const { error: otpError } = await admin.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false },
       });
-      if (magicLinkError) throw magicLinkError;
+      if (otpError) throw otpError;
     }
 
     const { error: sentError } = await supabase.rpc("mark_organization_invitation_sent", {
@@ -193,7 +225,8 @@ async function sendInvitation(input: InvitationInput) {
     await supabase
       .from("organization_invitations")
       .update({ status: "failed" })
-      .eq("id", invitationId);
+      .eq("id", invitationId)
+      .eq("organization_id", input.organizationId);
     throw error;
   }
 }
