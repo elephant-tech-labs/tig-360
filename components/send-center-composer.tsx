@@ -10,7 +10,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { prepareReportDelivery } from "@/app/jobs/[jobId]/send/actions";
+import { prepareReportDelivery } from "@/app/(workspace)/jobs/[jobId]/send/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 type RecipientType = "to" | "cc" | "bcc";

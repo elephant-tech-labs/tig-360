@@ -43,7 +43,7 @@ import {
   publishDiagramVersion,
   saveDiagramDraft,
   type DiagramMarkerInput,
-} from "@/app/jobs/[jobId]/drawing/actions";
+} from "@/app/(workspace)/jobs/[jobId]/drawing/actions";
 
 const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 780;

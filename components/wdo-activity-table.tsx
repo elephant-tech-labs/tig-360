@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Ban, Download, ExternalLink, FileWarning, History } from "lucide-react";
-import { generateWdoExport } from "@/app/compliance/wdo/actions";
+import { generateWdoExport } from "@/app/(workspace)/compliance/wdo/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { CALIFORNIA_WDO_FEE_PER_ACTIVITY } from "@/lib/wdo/california/config";
 import {

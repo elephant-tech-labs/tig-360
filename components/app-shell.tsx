@@ -1,54 +1,21 @@
 import Link from "next/link";
-import {
-  Bell,
-  Building2,
-  CalendarDays,
-  ChevronDown,
-  ClipboardCheck,
-  FileCheck2,
-  Grid2X2,
-  LogOut,
-  Plus,
-  Search,
-  Settings,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
+import { Bell, ChevronDown, LogOut, Plus, Search } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
-import {
-  canAccessContacts,
-  canAccessManagement,
-  canAccessWdoCompliance,
-  canCreateJobs,
-  roleLabels,
-  type MembershipRole,
-} from "@/lib/access";
+import { WorkspaceNav } from "@/components/workspace-nav";
+import { canCreateJobs, roleLabels, type MembershipRole } from "@/lib/access";
 
 type AppShellProps = {
   children: React.ReactNode;
   organizationName: string;
   userName: string;
   membershipRole: MembershipRole;
-  active?: "dashboard" | "jobs" | "schedule" | "contacts" | "properties" | "documents" | "compliance" | "management";
 };
-
-const navItems = [
-  { key: "dashboard", label: "Dashboard", href: "/jobs", icon: Grid2X2 },
-  { key: "jobs", label: "Inspection jobs", href: "/jobs", icon: ClipboardCheck },
-  { key: "schedule", label: "Schedule", href: "#", icon: CalendarDays },
-  { key: "contacts", label: "Contacts", href: "/contacts", icon: Users },
-  { key: "compliance", label: "Compliance", href: "/compliance/wdo", icon: ShieldCheck },
-  { key: "management", label: "Management", href: "/management", icon: Settings },
-  { key: "properties", label: "Properties", href: "#", icon: Building2 },
-  { key: "documents", label: "Documents", href: "#", icon: FileCheck2 },
-] as const;
 
 export function AppShell({
   children,
   organizationName,
   userName,
   membershipRole,
-  active = "jobs",
 }: AppShellProps) {
   const initials = userName
     .split(" ")
@@ -68,28 +35,7 @@ export function AppShell({
 
         <div className="organization-label">{organizationName}</div>
 
-        <nav className="primary-nav" aria-label="Primary navigation">
-          {navItems.filter((item) => {
-            if (item.key === "management") return canAccessManagement(membershipRole);
-            if (item.key === "compliance") return canAccessWdoCompliance(membershipRole);
-            if (item.key === "contacts") return canAccessContacts(membershipRole);
-            if (item.key === "schedule" || item.key === "properties" || item.key === "documents") {
-              return membershipRole !== "inspector";
-            }
-            return true;
-          }).map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                className={`nav-item ${active === item.key ? "active" : ""}`}
-                href={item.href}
-                key={item.key}
-              >
-                <Icon size={18} /> {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <WorkspaceNav membershipRole={membershipRole} />
 
         <div className="sidebar-footer">
           <div className="workspace-avatar">{initials}</div>

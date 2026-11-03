@@ -2,7 +2,7 @@
 
 import { useState, type MouseEvent } from "react";
 import { ExternalLink, LoaderCircle } from "lucide-react";
-import { startEmbeddedContractSigning } from "@/app/jobs/[jobId]/send/actions";
+import { startEmbeddedContractSigning } from "@/app/(workspace)/jobs/[jobId]/send/actions";
 
 function prepareSigningWindow(popup: Window) {
   popup.opener = null;

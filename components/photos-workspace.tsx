@@ -42,7 +42,7 @@ import {
   savePhotoAnnotation,
   setJobPhotoStatus,
   updateJobPhoto,
-} from "@/app/jobs/[jobId]/photos/actions";
+} from "@/app/(workspace)/jobs/[jobId]/photos/actions";
 
 type AnnotationObject = {
   id: string;

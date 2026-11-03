@@ -1,22 +1,29 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { MembershipRole } from "@/lib/access";
 
-export async function getCurrentContext() {
+// cache(): the workspace layout and the page share one lookup per request.
+export const getCurrentContext = cache(async () => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // The membership query is scoped by RLS on the session, not by `user`,
+  // so both requests run together instead of back to back.
+  const [
+    {
+      data: { user },
+    },
+    { data: membership, error },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase
+      .from("organization_memberships")
+      .select("organization_id, user_id, role, organizations(id, name, slug, timezone)")
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   if (!user) redirect("/login");
-
-  const { data: membership, error } = await supabase
-    .from("organization_memberships")
-    .select("organization_id, user_id, role, organizations(id, name, slug, timezone)")
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
-
   if (error) throw new Error(error.message);
   if (!membership) redirect("/onboarding");
 
@@ -37,4 +44,4 @@ export async function getCurrentContext() {
     userName:
       String(user.user_metadata.full_name ?? user.user_metadata.name ?? user.email ?? "Team member"),
   };
-}
+});
