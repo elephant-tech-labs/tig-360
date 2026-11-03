@@ -124,7 +124,10 @@ function Skeleton({ variant, pathname }: { variant: SkeletonVariant; pathname: s
 // persistent shell, fades in after a short delay (CSS) so fast navigations do
 // not flash, and announces itself to assistive technology.
 export function WorkspaceLoading() {
-  const pathname = usePathname() ?? "";
+  return <RouteSkeleton pathname={usePathname() ?? ""} />;
+}
+
+export function RouteSkeleton({ pathname }: { pathname: string }) {
   return (
     <div aria-busy="true" className="route-loading" role="status">
       <span className="sr-only">{loadingLabel(pathname)}…</span>
