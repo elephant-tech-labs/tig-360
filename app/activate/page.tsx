@@ -32,7 +32,11 @@ export default async function ActivatePage({ searchParams }: ActivatePageProps) 
 
   const { data: invitations, error } = await supabase.rpc("get_current_invitation");
   if (error) throw new Error(error.message);
-  const invitation = invitations?.[0];
+  const invitation = invitations?.find(
+    (candidate: { invitation_status: string; expires_at: string }) =>
+      candidate.invitation_status === "pending" &&
+      Date.parse(candidate.expires_at) > Date.now(),
+  );
 
   return (
     <main className="activation-page">
@@ -65,7 +69,7 @@ export default async function ActivatePage({ searchParams }: ActivatePageProps) 
           </>
         ) : (
           <div className="form-alert error">
-            No active invitation was found for this email. Ask an administrator to resend the invitation.
+            {params.error || "No valid invitation was found for this email. Ask an administrator to send a fresh invitation."}
           </div>
         )}
       </section>
