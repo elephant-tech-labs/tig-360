@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getTeamEmailAccess } from "@/lib/auth/team-email-access";
 import { createClient } from "@/lib/supabase/server";
 
 function loginUrl(message: string, type: "error" | "message" = "error") {
@@ -17,64 +17,38 @@ function validEmail(value: string): boolean {
   return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-/**
- * Allow only existing team members with an active organization membership.
- * The service-role lookup is server-only; no public self-registration or
- * unauthenticated membership RPC is exposed.
- */
-async function isAuthorizedTeamEmail(email: string): Promise<boolean> {
-  const admin = createAdminClient();
-  const { data: candidates, error: profileError } = await admin
-    .from("profiles")
-    .select("id, email")
-    .ilike("email", email)
-    .limit(50);
-
-  if (profileError) throw new Error("Unable to check team access.");
-
-  // ILIKE treats '_' and '%' as pattern characters. Check exact normalized
-  // equality before allowing a code, including addresses containing '_'.
-  const profile = candidates?.find(
-    (candidate) => String(candidate.email ?? "").trim().toLowerCase() === email,
-  );
-  if (!profile) return false;
-
-  const { data: membership, error: membershipError } = await admin
-    .from("organization_memberships")
-    .select("organization_id")
-    .eq("user_id", profile.id)
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
-
-  if (membershipError) throw new Error("Unable to check team access.");
-  return Boolean(membership);
-}
-
 export async function requestLoginCode(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!validEmail(email)) redirect(loginUrl("Enter a valid work email address."));
 
-  let authorized = false;
+  let eligible = false;
   try {
-    authorized = await isAuthorizedTeamEmail(email);
+    const access = await getTeamEmailAccess(email);
+    eligible = access.kind === "active" || access.kind === "invited";
   } catch {
     redirect(loginUrl("Unable to check access right now. Please try again."));
   }
 
-  if (authorized) {
+  if (eligible) {
     const supabase = await createClient();
-    // Never create new users through the public login screen.
-    // Supabase handles OTP expiration and resend rate limits.
-    await supabase.auth.signInWithOtp({
+    // Invited users already have an Auth account created by the administrator.
+    // Never allow an unknown email to create an account via this login form.
+    const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { shouldCreateUser: false },
     });
+
+    if (error) {
+      // Keep the public response indistinguishable from an unknown email.
+      console.error("Inspect360 OTP delivery failed:", error.message);
+    }
   }
 
-  // Deliberately identical response for unknown, suspended, and active emails
-  // to avoid revealing which email addresses have TIG-360 access.
-  redirect(verifyUrl(email, "If this email has active TIG-360 access, a sign-in code will arrive shortly.", "message"));
+  redirect(verifyUrl(
+    email,
+    "If this address has active access or a valid invitation, a sign-in code will arrive shortly.",
+    "message",
+  ));
 }
 
 export async function verifyLoginCode(formData: FormData) {
@@ -97,8 +71,8 @@ export async function verifyLoginCode(formData: FormData) {
     redirect(loginUrl("Unable to confirm your account."));
   }
 
-  // Repeat authorization AFTER successful OTP verification: a membership can
-  // be suspended or removed between requesting and entering the code.
+  // OTP verifies identity, not authorization. Check active access by the
+  // verified Auth user ID, not the email supplied by the form.
   const { data: membership, error: membershipError } = await supabase
     .from("organization_memberships")
     .select("organization_id")
@@ -107,12 +81,32 @@ export async function verifyLoginCode(formData: FormData) {
     .limit(1)
     .maybeSingle();
 
-  if (membershipError || !membership) {
-    await supabase.auth.signOut();
-    redirect(loginUrl("This account is not authorized. Contact your administrator."));
+  if (!membershipError && membership) redirect("/jobs");
+
+  // A verified user with no membership can only proceed if an administrator
+  // already invited them and the invitation has not expired or been revoked.
+  try {
+    const access = await getTeamEmailAccess(email);
+    if (access.kind === "invited" && access.userId === user.id) {
+      const { data: invitations, error: invitationError } =
+        await supabase.rpc("get_current_invitation");
+      const pendingInvitation = !invitationError && invitations?.some(
+        (invitation: { invitation_status: string; expires_at: string }) =>
+          invitation.invitation_status === "pending" &&
+          Date.parse(invitation.expires_at) > Date.now(),
+      );
+      if (pendingInvitation) redirect("/activate");
+    }
+  } catch (error) {
+    // Next.js redirect throws a special response control error, which must
+    // never be swallowed by our authorization error handler.
+    if (error && typeof error === "object" && "digest" in error &&
+        String(error.digest).startsWith("NEXT_REDIRECT")) throw error;
+    console.error("Inspect360 pending invitation verification failed");
   }
 
-  redirect("/jobs");
+  await supabase.auth.signOut();
+  redirect(loginUrl("This account is not authorized. Contact your administrator."));
 }
 
 export async function signOut() {
