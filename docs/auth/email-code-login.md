@@ -81,8 +81,9 @@ Project: `tig360` (project ref `jqqzemvyvjujvpgvongw`).
    ```
 
 3. In Authentication → Providers → Email, confirm email OTP is enabled,
-   expiration is short, and resend rate limiting is configured. The UI
-   accepts 6–10 numeric digits to accommodate configured token lengths.
+   expiration is short, and resend rate limiting is configured. TIG-360 now requires **exactly eight digits**, matching the configured
+   email OTP code length. Do not change OTP length in Supabase without
+   updating the app and testing again.
 4. Confirm the project's production SMTP is configured to send authentication
    emails reliably; inspect logs if staff do not receive a code.
 5. Confirm the Vercel environment has `NEXT_PUBLIC_SUPABASE_URL`,
@@ -92,8 +93,18 @@ Project: `tig360` (project ref `jqqzemvyvjujvpgvongw`).
 
 See: https://supabase.com/docs/guides/auth/auth-email-passwordless
 
+## Eight-digit code input
+
+The login displays eight separate visual slots using one native input underneath.
+This deliberately supports full-code pasting, ordinary typing, backspace,
+keyboard editing, and mobile `one-time-code` autofill without forcing users to
+select each box individually. The server accepts exactly eight numeric digits.
+
 ## Acceptance test matrix
 
+- [ ] Eight-digit code displays in eight visual slots; typing fills in order.
+- [ ] Pasting all eight digits into any part of the code area works.
+- [ ] Mobile OTP autofill and accessibility/screen-reader interactions verified.
 - [ ] Active administrator: code sent, code accepted, admin navigation works.
 - [ ] Active manager: code sent; manager permissions preserved.
 - [ ] Active inspector: code sent; manager-only areas remain inaccessible.
@@ -110,6 +121,7 @@ See: https://supabase.com/docs/guides/auth/auth-email-passwordless
 ## Deployment
 
 This change is isolated on `feature/authorized-email-otp-login`.
-Do not merge or deploy to production until the Supabase email template is
-configured and the above authentication tests pass. Existing inspection,
+The TIG-360 SMTP and branded email template are expected to be configured
+before production rollout. Verify email delivery and inspect the Vercel build
+before merging. Complete live sign-in tests immediately following deployment; Existing inspection,
 report, CRM, and document workflows are intentionally unchanged.
