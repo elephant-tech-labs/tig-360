@@ -129,7 +129,7 @@ export function WorkspaceLoading() {
 
 export function RouteSkeleton({ pathname }: { pathname: string }) {
   return (
-    <div aria-busy="true" className="route-loading" role="status">
+    <div className="route-loading" role="status">
       <span className="sr-only">{loadingLabel(pathname)}…</span>
       <div aria-hidden="true">
         <Skeleton pathname={pathname} variant={skeletonVariant(pathname)} />

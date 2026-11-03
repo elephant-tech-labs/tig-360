@@ -133,7 +133,7 @@ export default async function WdoActivityPage({ params, searchParams }: WdoActiv
               <ul>{mapped.issues.map((issue) => <li key={`${issue.field}-${issue.code}`}>{issue.href && issue.href !== `/compliance/wdo/activities/${activityId}` ? <Link href={issue.href}>{issue.message}</Link> : issue.message}</li>)}</ul>
             </div>
           </section>
-        ) : <div className="form-alert success" role="status"><Check size={17} /> This activity is ready for the verified principal-office TXT serializer.</div>}
+        ) : <div className="form-alert success"><Check size={17} /> This activity is ready for the verified principal-office TXT serializer.</div>}
 
         <section className="wdo-form-panel">
           <div className="management-panel-intro">

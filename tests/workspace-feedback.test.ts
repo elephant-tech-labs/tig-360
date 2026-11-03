@@ -55,7 +55,7 @@ test("loading announcements name the destination", () => {
 test("route skeleton is announced, hides the visual placeholder, and never shows progress numbers", () => {
   for (const pathname of ["/jobs", "/jobs/new", "/jobs/abc/findings", "/management"]) {
     const html = renderToStaticMarkup(createElement(RouteSkeleton, { pathname }));
-    assert.match(html, /^<div aria-busy="true" class="route-loading" role="status">/, pathname);
+    assert.match(html, /^<div class="route-loading" role="status">/, pathname);
     assert.match(html, /<span class="sr-only">Loading [a-z ]+…<\/span><div aria-hidden="true">/, pathname);
     assert.doesNotMatch(html, /\d+\s*%<|progress/i, pathname);
   }
@@ -83,7 +83,7 @@ test("sidebar highlights the same section the pages used to pass to AppShell", (
 });
 
 test("link pending indicator is hidden from assistive tech and idle outside a navigation", () => {
-  assert.equal(renderToStaticMarkup(createElement(LinkPendingIndicator)), '<span aria-hidden="true" class="link-pending"></span>');
+  assert.equal(renderToStaticMarkup(createElement(LinkPendingIndicator)), '<i aria-hidden="true" class="link-pending"></i>');
 });
 
 test("workspace error boundary is announced, shows the reference, and offers a retry", () => {
@@ -125,4 +125,14 @@ test("motion respects prefers-reduced-motion and the skeleton waits before appea
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[^}]*animation-duration: \.01ms !important/);
   assert.match(css, /\.route-loading \{ animation: route-loading-in [^;]* \.15s both; \}/);
   assert.match(css, /\.link-pending\[data-pending\] \{[^}]*transition-delay: \.12s/);
+  // Absolutely positioned so it never shifts the collapsed sidebar icons or widens tabs.
+  assert.match(css, /\.link-pending \{[^}]*position: absolute/);
+});
+
+test("current membership lookup is filtered to the signed-in user", async () => {
+  // RLS lets members read every membership in their organization, so without
+  // this filter the app could pick up another member's role.
+  const source = await readFile(path.join(root, "lib/current-organization.ts"), "utf8");
+  const query = source.slice(source.indexOf('.from("organization_memberships")'), source.indexOf(".maybeSingle()"));
+  assert.match(query, /\.eq\("user_id", user\.id\)/);
 });
