@@ -100,8 +100,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           )}
 
           <p className="auth-help">
-            Access is limited to active Inspect360 team members.
-            Contact your administrator if you need an invitation.
+            Access is limited to active Inspect360 staff and people completing an administrator invitation.
+            Contact your administrator if you need access.
           </p>
         </div>
       </section>
