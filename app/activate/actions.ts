@@ -15,6 +15,18 @@ export async function activateAccount(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?error=Open a fresh invitation link to continue.");
 
+  const { data: invitations, error: lookupError } =
+    await supabase.rpc("get_current_invitation");
+  if (lookupError) redirect(activationUrl("Unable to check this invitation. Please try again."));
+  const validInvitation = invitations?.some(
+    (invitation: { invitation_status: string; expires_at: string }) =>
+      invitation.invitation_status === "pending" &&
+      Date.parse(invitation.expires_at) > Date.now(),
+  );
+  if (!validInvitation) {
+    redirect(activationUrl("This invitation has expired or been revoked. Ask an administrator to resend it."));
+  }
+
   // Invitation links establish a verified Supabase session. Account activation
   // only needs to capture the team member's name: future logins use email OTP.
   const { error: userError } = await supabase.auth.updateUser({
