@@ -161,3 +161,27 @@ as $$
     invitation.created_at desc
   limit 1;
 $$;
+
+-- These invitation/organization RPCs are only intended for a verified
+-- Supabase session. Remove existing direct anon and PUBLIC EXECUTE grants.
+revoke execute on function public.create_organization(text, text) from public, anon;
+revoke execute on function public.activate_current_invitation() from public, anon;
+revoke execute on function public.accept_current_invitation() from public, anon;
+revoke execute on function public.get_current_invitation() from public, anon;
+revoke execute on function public.create_organization_invitation(
+  uuid, text, public.membership_role, uuid
+) from public, anon;
+revoke execute on function public.mark_organization_invitation_sent(
+  uuid, uuid
+) from public, anon;
+
+grant execute on function public.create_organization(text, text) to authenticated;
+grant execute on function public.activate_current_invitation() to authenticated;
+grant execute on function public.accept_current_invitation() to authenticated;
+grant execute on function public.get_current_invitation() to authenticated;
+grant execute on function public.create_organization_invitation(
+  uuid, text, public.membership_role, uuid
+) to authenticated;
+grant execute on function public.mark_organization_invitation_sent(
+  uuid, uuid
+) to authenticated;
