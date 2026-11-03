@@ -22,7 +22,8 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
   const { jobId } = await params;
   const messages = await searchParams;
   const { supabase, organization } = await getCurrentContext();
-  const { data: job, error } = await supabase.from("inspection_jobs").select(`
+  const [{ data: job, error }, workflowStates] = await Promise.all([
+    supabase.from("inspection_jobs").select(`
     id, job_number, status, report_type, inspection_at, prior_job_id, summary, escrow_number,
     inspection_tag_posted, other_tags_posted, garage_description,
     internal_notes, created_at, created_by, inspected_by_id, include_inspector_signature,
@@ -31,7 +32,9 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
     prior_job:inspection_jobs!prior_job_id(id, job_number, report_type, inspection_at, properties(street_line_1, city, region, postal_code)),
     job_parties(id, role, is_primary, receive_report_by_default, contacts(id, first_name, last_name, email, companies(name))),
     findings(id, archived_at), assets(id, kind)
-  `).eq("id", jobId).single();
+  `).eq("id", jobId).single(),
+    getJobWorkflowStates(supabase, organization.id, jobId),
+  ]);
 
   if (error || !job) notFound();
   const property = Array.isArray(job.properties) ? job.properties[0] : job.properties;
@@ -57,7 +60,6 @@ export default async function JobPage({ params, searchParams }: JobPageProps) {
       .eq("organization_id", organization.id)
       .maybeSingle(),
   ]);
-  const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
   const requiresPriorJob = job.report_type === "supplemental" || job.report_type === "reinspection";
   const wdoReadiness = getCaliforniaWdoReadinessForJob({
     jobId,

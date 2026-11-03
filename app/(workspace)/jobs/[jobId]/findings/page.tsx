@@ -21,6 +21,7 @@ export default async function FindingsPage({ params }: FindingsPageProps) {
     { data: summary, error: summaryError },
     { data: findings, error: findingsError },
     { data: templates, error: templatesError },
+    workflowStates,
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
@@ -49,6 +50,7 @@ export default async function FindingsPage({ params }: FindingsPageProps) {
       .eq("organization_id", organization.id)
       .eq("is_active", true)
       .order("template_code"),
+    getJobWorkflowStates(supabase, organization.id, jobId),
   ]);
 
   if (jobError || !job) notFound();
@@ -89,7 +91,6 @@ export default async function FindingsPage({ params }: FindingsPageProps) {
     classification: template.default_classification,
     quotePrice: template.default_quote_price,
   }));
-  const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
 
   return (
     <>

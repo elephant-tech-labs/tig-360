@@ -15,6 +15,7 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
     { data: photos, error: photosError },
     { data: findings, error: findingsError },
     { data: photoState, error: photoStateError },
+    workflowStates,
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
@@ -49,6 +50,7 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
       .select("status")
       .eq("inspection_job_id", jobId)
       .maybeSingle(),
+    getJobWorkflowStates(supabase, organization.id, jobId),
   ]);
 
   if (jobError || !job) notFound();
@@ -102,7 +104,6 @@ export default async function PhotosPage({ params }: PhotosPageProps) {
       .map((link) => link.finding_id)
       .filter(Boolean) as string[],
   }));
-  const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
 
   return (
     <>

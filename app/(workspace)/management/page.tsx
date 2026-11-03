@@ -16,17 +16,19 @@ export default async function ManagementPage({ searchParams }: ManagementPagePro
   const messages = await searchParams;
   const { supabase, organization, membership } = await getCurrentContext();
   if (!canAccessManagement(membership.role)) redirect("/jobs");
-  const { data: profile, error } = await supabase
-    .from("organization_report_profiles")
-    .select("*")
-    .eq("organization_id", organization.id)
-    .maybeSingle();
+  const [{ data: profile, error }, { data: wdoBranches, error: branchError }] = await Promise.all([
+    supabase
+      .from("organization_report_profiles")
+      .select("*")
+      .eq("organization_id", organization.id)
+      .maybeSingle(),
+    supabase
+      .from("wdo_branches")
+      .select("id, name, registration_number, is_active")
+      .eq("organization_id", organization.id)
+      .order("name"),
+  ]);
   if (error) throw new Error(error.message);
-  const { data: wdoBranches, error: branchError } = await supabase
-    .from("wdo_branches")
-    .select("id, name, registration_number, is_active")
-    .eq("organization_id", organization.id)
-    .order("name");
   if (branchError) throw new Error(branchError.message);
 
   const canManage = membership.role === "administrator" || membership.role === "manager";

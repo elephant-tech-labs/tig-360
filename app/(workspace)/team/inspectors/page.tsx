@@ -57,12 +57,20 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
   const isAdmin = membership.role === "administrator";
   const signatureUrls = new Map<string, string>();
 
-  for (const inspector of inspectors ?? []) {
-    if (!inspector.signature_path) continue;
+  const signaturePaths = (inspectors ?? []).flatMap((inspector) => inspector.signature_path ? [inspector.signature_path] : []);
+  if (signaturePaths.length) {
+    // One batch request instead of one request per inspector.
     const { data } = await supabase.storage
       .from("inspector-signatures")
-      .createSignedUrl(inspector.signature_path, 60 * 10);
-    if (data?.signedUrl) signatureUrls.set(inspector.id, data.signedUrl);
+      .createSignedUrls(signaturePaths, 60 * 10);
+    const urlByPath = new Map<string, string>();
+    data?.forEach((item, index) => {
+      if (item.signedUrl) urlByPath.set(signaturePaths[index], item.signedUrl);
+    });
+    for (const inspector of inspectors ?? []) {
+      const url = inspector.signature_path ? urlByPath.get(inspector.signature_path) : undefined;
+      if (url) signatureUrls.set(inspector.id, url);
+    }
   }
 
   return (

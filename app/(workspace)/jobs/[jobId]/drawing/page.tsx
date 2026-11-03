@@ -23,6 +23,7 @@ export default async function DrawingPage({ params }: DrawingPageProps) {
     { data: draft, error: draftError },
     { data: findings, error: findingsError },
     { data: versions, error: versionsError },
+    workflowStates,
   ] = await Promise.all([
     supabase
       .from("inspection_jobs")
@@ -50,6 +51,7 @@ export default async function DrawingPage({ params }: DrawingPageProps) {
       .eq("inspection_job_id", jobId)
       .eq("organization_id", organization.id)
       .order("version", { ascending: false }),
+    getJobWorkflowStates(supabase, organization.id, jobId),
   ]);
 
   if (jobError || !job) notFound();
@@ -62,7 +64,6 @@ export default async function DrawingPage({ params }: DrawingPageProps) {
   const initialStatus = draft?.status === "complete" || draft?.status === "skipped"
     ? draft.status
     : "draft";
-  const workflowStates = await getJobWorkflowStates(supabase, organization.id, jobId);
 
   return (
     <>
