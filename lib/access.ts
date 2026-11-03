@@ -29,3 +29,7 @@ export function canAccessWdoCompliance(role: MembershipRole) {
   return role === "administrator" || role === "manager" || role === "office_coordinator";
 }
 
+// Fails closed: an unparseable timestamp counts as expired.
+export function isInvitationExpired(expiresAt: string) {
+  return !(Date.parse(expiresAt) > Date.now());
+}

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { isInvitationExpired } from "../lib/access";
 import { formatUsd } from "../lib/format";
 import { clean } from "../lib/form";
 import { buildProposalSummaryInputHash } from "../lib/proposals/customer-summary";
@@ -59,4 +60,12 @@ test("proposal summary input hash is unchanged (golden value from the pre-refact
     ],
   });
   assert.equal(hash, "cfa678f4d07727761b820d78a2151e645d6dbd636129831ca042b0136942a24d");
+});
+
+test("isInvitationExpired keeps the previous activation semantics and fails closed", () => {
+  const future = new Date(Date.now() + 60_000).toISOString();
+  const past = new Date(Date.now() - 60_000).toISOString();
+  assert.equal(isInvitationExpired(future), false);
+  assert.equal(isInvitationExpired(past), true);
+  assert.equal(isInvitationExpired("not a date"), true);
 });

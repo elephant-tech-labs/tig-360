@@ -3,6 +3,7 @@ import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { activateAccount } from "./actions";
+import { isInvitationExpired } from "@/lib/access";
 
 type ActivatePageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -35,7 +36,7 @@ export default async function ActivatePage({ searchParams }: ActivatePageProps) 
   const invitation = invitations?.find(
     (candidate: { invitation_status: string; expires_at: string }) =>
       candidate.invitation_status === "pending" &&
-      Date.parse(candidate.expires_at) > Date.now(),
+      !isInvitationExpired(candidate.expires_at),
   );
 
   return (
