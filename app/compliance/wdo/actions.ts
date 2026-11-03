@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { canAccessWdoCompliance } from "@/lib/access";
+import { clean } from "@/lib/form";
 import { getCurrentContext } from "@/lib/current-organization";
 import { mapCaliforniaWdoActivity } from "@/lib/wdo/california/mapper";
 import {
@@ -13,10 +14,6 @@ import {
   californiaWdoFilename,
   californiaWdoTxtChecksum,
 } from "@/lib/wdo/california/txt-serializer";
-
-function clean(formData: FormData, name: string) {
-  return String(formData.get(name) ?? "").trim();
-}
 
 function wdoUrl(message: string, kind: "saved" | "error" = "saved") {
   return `/compliance/wdo?${kind}=${encodeURIComponent(message)}`;

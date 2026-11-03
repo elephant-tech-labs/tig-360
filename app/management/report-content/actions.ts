@@ -3,14 +3,11 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { clean } from "@/lib/form";
 import {
   parseRichDocument,
   richDocumentToPlainText,
 } from "@/lib/report-content";
-
-function clean(formData: FormData, name: string) {
-  return String(formData.get(name) ?? "").trim();
-}
 
 function contentUrl(message: string, kind: "saved" | "error" = "saved") {
   return `/management/report-content?${kind}=${encodeURIComponent(message)}`;

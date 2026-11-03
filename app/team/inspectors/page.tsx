@@ -4,7 +4,7 @@ import { Ban, Check, KeyRound, Plus, RotateCw, ShieldCheck, Upload, UserPlus } f
 import { AppShell } from "@/components/app-shell";
 import { ManagementNav } from "@/components/management-nav";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
-import { canAccessManagement, roleLabels, type MembershipRole } from "@/lib/access";
+import { canAccessManagement, isInvitationExpired, roleLabels, type MembershipRole } from "@/lib/access";
 import { getCurrentContext } from "@/lib/current-organization";
 import { validateCaliforniaWdoInspectorLicense } from "@/lib/wdo/california/validator";
 import {
@@ -271,8 +271,8 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
                   </small>
                 </div>
                 <span>{invitation.role.replaceAll("_", " ")}</span>
-                <span className={`invitation-status ${invitation.status === "pending" && new Date(invitation.expires_at).getTime() <= Date.now() ? "expired" : invitation.status}`}>
-                  {invitation.status === "pending" && new Date(invitation.expires_at).getTime() <= Date.now() ? "expired" : invitation.status}
+                <span className={`invitation-status ${invitation.status === "pending" && isInvitationExpired(invitation.expires_at) ? "expired" : invitation.status}`}>
+                  {invitation.status === "pending" && isInvitationExpired(invitation.expires_at) ? "expired" : invitation.status}
                 </span>
                 <small>{invitation.send_count} email{invitation.send_count === 1 ? "" : "s"}</small>
                 {["pending", "expired", "failed"].includes(invitation.status) ? (

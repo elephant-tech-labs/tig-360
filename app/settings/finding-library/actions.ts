@@ -3,10 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-
-function clean(formData: FormData, name: string) {
-  return String(formData.get(name) ?? "").trim();
-}
+import { clean } from "@/lib/form";
 
 export async function saveFindingTemplate(formData: FormData) {
   const organizationId = clean(formData, "organizationId");

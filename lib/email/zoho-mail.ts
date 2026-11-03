@@ -1,5 +1,5 @@
 import type { EmailProvider, SendEmailInput } from "./types";
-import { getZohoAccessToken } from "@/lib/zoho/oauth";
+import { getZohoAccessToken, parseZohoJson } from "@/lib/zoho/oauth";
 
 type ZohoAttachmentResponse = {
   data?: {
@@ -25,18 +25,6 @@ type ZohoSendResponse = {
   };
 };
 
-async function parseZohoResponse<T>(response: Response, operation: string) {
-  const body = await response.text();
-  try {
-    return JSON.parse(body) as T;
-  } catch {
-    const contentType = response.headers.get("content-type") || "unknown content type";
-    throw new Error(
-      `Zoho Mail ${operation} returned HTTP ${response.status} (${contentType}) instead of JSON.`,
-    );
-  }
-}
-
 function addressList(recipients: SendEmailInput["to"]) {
   return recipients.map((recipient) =>
     recipient.name ? `${recipient.name}<${recipient.email}>` : recipient.email,
@@ -47,7 +35,7 @@ export function createZohoMailProvider(): EmailProvider {
   const accountId = process.env.ZOHO_MAIL_ACCOUNT_ID;
   const fromAddress = process.env.REPORT_EMAIL_FROM;
   const apiUrl = process.env.ZOHO_MAIL_API_URL || "https://mail.zoho.com/api";
-  if (!accountId || !fromAddress) {
+  if (!accountId || !fromAddress || !process.env.ZOHO_REFRESH_TOKEN) {
     throw new Error("Zoho Mail delivery is not configured.");
   }
 
@@ -77,9 +65,9 @@ export function createZohoMailProvider(): EmailProvider {
             body: upload,
           },
         );
-        const uploadResult = await parseZohoResponse<ZohoAttachmentResponse>(
+        const uploadResult = await parseZohoJson<ZohoAttachmentResponse>(
           uploadResponse,
-          "attachment upload",
+          "Zoho Mail attachment upload",
         );
         const uploaded = Array.isArray(uploadResult.data)
           ? uploadResult.data[0]
@@ -115,7 +103,7 @@ export function createZohoMailProvider(): EmailProvider {
           askReceipt: "yes",
         }),
       });
-      const result = await parseZohoResponse<ZohoSendResponse>(response, "send");
+      const result = await parseZohoJson<ZohoSendResponse>(response, "Zoho Mail send");
       const messageId = result.data?.messageId;
       if (!response.ok || !messageId) {
         throw new Error(result.status?.description ?? "Zoho Mail rejected the email.");

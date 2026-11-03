@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import type { ProposalSnapshot } from "./types";
 
-function normalizeText(value: string | null | undefined) {
+export function normalizeText(value: string | null | undefined) {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
-function normalizeMoney(value: number | null | undefined) {
+export function normalizeMoney(value: number | null | undefined) {
   return Number(Number(value ?? 0).toFixed(2));
 }
 

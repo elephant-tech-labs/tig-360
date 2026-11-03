@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { formatUsd } from "@/lib/format";
+import { normalizeMoney, normalizeText } from "./snapshot-hash";
 
 type SummaryLine = {
   id: string;
@@ -39,14 +41,6 @@ export type ProposalSummaryBundle = {
 
 const DEFAULT_SUMMARY_MODEL = "gpt-4.1";
 
-function normalizeText(value: string | null | undefined) {
-  return (value ?? "").replace(/\s+/g, " ").trim();
-}
-
-function normalizeMoney(value: number) {
-  return Number(Number(value ?? 0).toFixed(2));
-}
-
 export function buildProposalSummaryInputHash(input: ProposalSummaryInput) {
   const normalized = {
     companyName: normalizeText(input.companyName),
@@ -67,10 +61,6 @@ export function buildProposalSummaryInputHash(input: ProposalSummaryInput) {
   return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
 }
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value);
-}
-
 function fallbackSummary(input: ProposalSummaryInput) {
   const lineCount = input.lines.length;
   const issueList = input.lines
@@ -80,7 +70,7 @@ function fallbackSummary(input: ProposalSummaryInput) {
   return [
     `We prepared a plain-English work authorization for the termite inspection at ${input.propertyAddress}.`,
     lineCount
-      ? `The proposal includes ${lineCount} recommended item${lineCount === 1 ? "" : "s"} totaling ${money(input.total)}. The main items are: ${issueList}.`
+      ? `The proposal includes ${lineCount} recommended item${lineCount === 1 ? "" : "s"} totaling ${formatUsd(input.total)}. The main items are: ${issueList}.`
       : `No priced work items are currently included in this proposal.`,
     `Please review the attached inspection report and proposal details. If you have questions, reply to the email and ${input.companyName} will walk through the recommendations with you before you decide how to proceed.`,
   ].join("\n\n");
@@ -171,7 +161,7 @@ export async function generateProposalCustomerSummaryBundle(input: ProposalSumma
     section: line.section,
     title: line.title,
     findingAndRecommendation: line.description,
-    proposedAmount: money(line.amount),
+    proposedAmount: formatUsd(line.amount),
   }));
 
   try {
@@ -245,7 +235,7 @@ export async function generateProposalCustomerSummaryBundle(input: ProposalSumma
                   companyName: input.companyName,
                   propertyAddress: input.propertyAddress,
                   reportType: input.reportType,
-                  proposalTotal: money(input.total),
+                  proposalTotal: formatUsd(input.total),
                 }),
                 "",
                 "Raw inspection/proposal data:",
@@ -271,12 +261,4 @@ export async function generateProposalCustomerSummaryBundle(input: ProposalSumma
       reason: error instanceof Error ? error.message : "openai_failed",
     });
   }
-}
-
-export async function generateProposalCustomerSummary(input: ProposalSummaryInput) {
-  const bundle = await generateProposalCustomerSummaryBundle(input);
-  return {
-    text: bundle.summary.text,
-    source: bundle.summary.source,
-  };
 }

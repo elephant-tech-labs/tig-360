@@ -1,8 +1,4 @@
-type ZohoTokenResponse = {
-  access_token?: string;
-  error?: string;
-  error_description?: string;
-};
+import { parseZohoJson, refreshZohoAccessToken } from "@/lib/zoho/oauth";
 
 type ZohoSignResponse = Record<string, unknown>;
 
@@ -26,10 +22,6 @@ export type ZohoSignStatusResult = {
   raw: ZohoSignResponse;
 };
 
-function accountsBase() {
-  return process.env.ZOHO_SIGN_ACCOUNTS_BASE || "https://accounts.zoho.eu";
-}
-
 function apiBase() {
   return (process.env.ZOHO_SIGN_API_BASE || "https://sign.zoho.eu/api/v1").replace(/\/$/, "");
 }
@@ -42,46 +34,23 @@ export function isZohoSignConfigured() {
   );
 }
 
-export async function getZohoSignAccessToken() {
-  const clientId = process.env.ZOHO_SIGN_CLIENT_ID;
-  const clientSecret = process.env.ZOHO_SIGN_CLIENT_SECRET;
-  const refreshToken = process.env.ZOHO_SIGN_REFRESH_TOKEN;
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error("Zoho Sign is not configured.");
-  }
-
-  const response = await fetch(`${accountsBase()}/oauth/v2/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-    }),
+function getZohoSignAccessToken() {
+  return refreshZohoAccessToken({
+    label: "Zoho Sign",
+    failureMessage: "Unable to refresh Zoho Sign access token.",
+    accountsUrl: process.env.ZOHO_SIGN_ACCOUNTS_BASE || "https://accounts.zoho.eu",
+    clientId: process.env.ZOHO_SIGN_CLIENT_ID,
+    clientSecret: process.env.ZOHO_SIGN_CLIENT_SECRET,
+    refreshToken: process.env.ZOHO_SIGN_REFRESH_TOKEN,
   });
-  const result = await response.json() as ZohoTokenResponse;
-  if (!response.ok || !result.access_token) {
-    throw new Error(result.error_description || result.error || "Unable to refresh Zoho Sign access token.");
-  }
-  return result.access_token;
 }
 
 async function parseZohoSignResponse(response: Response, operation: string) {
-  const body = await response.text();
-  try {
-    const parsed = JSON.parse(body) as ZohoSignResponse;
-    if (!response.ok) {
-      throw new Error(zohoMessage(parsed) || `Zoho Sign ${operation} failed with HTTP ${response.status}.`);
-    }
-    return parsed;
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      const contentType = response.headers.get("content-type") || "unknown content type";
-      throw new Error(`Zoho Sign ${operation} returned HTTP ${response.status} (${contentType}) instead of JSON.`);
-    }
-    throw error;
+  const parsed = await parseZohoJson<ZohoSignResponse>(response, `Zoho Sign ${operation}`);
+  if (!response.ok) {
+    throw new Error(zohoMessage(parsed) || `Zoho Sign ${operation} failed with HTTP ${response.status}.`);
   }
+  return parsed;
 }
 
 function zohoMessage(value: unknown): string | null {

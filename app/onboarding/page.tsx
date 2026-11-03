@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { signOut } from "@/app/auth/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { isInvitationExpired } from "@/lib/access";
 
 type OnboardingPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -33,7 +34,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
   const pendingInvitation = invitations?.some(
     (invitation: { invitation_status: string; expires_at: string }) =>
       invitation.invitation_status === "pending" &&
-      Date.parse(invitation.expires_at) > Date.now(),
+      !isInvitationExpired(invitation.expires_at),
   );
   if (pendingInvitation) redirect("/activate");
 
@@ -53,7 +54,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
           <p className="eyebrow">Team access</p>
           <h1>Access not yet activated</h1>
           <p>
-            This email doesn't currently have an active Inspect360 team membership.
+            This email doesn&apos;t currently have an active Inspect360 team membership.
             Ask an administrator to send or resend an invitation.
           </p>
           <form action={signOut}>

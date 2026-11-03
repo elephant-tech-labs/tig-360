@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { RichReportContent } from "@/components/rich-report-content";
 import type { InspectionReportSnapshot, ReportMedia, ReportParty } from "@/lib/reports/types";
+import { formatUsd } from "@/lib/format";
 
 type InspectionReportHtmlProps = {
   snapshot: InspectionReportSnapshot;
@@ -204,7 +205,7 @@ export function InspectionReportHtml({ snapshot, media }: InspectionReportHtmlPr
                 {finding.recommendations.map((recommendation) => (
                   <div className="report-recommendation" key={recommendation.id}>
                     <strong>Recommendation:</strong> {recommendation.description}
-                    {recommendation.estimatedCost !== null ? <span>${recommendation.estimatedCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span> : null}
+                    {recommendation.estimatedCost !== null ? <span>{formatUsd(recommendation.estimatedCost)}</span> : null}
                   </div>
                 ))}
               </div>
