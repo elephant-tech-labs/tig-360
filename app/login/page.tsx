@@ -1,13 +1,20 @@
 import { Building2, CheckCircle2, ClipboardCheck, ShieldCheck } from "lucide-react";
-import { signIn } from "@/app/auth/actions";
+import { requestLoginCode, verifyLoginCode } from "@/app/auth/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 type LoginPageProps = {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{
+    step?: string;
+    email?: string;
+    error?: string;
+    message?: string;
+  }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
+  const isVerifying = params.step === "verify" && Boolean(params.email);
+  const email = params.email ?? "";
 
   return (
     <main className="auth-page">
@@ -34,32 +41,81 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <section className="auth-panel">
         <div className="auth-card">
           <p className="eyebrow">Welcome</p>
-          <h2>Sign in to Inspect360</h2>
-          <p className="auth-intro">Use your work account to continue.</p>
+          <h2>{isVerifying ? "Enter your email code" : "Sign in to Inspect360"}</h2>
+          <p className="auth-intro">
+            {isVerifying
+              ? `Check ${email} for your one-time sign-in code.`
+              : "Enter your authorized work email. No password is required."}
+          </p>
 
-          {params.error ? <div className="form-alert error">{params.error}</div> : null}
+          {params.error ? <div className="form-alert error" role="alert">{params.error}</div> : null}
           {params.message ? (
-            <div className="form-alert success"><CheckCircle2 size={17} /> {params.message}</div>
+            <div className="form-alert success" role="status"><CheckCircle2 size={17} /> {params.message}</div>
           ) : null}
 
-          <form className="form-stack" action={signIn}>
-            <label>
-              Email
-              <input name="email" type="email" autoComplete="email" required />
-            </label>
-            <label>
-              Password
-              <input name="password" type="password" autoComplete="current-password" required />
-            </label>
-            <PendingSubmitButton
-              className="primary-button form-submit"
-              pendingLabel="Signing in"
-            >
-              Sign in
-            </PendingSubmitButton>
-          </form>
+          {isVerifying ? (
+            <>
+              <form className="form-stack" action={verifyLoginCode}>
+                <input name="email" type="hidden" value={email} />
+                <label>
+                  Verification code
+                  <input
+                    name="token"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6,10}"
+                    minLength={6}
+                    maxLength={10}
+                    autoComplete="one-time-code"
+                    placeholder="Enter your code"
+                    autoFocus
+                    required
+                  />
+                </label>
+                <PendingSubmitButton
+                  className="primary-button form-submit"
+                  pendingLabel="Verifying code"
+                >
+                  Verify and sign in
+                </PendingSubmitButton>
+              </form>
+              <form className="form-stack" action={requestLoginCode}>
+                <input name="email" type="hidden" value={email} />
+                <PendingSubmitButton
+                  className="secondary-button form-submit"
+                  pendingLabel="Requesting new code"
+                >
+                  Send another code
+                </PendingSubmitButton>
+              </form>
+              <p className="auth-help"><a href="/login">Use a different email address</a></p>
+            </>
+          ) : (
+            <form className="form-stack" action={requestLoginCode}>
+              <label>
+                Work email
+                <input
+                  name="email"
+                  type="email"
+                  defaultValue={email}
+                  autoComplete="email"
+                  autoFocus
+                  required
+                />
+              </label>
+              <PendingSubmitButton
+                className="primary-button form-submit"
+                pendingLabel="Sending code"
+              >
+                Email me a sign-in code
+              </PendingSubmitButton>
+            </form>
+          )}
 
-          <p className="auth-help">Accounts are created by invitation. Contact your administrator if you need access or a fresh invitation link.</p>
+          <p className="auth-help">
+            Access is limited to active Inspect360 team members.
+            Contact your administrator if you need an invitation.
+          </p>
         </div>
       </section>
     </main>
