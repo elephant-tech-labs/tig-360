@@ -6,24 +6,22 @@ import type { MembershipRole } from "@/lib/access";
 // cache(): the workspace layout and the page share one lookup per request.
 export const getCurrentContext = cache(async () => {
   const supabase = await createClient();
-  // The membership query is scoped by RLS on the session, not by `user`,
-  // so both requests run together instead of back to back.
-  const [
-    {
-      data: { user },
-    },
-    { data: membership, error },
-  ] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase
-      .from("organization_memberships")
-      .select("organization_id, user_id, role, organizations(id, name, slug, timezone)")
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  // RLS lets members read every membership in their organization, so the
+  // lookup must be filtered to the signed-in user to get *their* role.
+  const { data: membership, error } = await supabase
+    .from("organization_memberships")
+    .select("organization_id, user_id, role, organizations(id, name, slug, timezone)")
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+
   if (error) throw new Error(error.message);
   if (!membership) redirect("/onboarding");
 
