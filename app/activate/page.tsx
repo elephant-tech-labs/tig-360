@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { activateAccount } from "./actions";
@@ -25,6 +25,7 @@ export default async function ActivatePage({ searchParams }: ActivatePageProps) 
   const { data: memberships } = await supabase
     .from("organization_memberships")
     .select("organization_id")
+    .eq("user_id", user.id)
     .eq("status", "active")
     .limit(1);
   if (memberships?.length) redirect("/jobs");
@@ -43,15 +44,22 @@ export default async function ActivatePage({ searchParams }: ActivatePageProps) 
           <>
             <p className="activation-intro">
               You were invited as <strong>{roleLabels[invitation.invitation_role] ?? invitation.invitation_role}</strong>.
-              Choose your password to finish activating {invitation.invitation_email}.
+              Confirm your name to activate {invitation.invitation_email}. After activation,
+              you can sign in using a code emailed to you. No password is needed.
             </p>
-            {params.error ? <div className="form-alert error">{params.error}</div> : null}
+            {params.error ? <div className="form-alert error" role="alert">{params.error}</div> : null}
             <form className="form-stack" action={activateAccount}>
-              <label>Full name<input name="fullName" defaultValue={String(user.user_metadata.full_name ?? "")} autoComplete="name" required /></label>
-              <label>Password<input name="password" type="password" minLength={8} autoComplete="new-password" required /></label>
-              <label>Confirm password<input name="confirmPassword" type="password" minLength={8} autoComplete="new-password" required /></label>
+              <label>
+                Full name
+                <input
+                  name="fullName"
+                  defaultValue={String(user.user_metadata.full_name ?? "")}
+                  autoComplete="name"
+                  required
+                />
+              </label>
               <PendingSubmitButton className="primary-button form-submit" pendingLabel="Activating account">
-                <KeyRound size={17} /> Activate account
+                <CheckCircle2 size={17} /> Activate account
               </PendingSubmitButton>
             </form>
           </>

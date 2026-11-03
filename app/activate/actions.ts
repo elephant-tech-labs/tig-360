@@ -9,19 +9,15 @@ function activationUrl(message: string) {
 
 export async function activateAccount(formData: FormData) {
   const fullName = String(formData.get("fullName") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-  const confirmPassword = String(formData.get("confirmPassword") ?? "");
-
   if (!fullName) redirect(activationUrl("Enter your full name."));
-  if (password.length < 8) redirect(activationUrl("Password must be at least 8 characters."));
-  if (password !== confirmPassword) redirect(activationUrl("Passwords do not match."));
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?error=Open a fresh invitation link to continue.");
 
+  // Invitation links establish a verified Supabase session. Account activation
+  // only needs to capture the team member's name: future logins use email OTP.
   const { error: userError } = await supabase.auth.updateUser({
-    password,
     data: { ...user.user_metadata, full_name: fullName },
   });
   if (userError) redirect(activationUrl(userError.message));
