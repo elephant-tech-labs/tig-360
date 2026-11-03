@@ -3,7 +3,7 @@
 ## Objective
 
 Use the same passwordless staff experience as MCC volunteer management: an
-**existing, authorized** Inspect360 team member enters their work email,
+**existing, authorized or invited** Inspect360 team member enters their email,
 receives a one-time code, and signs in.
 
 This replaces the old email/password login form. It does not add public
@@ -15,18 +15,23 @@ or staff invitations.
 1. The request server action normalizes the email and uses a **server-only**
    Supabase service-role client to look up the user's existing profile.
 2. A code is requested **only** if the profile has an active
-   `organization_memberships` row.
+   `organization_memberships` row **or** a valid, unexpired administrator
+   invitation. Invited users may verify their email but cannot access
+   inspection records until they complete `/activate`.
 3. `signInWithOtp({ email, options: { shouldCreateUser: false } })` prevents
    new accounts from being created at login.
 4. Supabase validates the supplied code via
    `verifyOtp({ email, token, type: "email" })`.
 5. The server checks the **verified user ID** against an active membership
-   again before redirecting to `/jobs`. On failure, it signs out.
+   before redirecting to `/jobs`. If the verified identity has a valid pending
+   invite instead, they are sent to `/activate`. Otherwise it signs out.
 6. Existing RLS and role-based navigation continue to govern each user's
    access. A suspended user is not reauthorized by a valid code.
 
-Pending invitations still use the existing administrator invitation flow.
-Invitation activation collects a name, not a password.
+Pending invitations use the administrator invitation workflow. First-time
+Auth users receive an invitation link; existing Auth users receive an
+8-digit code. Invitation activation collects a name, not a password.
+See `docs/auth/staff-invitations.md` for the complete process.
 
 Do not replace these checks with an email-domain allowlist; a matching
 domain is not proof that somebody is authorized.
@@ -120,8 +125,8 @@ select each box individually. The server accepts exactly eight numeric digits.
 
 ## Deployment
 
-This change is isolated on `feature/authorized-email-otp-login`.
-The TIG-360 SMTP and branded email template are expected to be configured
-before production rollout. Verify email delivery and inspect the Vercel build
-before merging. Complete live sign-in tests immediately following deployment; Existing inspection,
+The passwordless login originally shipped in PR #48. The additional staff
+invitation flow and invitation-only database protection are tracked in
+`docs/auth/staff-invitations.md`. Complete a real new-user invitation and
+existing-user OTP acceptance test after release. Existing inspection,
 report, CRM, and document workflows are intentionally unchanged.
