@@ -105,7 +105,7 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
               <form className="team-invite-form" action={inviteTeamMember}>
                 <input name="organizationId" type="hidden" value={organization.id} />
                 <div className="section-heading compact">
-                  <div><h2>Invite office user</h2><span className="section-subtitle">Grant login access without an inspector profile</span></div>
+                  <div><h2>Invite office user</h2><span className="section-subtitle">Administrator-controlled access for managers, office staff and other roles</span></div>
                 </div>
                 <label>Email<input name="inviteEmail" type="email" required /></label>
                 <label>
@@ -120,6 +120,11 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
                 <PendingSubmitButton className="secondary-button" pendingLabel="Sending invitation">
                   <UserPlus size={16} /> Send invitation
                 </PendingSubmitButton>
+                <p className="field-help">
+                  New users receive an invitation link to activate their account.
+                  People who already have a TIG-360 account receive an 8-digit email
+                  code and complete their invitation through the sign-in page.
+                </p>
               </form>
             ) : null}
           </section>
@@ -266,7 +271,9 @@ export default async function InspectorsPage({ searchParams }: InspectorsPagePro
                   </small>
                 </div>
                 <span>{invitation.role.replaceAll("_", " ")}</span>
-                <span className={`invitation-status ${invitation.status}`}>{invitation.status}</span>
+                <span className={`invitation-status ${invitation.status === "pending" && new Date(invitation.expires_at).getTime() <= Date.now() ? "expired" : invitation.status}`}>
+                  {invitation.status === "pending" && new Date(invitation.expires_at).getTime() <= Date.now() ? "expired" : invitation.status}
+                </span>
                 <small>{invitation.send_count} email{invitation.send_count === 1 ? "" : "s"}</small>
                 {["pending", "expired", "failed"].includes(invitation.status) ? (
                   <div className="invitation-actions">
