@@ -85,25 +85,23 @@ export async function verifyLoginCode(formData: FormData) {
 
   // A verified user with no membership can only proceed if an administrator
   // already invited them and the invitation has not expired or been revoked.
+  let pendingInvitation = false;
   try {
     const access = await getTeamEmailAccess(email);
     if (access.kind === "invited" && access.userId === user.id) {
       const { data: invitations, error: invitationError } =
         await supabase.rpc("get_current_invitation");
-      const pendingInvitation = !invitationError && invitations?.some(
+      pendingInvitation = Boolean(!invitationError && invitations?.some(
         (invitation: { invitation_status: string; expires_at: string }) =>
           invitation.invitation_status === "pending" &&
           Date.parse(invitation.expires_at) > Date.now(),
-      );
-      if (pendingInvitation) redirect("/activate");
+      ));
     }
-  } catch (error) {
-    // Next.js redirect throws a special response control error, which must
-    // never be swallowed by our authorization error handler.
-    if (error && typeof error === "object" && "digest" in error &&
-        String(error.digest).startsWith("NEXT_REDIRECT")) throw error;
+  } catch {
     console.error("Inspect360 pending invitation verification failed");
   }
+
+  if (pendingInvitation) redirect("/activate");
 
   await supabase.auth.signOut();
   redirect(loginUrl("This account is not authorized. Contact your administrator."));
